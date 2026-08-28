@@ -38,14 +38,16 @@ describe('registre de commandes', () => {
 
   it('devrait rejeter une commande sans data.name', () => {
     const { commands } = createRegistries();
-    // @ts-ignore - testing invalid input
-    expect(() => commands.add('a', { execute: noop })).toThrow(PluginError);
+    /** @type {any} */
+    const invalidCmd = { execute: noop };
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
   });
 
   it('devrait rejeter une commande sans execute', () => {
     const { commands } = createRegistries();
-    // @ts-ignore - testing invalid input
-    expect(() => commands.add('a', { data: { name: 'x' } })).toThrow(PluginError);
+    /** @type {any} */
+    const invalidCmd = { data: { name: 'x' } };
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
   });
 });
 
@@ -71,8 +73,21 @@ describe("registre d'events", () => {
 
   it("devrait rejeter un handler qui n'est pas une fonction", () => {
     const { events } = createRegistries();
-    // @ts-ignore - testing invalid input
-    expect(() => events.add('a', 'ready', 'pas une fonction')).toThrow(PluginError);
+    /** @type {any} */
+    const invalidHandler = 'pas une fonction';
+    expect(() => events.add('a', 'ready', invalidHandler)).toThrow(PluginError);
+  });
+
+  it('devrait retourner une copie pour éviter les mutations du registre', () => {
+    const { events } = createRegistries();
+    const handler1 = () => {};
+    const handler2 = () => {};
+    events.add('a', 'messageCreate', handler1);
+    const handlers = events.handlersFor('messageCreate');
+    expect(handlers).toHaveLength(1);
+    handlers.push({ plugin: 'malicious', handler: handler2 });
+    const handlersAfter = events.handlersFor('messageCreate');
+    expect(handlersAfter).toHaveLength(1);
   });
 });
 

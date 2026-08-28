@@ -32,7 +32,7 @@ export const createEventRegistry = () => {
      * @returns {Array<{ plugin: string, handler: Function }>}
      */
     handlersFor(eventName) {
-      return entries.get(eventName) ?? [];
+      return [...(entries.get(eventName) ?? [])];
     },
   };
 };
