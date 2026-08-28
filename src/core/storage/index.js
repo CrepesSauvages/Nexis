@@ -1,8 +1,10 @@
 import { ConfigError } from '../errors.js';
 import { createJsonDriver } from './drivers/json.js';
+import { createSqliteDriver } from './drivers/sqlite.js';
 
 const FACTORIES = {
   json: createJsonDriver,
+  sqlite: createSqliteDriver,
 };
 
 /**
