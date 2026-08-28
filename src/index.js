@@ -78,6 +78,12 @@ export const bootstrap = async ({
   /** @type {import('./core/loader.js').LoadedPlugin[]} */
   const active = [];
   const clientRef = { current: /** @type {import('discord.js').Client | null} */ (null) };
+  // ctx.client pendant setup() n'accepte qu'un seul usage : le mémoriser tel
+  // quel (`const client = ctx.client`) pour s'en servir plus tard. Lire une
+  // de ses propriétés pendant setup() capture `undefined` pour toujours (le
+  // vrai client n'existe pas encore) ; y appeler une méthode de façon
+  // synchrone pendant setup() lève un TypeError, silencieusement absorbé par
+  // le try/catch ci-dessous — le plugin est alors exclu sans autre symptôme.
   const clientProxy = new Proxy(
     {},
     {
@@ -88,7 +94,7 @@ export const bootstrap = async ({
   for (const plugin of plugins) {
     const context = createContext({
       plugin,
-      client: /** @type {never} */ (clientProxy),
+      client: /** @type {import('discord.js').Client} */ (/** @type {unknown} */ (clientProxy)),
       storage,
       logger,
       registries,

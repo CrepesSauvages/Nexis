@@ -9,6 +9,10 @@ import { bootstrap } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, 'fixtures', 'plugins');
+// Répertoire dédié, séparé de `fixtures` : `throws-in-setup` a un manifeste
+// valide et serait donc chargé par loader.test.js et par les assertions
+// exactes ['alpha', 'beta'] de ce fichier s'il vivait dans `fixtures`.
+const setupThrowsFixtures = join(here, 'fixtures', 'plugins-setup-throws');
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 class FakeClient extends EventEmitter {
@@ -150,5 +154,25 @@ describe('boot complet — comportement', () => {
     await booted.shutdown();
     app = undefined;
     expect(booted.client.destroy).toHaveBeenCalledOnce();
+  });
+});
+
+describe('setup() qui lève — seconde ligne de défense', () => {
+  it('devrait exclure un plugin dont le setup() lève, sans faire échouer le boot', async () => {
+    // `throws-in-setup` a un manifeste valide (le loader le charge donc),
+    // mais son setup() lève de façon synchrone à l'appel — un chemin
+    // différent de `throws`, qui échoue dès l'import et n'atteint jamais
+    // bootstrap(). C'est le try/catch de bootstrap() qui doit l'écarter.
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { plugins, contexts } = await boot({ PLUGINS_DIR: setupThrowsFixtures });
+    // `mockRestore()` efface l'historique des appels : on lit `mock.calls`
+    // avant de restaurer, pas après.
+    const logged = logSpy.mock.calls.some(([line]) => String(line).includes('throws-in-setup'));
+    logSpy.mockRestore();
+
+    expect(contexts.get('throws-in-setup')).toBeUndefined();
+    // Le plugin voisin, valide, démarre toujours malgré l'échec de l'autre.
+    expect(plugins.map((p) => p.name)).toEqual(['ok']);
+    expect(logged).toBe(true);
   });
 });
