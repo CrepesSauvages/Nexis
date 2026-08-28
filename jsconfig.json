@@ -11,6 +11,6 @@
     "types": ["node"],
     "maxNodeModuleJsDepth": 0
   },
-  "include": ["src/**/*.js", "plugins/**/*.js"],
+  "include": ["src/**/*.js", "plugins/**/*.js", "tests/**/*.js"],
   "exclude": ["node_modules"]
 }

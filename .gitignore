@@ -4,3 +4,4 @@ logs
 coverage
 dist
 .env
+data
