@@ -8,22 +8,28 @@
     "multi"
   ],
   "license": "ISC",
+  "type": "module",
   "author": "Crepes_Sauvages",
-  "type": "commonjs",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "lint": "eslint src --fix",
     "format": "prettier --write src",
     "test": "vitest run",
+    "check-types": "tsc --noEmit -p jsconfig.json",
     "deploy-commands": "node src/deploy-commands.js",
     "release": "release-it",
     "prepare": "husky"
   },
   "lint-staged": {
-    "src/**/*.js": ["eslint --fix", "prettier --write"],
-    "*.{json,md}": ["prettier --write"]
+    "{src,plugins,tests}/**/*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -37,9 +43,11 @@
     "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
     "release-it": "^21.0.2",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "croner": "^9.0.0",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2"
   }

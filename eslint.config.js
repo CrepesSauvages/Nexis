@@ -1,14 +1,14 @@
-const js = require('@eslint/js');
-const globals = require('globals');
-const prettier = require('eslint-config-prettier');
+import js from '@eslint/js';
+import globals from 'globals';
+import prettier from 'eslint-config-prettier';
 
-module.exports = [
+export default [
   js.configs.recommended,
   {
-    files: ['src/**/*.js'],
+    files: ['src/**/*.js', 'plugins/**/*.js', 'tests/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
-      sourceType: 'commonjs',
+      sourceType: 'module',
       globals: { ...globals.node },
     },
     rules: {
