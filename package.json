@@ -21,6 +21,10 @@
     "release": "release-it",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "src/**/*.js": ["eslint --fix", "prettier --write"],
+    "*.{json,md}": ["prettier --write"]
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@release-it/conventional-changelog": "^12.0.0",
