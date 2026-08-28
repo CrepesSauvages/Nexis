@@ -12,6 +12,7 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {string} logLevel
  * @property {{ driver: string, path: string }} storage
  * @property {string} pluginsDir
+ * @property {string | undefined} ownerId
  */
 
 /**
@@ -68,5 +69,6 @@ export const loadConfig = (env = process.env) => {
     logLevel,
     storage: { driver, path: storagePath },
     pluginsDir,
+    ownerId: env.OWNER_ID,
   };
 };

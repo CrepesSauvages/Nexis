@@ -47,4 +47,12 @@ describe('loadConfig', () => {
     const config = loadConfig({ ...validEnv, STORAGE_PATH: '/tmp/x.json' });
     expect(config.storage.path).toBe('/tmp/x.json');
   });
+
+  it('devrait exposer ownerId quand la variable est fournie', () => {
+    expect(loadConfig({ ...validEnv, OWNER_ID: '77' }).ownerId).toBe('77');
+  });
+
+  it('devrait laisser ownerId indéfini par défaut', () => {
+    expect(loadConfig(validEnv).ownerId).toBeUndefined();
+  });
 });
