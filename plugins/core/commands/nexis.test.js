@@ -1,0 +1,201 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createJsonDriver } from '../../../src/core/storage/drivers/json.js';
+import { createGuildConfig } from '../../../src/core/guild-config.js';
+import { buildNexisCommand } from './nexis.js';
+
+/**
+ * @param {string} name
+ * @param {Record<string, unknown>} [manifest]
+ * @returns {import('../../../src/core/loader.js').LoadedPlugin}
+ */
+const makePlugin = (name, manifest = {}) => ({
+  name,
+  manifest: /** @type {import('../../../src/core/manifest.js').PluginManifest} */ ({
+    name,
+    version: '1.0.0',
+    description: `plugin ${name}`,
+    ...manifest,
+  }),
+  setup: () => {},
+  dir: `/fake/${name}`,
+});
+
+/**
+ * @param {string} subcommand
+ * @param {string} [pluginName]
+ */
+const makeInteraction = (subcommand, pluginName) => ({
+  guildId: 'g1',
+  reply: vi.fn(),
+  options: {
+    getSubcommand: () => subcommand,
+    getString: () => pluginName,
+  },
+});
+
+/**
+ * @param {ReturnType<typeof makeInteraction>} interaction
+ * @returns {string}
+ */
+const replyText = (interaction) => {
+  const payload = interaction.reply.mock.calls[0][0];
+  return typeof payload === 'string' ? payload : payload.content;
+};
+
+/** @type {string} */
+let dir;
+/** @type {import('../../../src/core/storage/driver.js').StorageDriver} */
+let storage;
+/** @type {ReturnType<typeof createGuildConfig>} */
+let guildConfig;
+/** @type {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> } }} */
+let core;
+/** @type {ReturnType<typeof buildNexisCommand>} */
+let command;
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'nexis-core-'));
+  storage = createJsonDriver({ path: join(dir, 's.json') });
+  await storage.init();
+  guildConfig = createGuildConfig({ storage });
+  core = {
+    plugins: [makePlugin('welcome'), makePlugin('economy')],
+    guildConfig,
+    commandSync: { syncGuild: vi.fn().mockResolvedValue(undefined) },
+  };
+  command = buildNexisCommand(core);
+});
+
+afterEach(async () => {
+  await storage.close();
+  await rm(dir, { recursive: true, force: true });
+});
+
+describe('/nexis', () => {
+  it('devrait exiger la permission guild-admin', () => {
+    expect(command.permissions).toBe('guild-admin');
+  });
+
+  it('devrait se nommer nexis', () => {
+    expect(command.data.name).toBe('nexis');
+  });
+});
+
+describe('/nexis list', () => {
+  it('devrait lister tous les plugins disponibles', async () => {
+    const interaction = makeInteraction('list');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('welcome');
+    expect(replyText(interaction)).toContain('economy');
+  });
+
+  it('devrait distinguer les plugins activés', async () => {
+    await guildConfig.enable('g1', 'welcome');
+    const interaction = makeInteraction('list');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+    expect(text).toMatch(/welcome/);
+    expect(text).toContain('✅');
+    expect(text).toContain('◻️');
+  });
+});
+
+describe('/nexis enable', () => {
+  it('devrait activer le plugin demandé', async () => {
+    await command.execute(makeInteraction('enable', 'welcome'));
+    expect(await guildConfig.isEnabled('g1', 'welcome')).toBe(true);
+  });
+
+  it('devrait resynchroniser les commandes de la guild', async () => {
+    await command.execute(makeInteraction('enable', 'welcome'));
+    expect(core.commandSync.syncGuild).toHaveBeenCalledWith('g1');
+  });
+
+  it('devrait refuser un plugin inexistant', async () => {
+    const interaction = makeInteraction('enable', 'fantôme');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toMatch(/introuvable|inconnu/i);
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
+
+  it('devrait signaler un plugin déjà activé', async () => {
+    await guildConfig.enable('g1', 'welcome');
+    const interaction = makeInteraction('enable', 'welcome');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toMatch(/déjà/i);
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
+
+  it("devrait refuser si une dépendance n'est pas activée", async () => {
+    core.plugins.push(makePlugin('shop', { dependsOn: ['economy'] }));
+    const interaction = makeInteraction('enable', 'shop');
+    await command.execute(interaction);
+
+    expect(await guildConfig.isEnabled('g1', 'shop')).toBe(false);
+    expect(replyText(interaction)).toContain('economy');
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
+
+  it('devrait accepter si la dépendance est activée', async () => {
+    core.plugins.push(makePlugin('shop', { dependsOn: ['economy'] }));
+    await guildConfig.enable('g1', 'economy');
+    await command.execute(makeInteraction('enable', 'shop'));
+
+    expect(await guildConfig.isEnabled('g1', 'shop')).toBe(true);
+  });
+});
+
+describe('/nexis disable', () => {
+  it('devrait désactiver le plugin demandé', async () => {
+    await guildConfig.enable('g1', 'welcome');
+    await command.execute(makeInteraction('disable', 'welcome'));
+    expect(await guildConfig.isEnabled('g1', 'welcome')).toBe(false);
+  });
+
+  it('devrait resynchroniser les commandes', async () => {
+    await guildConfig.enable('g1', 'welcome');
+    await command.execute(makeInteraction('disable', 'welcome'));
+    expect(core.commandSync.syncGuild).toHaveBeenCalledWith('g1');
+  });
+
+  it('devrait refuser si un plugin activé en dépend', async () => {
+    core.plugins.push(makePlugin('shop', { dependsOn: ['economy'] }));
+    await guildConfig.enable('g1', 'economy');
+    await guildConfig.enable('g1', 'shop');
+
+    const interaction = makeInteraction('disable', 'economy');
+    await command.execute(interaction);
+
+    expect(await guildConfig.isEnabled('g1', 'economy')).toBe(true);
+    expect(replyText(interaction)).toContain('shop');
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
+});
+
+describe('/nexis info', () => {
+  it('devrait afficher version et description', async () => {
+    const interaction = makeInteraction('info', 'welcome');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('1.0.0');
+    expect(replyText(interaction)).toContain('plugin welcome');
+  });
+
+  it('devrait afficher le schéma de configuration', async () => {
+    core.plugins.push(
+      makePlugin('greet', { config: { msg: { type: 'string', label: 'Message', default: 'Yo' } } }),
+    );
+    const interaction = makeInteraction('info', 'greet');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('Message');
+    expect(replyText(interaction)).toContain('Yo');
+  });
+
+  it('devrait refuser un plugin inexistant', async () => {
+    const interaction = makeInteraction('info', 'fantôme');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toMatch(/introuvable|inconnu/i);
+  });
+});
