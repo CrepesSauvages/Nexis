@@ -1,6 +1,19 @@
 import { Routes } from 'discord.js';
 
 /**
+ * @typedef {object} CommandDataWithJSON
+ * @property {string} name
+ * @property {() => unknown} [toJSON]
+ */
+
+/**
+ * @typedef {object} CommandDefWithJSON
+ * @property {CommandDataWithJSON} data
+ * @property {(interaction: unknown, ctx: unknown) => Promise<void> | void} execute
+ * @property {'guild-admin' | 'owner'} [permissions]
+ */
+
+/**
  * Pousse les slash commands vers Discord.
  *
  * Les commandes des plugins sont enregistrées **par serveur** : un membre
@@ -28,7 +41,7 @@ export const createCommandSync = ({
   alwaysEnabled = [],
 }) => {
   /**
-   * @param {Array<{ plugin: string; command: any }>} entries
+   * @param {Array<{ plugin: string, command: CommandDefWithJSON }>} entries
    * @returns {unknown[]}
    */
   const toJSON = (entries) =>

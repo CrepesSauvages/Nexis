@@ -20,11 +20,11 @@ const command = (name) => ({
 
 /** @type {string} */
 let dir;
-/** @type {any} */
+/** @type {import('./storage/driver.js').StorageDriver} */
 let storage;
-/** @type {any} */
+/** @type {import('./registry/index.js').Registries} */
 let registries;
-/** @type {any} */
+/** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
 /** @type {{ put: any }} */
 let rest;
