@@ -1,6 +1,6 @@
 {
   "name": "nexis",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Nexis a bot discord, fully customisable in Js",
   "keywords": [
     "discord",
@@ -37,6 +37,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@release-it/conventional-changelog": "^12.0.0",
+    "@sentry/node": "^8.0.0",
     "@types/node": "^26.4.0",
     "@types/pg": "^8.23.1",
     "eslint": "^10.9.1",
