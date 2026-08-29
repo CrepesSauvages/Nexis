@@ -26,9 +26,11 @@ const makePlugin = (name, manifest = {}) => ({
 /**
  * @param {string} subcommand
  * @param {string} [pluginName]
+ * @param {string} [userId]
  */
-const makeInteraction = (subcommand, pluginName) => ({
+const makeInteraction = (subcommand, pluginName, userId = 'owner-123') => ({
   guildId: 'g1',
+  user: { id: userId },
   reply: vi.fn(),
   options: {
     getSubcommand: () => subcommand,
@@ -51,7 +53,7 @@ let dir;
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} */
+/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: import('vitest').Mock<(count?: number) => Promise<import('../../../../src/core/reporting/driver.js').ReportEntry[]>> } }} */
 let core;
 /** @type {ReturnType<typeof buildNexisCommand>} */
 let command;
@@ -66,6 +68,8 @@ beforeEach(async () => {
     guildConfig,
     commandSync: { syncGuild: vi.fn().mockResolvedValue(undefined) },
     alwaysEnabled: [],
+    ownerId: 'owner-123',
+    errorReporting: { getRecent: vi.fn().mockResolvedValue([]) },
   };
   command = buildNexisCommand(core);
 });
@@ -228,5 +232,52 @@ describe('/nexis info', () => {
     const interaction = makeInteraction('info', 'fantôme');
     await command.execute(interaction);
     expect(replyText(interaction)).toMatch(/introuvable|inconnu/i);
+  });
+});
+
+describe('/nexis errors', () => {
+  it('devrait refuser un utilisateur non-owner', async () => {
+    const interaction = makeInteraction('errors', undefined, 'quelqu-un-d-autre');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toMatch(/réservée|propriétaire/i);
+    expect(core.errorReporting.getRecent).not.toHaveBeenCalled();
+  });
+
+  it('devrait afficher un message quand le buffer est vide', async () => {
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toMatch(/aucune erreur/i);
+  });
+
+  it('devrait lister les erreurs récentes', async () => {
+    core.errorReporting.getRecent.mockResolvedValue([
+      {
+        id: 'abc12345',
+        timestamp: '2026-01-01T10:00:00.000Z',
+        level: 'error',
+        message: 'quelque chose a cassé',
+        context: { plugin: 'welcome' },
+      },
+    ]);
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+    expect(text).toContain('abc12345');
+    expect(text).toContain('quelque chose a cassé');
+  });
+
+  it('devrait tronquer un message long pour rester sous la limite Discord', async () => {
+    core.errorReporting.getRecent.mockResolvedValue([
+      {
+        id: 'abc12345',
+        timestamp: '2026-01-01T10:00:00.000Z',
+        level: 'error',
+        message: 'x'.repeat(3000),
+        context: {},
+      },
+    ]);
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    await command.execute(interaction);
+    expect(replyText(interaction).length).toBeLessThan(2000);
   });
 });

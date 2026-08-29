@@ -29,6 +29,9 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option.setName('plugin').setDescription('Nom du plugin').setRequired(true),
       ),
+  )
+  .addSubcommand((sub) =>
+    sub.setName('errors').setDescription('Erreurs récentes (propriétaire uniquement)'),
   );
 
 /**
@@ -49,7 +52,7 @@ const reply = (interaction, content) => interaction.reply({ content, ...EPHEMERA
  * L'appelant (`plugins/core/index.js`) fait le cast vers `CommandDef`
  * uniquement au point où `registerCommand` l'exige.
  *
- * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} core
+ * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> } }} core
  */
 export const buildNexisCommand = (core) => {
   /** @param {string} name */
@@ -196,6 +199,38 @@ export const buildNexisCommand = (core) => {
     await reply(interaction, parts.join('\n'));
   };
 
+  /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
+  const errorsCmd = async (interaction) => {
+    if (interaction.user.id !== core.ownerId) {
+      await reply(interaction, 'Cette commande est réservée au propriétaire du bot.');
+      return;
+    }
+
+    const entries = await core.errorReporting.getRecent(10);
+    if (!entries.length) {
+      await reply(interaction, 'Aucune erreur récente.');
+      return;
+    }
+
+    const lines = entries.map((entry) => {
+      const context =
+        entry.context && Object.keys(entry.context).length
+          ? ` ${JSON.stringify(entry.context)}`
+          : '';
+      return `\`${entry.id}\` ${entry.timestamp} — ${entry.message}${context}`;
+    });
+
+    // Garde-fou dur : une réponse Discord est plafonnée à 2000 caractères.
+    // Tronque ligne par ligne plutôt que de risquer un échec de reply().
+    const MAX_LENGTH = 1900;
+    let body = `**Erreurs récentes**\n${lines.join('\n')}`;
+    if (body.length > MAX_LENGTH) {
+      body = `${body.slice(0, MAX_LENGTH)}…`;
+    }
+
+    await reply(interaction, body);
+  };
+
   return {
     data,
     permissions: 'guild-admin',
@@ -204,6 +239,7 @@ export const buildNexisCommand = (core) => {
       const typed = /** @type {import('discord.js').ChatInputCommandInteraction} */ (interaction);
       const subcommand = typed.options.getSubcommand();
       if (subcommand === 'list') return list(typed);
+      if (subcommand === 'errors') return errorsCmd(typed);
       const name = /** @type {string} */ (typed.options.getString('plugin'));
       if (subcommand === 'enable') return enable(typed, name);
       if (subcommand === 'disable') return disable(typed, name);
