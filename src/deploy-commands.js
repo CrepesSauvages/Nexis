@@ -1,4 +1,5 @@
 import { config as loadDotenv } from 'dotenv';
+import { pathToFileURL } from 'node:url';
 import { bootstrap } from './index.js';
 
 /**
@@ -37,7 +38,9 @@ export const deployCommands = async ({ env = process.env, restFactory } = {}) =>
 };
 
 // Ne déploie les commandes que si ce fichier est le point d'entrée du processus.
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+// `pathToFileURL` gère correctement les caractères spéciaux (#, ?) d'un
+// chemin, contrairement à une concaténation manuelle en `file://${...}`.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   loadDotenv();
   deployCommands().catch((error) => {
     console.error(`Déploiement impossible : ${error.message}`);

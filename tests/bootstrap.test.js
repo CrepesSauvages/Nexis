@@ -96,9 +96,7 @@ describe('bootstrap', () => {
 
   it('devrait charger les déclarations par convention de dossiers', async () => {
     const { registries } = await boot();
-    // `get()` est typé `object | undefined` côté registre : le cast local
-    // évite d'élargir ce typage partagé pour une seule assertion de test.
-    const ping = /** @type {{ plugin: string } | undefined} */ (registries.commands.get('ping'));
+    const ping = registries.commands.get('ping');
     expect(ping?.plugin).toBe('epsilon');
     expect(registries.jobs.all().some((job) => job.plugin === 'epsilon')).toBe(true);
   });

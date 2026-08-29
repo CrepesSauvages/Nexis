@@ -19,11 +19,21 @@ const fixtures = join(here, 'fixtures', 'client-proxy-plugins');
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 class FakeClient extends EventEmitter {
+  // Champ privé : y accéder avec un `this` qui n'est pas la vraie instance
+  // (ex. le proxy client, non lié) lève un TypeError — exactement le genre
+  // de piège qu'un vrai discord.js `Client` peut présenter en interne.
+  #secret = 'real-client-secret';
+
   constructor() {
     super();
     this.guilds = { cache: new Map() };
     this.login = vi.fn().mockResolvedValue('ok');
     this.destroy = vi.fn().mockResolvedValue(undefined);
+  }
+
+  /** @returns {string} */
+  revealSecret() {
+    return this.#secret;
   }
 }
 
@@ -104,8 +114,23 @@ describe('ctx.client pendant setup() — le proxy client', () => {
     const logged = logSpy.mock.calls.some(([line]) => String(line).includes('client-eager'));
     logSpy.mockRestore();
 
-    expect(plugins.map((p) => p.name)).toEqual(['client-later']);
+    expect(plugins.map((p) => p.name).sort()).toEqual(['client-later', 'client-later-method']);
     expect(contexts.get('client-eager')).toBeUndefined();
     expect(logged).toBe(true);
+  });
+
+  it("devrait lier (bind) une méthode du client mémorisé pendant setup() à l'instance réelle", async () => {
+    // Preuve du correctif du proxy : sans `.bind(clientRef.current)` dans
+    // le get trap, `this` vaudrait le proxy au moment de l'appel différé,
+    // et `revealSecret()` planterait sur son champ privé (accessible
+    // seulement depuis la vraie instance de FakeClient).
+    const { client, guildConfig, storage } = await boot();
+    addGuild(client, 'g1');
+    await guildConfig.enable('g1', 'client-later-method');
+
+    emit(client, 'guildMemberAdd', { guildId: 'g1' });
+    await flush();
+
+    expect(await storage.get('plugin:client-later-method:secret')).toBe('real-client-secret');
   });
 });

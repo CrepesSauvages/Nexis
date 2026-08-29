@@ -1,6 +1,6 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { guildIdOf } from './intents.js';
-import { newErrorId } from './errors.js';
+import { newErrorId, errorMessage, errorStack } from './errors.js';
 
 const EPHEMERAL = { flags: 64 };
 
@@ -110,29 +110,54 @@ export const attachCommandDispatcher = ({
   };
 
   /**
+   * Répond à l'interaction sans jamais laisser une erreur de réponse
+   * (token expiré, interaction déjà acquittée...) devenir un rejet non
+   * intercepté : `client.on('interactionCreate', ...)` n'est jamais awaité
+   * par discord.js, et un rejet non capturé y tue le process depuis Node 15.
    * @param {import('discord.js').ChatInputCommandInteraction} interaction
    * @param {string} content
-   * @returns {Promise<unknown>}
+   * @returns {Promise<void>}
    */
-  const respond = (interaction, content) => {
-    const payload = { content, ...EPHEMERAL };
-    return interaction.replied || interaction.deferred
-      ? interaction.followUp(payload)
-      : interaction.reply(payload);
+  const respond = async (interaction, content) => {
+    try {
+      const payload = { content, ...EPHEMERAL };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    } catch (error) {
+      logger.warn(`Réponse à l'interaction impossible : ${errorMessage(error)}`, {
+        command: interaction.commandName,
+        guildId: interaction.guildId,
+      });
+    }
   };
 
   client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    const raw = registries.commands.get(interaction.commandName);
-    if (!raw) {
+    const entry = registries.commands.get(interaction.commandName);
+    if (!entry) {
       await respond(interaction, "Cette commande n'existe plus. Elle a peut-être été désactivée.");
       return;
     }
-    const entry =
-      /** @type {{ plugin: string, command: import('./registry/commands.js').CommandDef }} */ (raw);
 
-    if (!(await isActive(entry.plugin, interaction.guildId))) {
+    // La vérification d'activation a sa propre défense : une erreur de
+    // storage ici ne doit ni planter le process (rejet non capturé), ni
+    // laisser passer la commande — on ferme (fail closed), pas l'inverse.
+    let active = false;
+    try {
+      active = await isActive(entry.plugin, interaction.guildId);
+    } catch (error) {
+      logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
+        plugin: entry.plugin,
+        command: interaction.commandName,
+        guildId: interaction.guildId,
+        stack: errorStack(error),
+      });
+    }
+    if (!active) {
       await respond(interaction, `Le plugin \`${entry.plugin}\` n'est pas activé sur ce serveur.`);
       return;
     }
@@ -157,15 +182,3 @@ export const attachCommandDispatcher = ({
     }
   });
 };
-
-/**
- * @param {unknown} error
- * @returns {string}
- */
-const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
-
-/**
- * @param {unknown} error
- * @returns {string | undefined}
- */
-const errorStack = (error) => (error instanceof Error ? error.stack : undefined);

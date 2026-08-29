@@ -16,7 +16,12 @@ export const manifest = {
     announce: {
       type: 'boolean',
       label: 'Envoyer un message privé aux nouveaux membres',
-      default: false,
+      // `true` par défaut : sans écriture de config possible côté serveur
+      // (voir docs/PLUGINS.md), un défaut à `false` rendrait cette
+      // démonstration de config-gated behavior morte sur toute install
+      // réelle. `GuildMembers` est déjà requis par l'event guildMemberAdd
+      // lui-même, indépendamment de la valeur de ce champ.
+      default: true,
     },
   },
 };

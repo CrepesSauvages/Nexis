@@ -12,7 +12,7 @@ export const manifest = {
  */
 export const setup = (ctx) => {
   const core =
-    /** @type {{ plugins: import('../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> } }} */ (
+    /** @type {{ plugins: import('../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} */ (
       ctx.core
     );
   const command = /** @type {import('../../src/core/registry/commands.js').CommandDef} */ (

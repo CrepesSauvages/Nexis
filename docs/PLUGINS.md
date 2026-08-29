@@ -31,6 +31,8 @@ export const manifest = {
 
 Chaque entrée exige un `label` — il sera affiché dans le dashboard. `required` et `default` sont mutuellement exclusifs : une valeur par défaut rend le champ non requis par définition.
 
+**À ce jour, une valeur de configuration ne peut être que celle du `default` déclaré dans le manifeste** — il n'existe encore aucun moyen pour un administrateur de serveur de la modifier (`/nexis config` viendra avec le dashboard, pas avant). Un champ `required: true` sans `default` est donc, pour l'instant, impossible à satisfaire : préférez systématiquement donner un `default` sensé à chaque champ plutôt que de le marquer `required` sans en fournir un.
+
 ## setup(ctx)
 
 Appelée une fois au démarrage. Le contexte est la seule surface d'API du core.
@@ -50,10 +52,12 @@ export const setup = (ctx) => {
 
 | Propriété             | Description                                                                                           |
 | --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ctx.client`          | Le client discord.js.                                                                                 |
+| `ctx.client`          | Le client discord.js. Voir la contrainte ci-dessous.                                                  |
 | `ctx.logger`          | Logger préfixé `[plugin:mon-plugin]`. Méthodes `debug`, `info`, `warn`, `error`.                      |
 | `ctx.storage`         | Clé/valeur, isolé au plugin. `get`, `set`, `delete`, `keys`.                                          |
 | `ctx.config(guildId)` | Configuration résolue pour un serveur : défauts du manifeste fusionnés avec les valeurs enregistrées. |
+
+**Contrainte sur `ctx.client` pendant `setup()` :** le client discord.js réel n'existe pas encore à ce stade (`setup()` s'exécute avant sa création). `ctx.client` n'accepte donc qu'un seul usage synchrone pendant `setup()` : le mémoriser tel quel (`const client = ctx.client`) pour vous en servir plus tard, dans un handler par exemple. Lire une de ses propriétés ou appeler une de ses méthodes **de façon synchrone pendant `setup()`** ne fonctionne pas — une lecture de propriété capture `undefined` pour toujours, et un appel de méthode lève une erreur qui exclut silencieusement le plugin du démarrage.
 
 ## Commandes
 

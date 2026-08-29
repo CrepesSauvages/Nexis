@@ -15,17 +15,19 @@ npm run dev
 
 Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis enable example` pour en activer un.
 
+> Le plugin `example` livré écoute `guildMemberAdd`, ce qui exige l'intent **privilégié** `GuildMembers`. Activez-le manuellement dans le [Discord Developer Portal](https://discord.com/developers/applications) (onglet Bot → Privileged Gateway Intents), sinon le bot échoue à se connecter avec une erreur `DisallowedIntents`.
+
 ## Configuration
 
-| Variable            | Défaut          | Rôle                                     |
-| ------------------- | --------------- | ---------------------------------------- |
-| `DISCORD_TOKEN`     | —               | Requis. Token du bot.                    |
-| `DISCORD_CLIENT_ID` | —               | Requis. Identifiant de l'application.    |
-| `OWNER_ID`          | —               | Autorise les commandes marquées `owner`. |
-| `LOG_LEVEL`         | `info`          | `debug`, `info`, `warn`, `error`.        |
-| `STORAGE_DRIVER`    | `json`          | `json` ou `sqlite`.                      |
-| `STORAGE_PATH`      | selon le driver | Emplacement des données.                 |
-| `PLUGINS_DIR`       | `./plugins`     | Répertoire scanné au démarrage.          |
+| Variable            | Défaut          | Rôle                                                                                                                        |
+| ------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `DISCORD_TOKEN`     | —               | Requis. Token du bot.                                                                                                       |
+| `DISCORD_CLIENT_ID` | —               | Requis. Identifiant de l'application.                                                                                       |
+| `OWNER_ID`          | —               | Autorise les commandes marquées `owner`.                                                                                    |
+| `LOG_LEVEL`         | `info`          | `debug`, `info`, `warn`, `error`.                                                                                           |
+| `STORAGE_DRIVER`    | `json`          | `json` ou `sqlite`. `json` fonctionne sur tout Node 22+ ; `sqlite` nécessite une version de Node avec `node:sqlite` stable. |
+| `STORAGE_PATH`      | selon le driver | Emplacement des données.                                                                                                    |
+| `PLUGINS_DIR`       | `./plugins`     | Répertoire scanné au démarrage.                                                                                             |
 
 ## Écrire un plugin
 

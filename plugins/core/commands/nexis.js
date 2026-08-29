@@ -49,17 +49,32 @@ const reply = (interaction, content) => interaction.reply({ content, ...EPHEMERA
  * L'appelant (`plugins/core/index.js`) fait le cast vers `CommandDef`
  * uniquement au point où `registerCommand` l'exige.
  *
- * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> } }} core
+ * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} core
  */
 export const buildNexisCommand = (core) => {
   /** @param {string} name */
   const find = (name) => core.plugins.find((plugin) => plugin.name === name);
 
+  /**
+   * `core` (celui de `/nexis` lui-même) n'est jamais présent dans la liste
+   * stockée des plugins activés par serveur : il est actif inconditionnellement
+   * via `alwaysEnabled`. Le confondre avec un plugin normal le ferait
+   * apparaître comme désactivé, et `enable`/`disable` deviendraient des
+   * no-op silencieux avec une fausse confirmation.
+   * @param {string} name
+   * @returns {boolean}
+   */
+  const isAlwaysEnabled = (name) => core.alwaysEnabled.includes(name);
+
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   const list = async (interaction) => {
     const enabled = await core.guildConfig.enabledPlugins(interaction.guildId ?? '');
     const lines = core.plugins.map((plugin) => {
-      const mark = enabled.includes(plugin.name) ? '✅' : '◻️';
+      const mark = isAlwaysEnabled(plugin.name)
+        ? '✅ (toujours actif)'
+        : enabled.includes(plugin.name)
+          ? '✅'
+          : '◻️';
       return `${mark} **${plugin.name}** \`${plugin.manifest.version}\` — ${plugin.manifest.description ?? 'sans description'}`;
     });
     const body = lines.length ? lines.join('\n') : 'Aucun plugin trouvé dans `plugins/`.';
@@ -74,6 +89,13 @@ export const buildNexisCommand = (core) => {
     const plugin = find(name);
     if (!plugin) {
       await reply(interaction, `Plugin introuvable : \`${name}\``);
+      return;
+    }
+    if (isAlwaysEnabled(name)) {
+      await reply(
+        interaction,
+        `\`${name}\` est un plugin interne toujours actif : impossible de l'activer ou de le désactiver.`,
+      );
       return;
     }
 
@@ -106,6 +128,13 @@ export const buildNexisCommand = (core) => {
     const plugin = find(name);
     if (!plugin) {
       await reply(interaction, `Plugin introuvable : \`${name}\``);
+      return;
+    }
+    if (isAlwaysEnabled(name)) {
+      await reply(
+        interaction,
+        `\`${name}\` est un plugin interne toujours actif : impossible de l'activer ou de le désactiver.`,
+      );
       return;
     }
 

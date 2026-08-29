@@ -1,16 +1,5 @@
 import { Cron } from 'croner';
-
-/**
- * @param {unknown} error
- * @returns {string}
- */
-const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
-
-/**
- * @param {unknown} error
- * @returns {string | undefined}
- */
-const errorStack = (error) => (error instanceof Error ? error.stack : undefined);
+import { errorMessage, errorStack } from './errors.js';
 
 /**
  * Exécute les tâches planifiées des plugins.
@@ -47,11 +36,11 @@ export const createScheduler = ({
     const schema = manifests.get(plugin)?.config;
 
     for (const guild of client.guilds.cache.values()) {
-      const active =
-        alwaysEnabled.includes(plugin) || (await guildConfig.isEnabled(guild.id, plugin));
-      if (!active) continue;
-
       try {
+        const active =
+          alwaysEnabled.includes(plugin) || (await guildConfig.isEnabled(guild.id, plugin));
+        if (!active) continue;
+
         const config = await guildConfig.getConfig(guild.id, plugin, schema);
         await handler(guild.id, config);
       } catch (error) {

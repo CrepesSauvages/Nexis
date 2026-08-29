@@ -202,6 +202,85 @@ describe('attachCommandDispatcher', () => {
     expect(interaction.reply).not.toHaveBeenCalled();
   });
 
+  it('ne devrait pas laisser un échec de reply() devenir un rejet non intercepté', async () => {
+    // `client.on('interactionCreate', ...)` n'est jamais awaité par
+    // discord.js : un rejet non capturé dans ce handler tue le process
+    // (comportement par défaut depuis Node 15). `reply()` échoue couramment
+    // en prod (token expiré, interaction déjà acquittée) — le pire des cas
+    // étant précisément la réponse envoyée depuis le catch de execute().
+    const logger = { ...silent(), warn: vi.fn(), child: () => logger };
+    attach({ logger });
+
+    let unhandled = false;
+    /** @param {unknown} reason */
+    const onUnhandledRejection = (reason) => {
+      unhandled = true;
+      void reason;
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+
+    const interaction = makeInteraction({
+      commandName: 'fantôme',
+      reply: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+    });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    await flush();
+
+    process.off('unhandledRejection', onUnhandledRejection);
+
+    expect(unhandled).toBe(false);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it('ne devrait pas laisser un échec de followUp() devenir un rejet non intercepté', async () => {
+    const logger = { ...silent(), warn: vi.fn(), child: () => logger };
+    attach({ logger });
+
+    let unhandled = false;
+    /** @param {unknown} reason */
+    const onUnhandledRejection = (reason) => {
+      unhandled = true;
+      void reason;
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+
+    const interaction = makeInteraction({
+      commandName: 'fantôme',
+      replied: true,
+      followUp: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+    });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    await flush();
+
+    process.off('unhandledRejection', onUnhandledRejection);
+
+    expect(unhandled).toBe(false);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("ne devrait pas propager le rejet d'une erreur de storage pendant la vérification d'activation", async () => {
+    // `isActive` était appelé hors du try/catch entourant l'exécution :
+    // une erreur de storage y était donc un rejet non intercepté. On
+    // vérifie ici qu'elle est attrapée et traitée comme "non activé"
+    // (fermeture, pas ouverture par défaut).
+    const execute = vi.fn();
+    registries.commands.add('welcome', { data: { name: 'hello' }, execute });
+    guildConfig.isEnabled = vi.fn().mockRejectedValue(new Error('storage indisponible'));
+
+    const logger = { ...silent(), error: vi.fn(), child: () => logger };
+    attach({ logger });
+
+    const interaction = makeInteraction();
+    client.emit('interactionCreate', interaction);
+    await flush();
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledOnce();
+    expect(interaction.reply).toHaveBeenCalledOnce();
+  });
+
   it('devrait ignorer une commande inconnue', async () => {
     attach();
     const interaction = makeInteraction({ commandName: 'fantôme' });

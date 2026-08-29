@@ -40,6 +40,19 @@ describe('computeIntents', () => {
       expect(EVENT_INTENTS).toHaveProperty(name);
     }
   });
+
+  it('devrait ajouter DirectMessages si un plugin chargé demande allowDM', () => {
+    expect(computeIntents(['messageCreate'], { allowsDM: true })).toContain(
+      GatewayIntentBits.DirectMessages,
+    );
+  });
+
+  it('ne devrait pas ajouter DirectMessages sans demande explicite', () => {
+    expect(computeIntents(['messageCreate'])).not.toContain(GatewayIntentBits.DirectMessages);
+    expect(computeIntents(['messageCreate'], { allowsDM: false })).not.toContain(
+      GatewayIntentBits.DirectMessages,
+    );
+  });
 });
 
 describe('guildIdOf', () => {
@@ -67,5 +80,15 @@ describe('guildIdOf', () => {
     expect(
       guildIdOf('messageCreate', [{ guildId: null, guild: null, id: '999888777000111222' }]),
     ).toBeUndefined();
+  });
+
+  it('devrait lire message.guildId sur une réaction (messageReactionAdd/Remove)', () => {
+    // `MessageReaction` n'a ni guildId ni guild ni id directement : la
+    // guild se lit via `reaction.message.guildId`. Sans ce cas, la boucle
+    // retombait sur le second argument (`user`) et retournait son id de
+    // snowflake comme s'il s'agissait d'une guild.
+    expect(guildIdOf('messageReactionAdd', [{ message: { guildId: '42' } }, { id: '999' }])).toBe(
+      '42',
+    );
   });
 });

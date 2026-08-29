@@ -38,7 +38,7 @@ export const createCommandRegistry = () => {
     },
     /**
      * @param {string} name
-     * @returns {object | undefined}
+     * @returns {{ plugin: string, command: CommandDef } | undefined}
      */
     get(name) {
       return entries.get(name);

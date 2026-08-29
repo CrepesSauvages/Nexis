@@ -51,7 +51,7 @@ let dir;
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> } }} */
+/** @type {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} */
 let core;
 /** @type {ReturnType<typeof buildNexisCommand>} */
 let command;
@@ -65,6 +65,7 @@ beforeEach(async () => {
     plugins: [makePlugin('welcome'), makePlugin('economy')],
     guildConfig,
     commandSync: { syncGuild: vi.fn().mockResolvedValue(undefined) },
+    alwaysEnabled: [],
   };
   command = buildNexisCommand(core);
 });
@@ -100,6 +101,15 @@ describe('/nexis list', () => {
     expect(text).toMatch(/welcome/);
     expect(text).toContain('✅');
     expect(text).toContain('◻️');
+  });
+
+  it('devrait afficher un plugin alwaysEnabled comme toujours actif, pas comme désactivé', async () => {
+    core.plugins.push(makePlugin('core'));
+    core.alwaysEnabled.push('core');
+    const interaction = makeInteraction('list');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+    expect(text).toMatch(/toujours actif.*\*\*core\*\*/);
   });
 });
 
@@ -146,6 +156,16 @@ describe('/nexis enable', () => {
 
     expect(await guildConfig.isEnabled('g1', 'shop')).toBe(true);
   });
+
+  it("devrait refuser d'activer un plugin alwaysEnabled", async () => {
+    core.plugins.push(makePlugin('core'));
+    core.alwaysEnabled.push('core');
+    const interaction = makeInteraction('enable', 'core');
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toMatch(/toujours actif/);
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
 });
 
 describe('/nexis disable', () => {
@@ -171,6 +191,17 @@ describe('/nexis disable', () => {
 
     expect(await guildConfig.isEnabled('g1', 'economy')).toBe(true);
     expect(replyText(interaction)).toContain('shop');
+    expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
+  });
+
+  it('devrait refuser de désactiver un plugin alwaysEnabled, sans fausse confirmation', async () => {
+    core.plugins.push(makePlugin('core'));
+    core.alwaysEnabled.push('core');
+    const interaction = makeInteraction('disable', 'core');
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toMatch(/toujours actif/);
+    expect(replyText(interaction)).not.toMatch(/désactivé/);
     expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
   });
 });

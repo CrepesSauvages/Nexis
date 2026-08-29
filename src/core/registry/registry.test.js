@@ -38,15 +38,20 @@ describe('registre de commandes', () => {
 
   it('devrait rejeter une commande sans data.name', () => {
     const { commands } = createRegistries();
-    /** @type {any} */
-    const invalidCmd = { execute: noop };
+    // Doublure délibérément invalide : le cast passe par `unknown` plutôt
+    // que par `any`, pour vérifier le rejet à l'exécution sans désactiver
+    // la vérification de types sur le reste du fichier.
+    const invalidCmd = /** @type {import('./commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ execute: noop })
+    );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
   });
 
   it('devrait rejeter une commande sans execute', () => {
     const { commands } = createRegistries();
-    /** @type {any} */
-    const invalidCmd = { data: { name: 'x' } };
+    const invalidCmd = /** @type {import('./commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ data: { name: 'x' } })
+    );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
   });
 });
@@ -73,8 +78,8 @@ describe("registre d'events", () => {
 
   it("devrait rejeter un handler qui n'est pas une fonction", () => {
     const { events } = createRegistries();
-    /** @type {any} */
-    const invalidHandler = 'pas une fonction';
+    // Doublure délibérément invalide : cast via `unknown`, pas `any`.
+    const invalidHandler = /** @type {Function} */ (/** @type {unknown} */ ('pas une fonction'));
     expect(() => events.add('a', 'ready', invalidHandler)).toThrow(PluginError);
   });
 

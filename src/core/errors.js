@@ -56,3 +56,18 @@ export class DependencyError extends NexisError {
  * @returns {string}
  */
 export const newErrorId = () => randomBytes(4).toString('hex');
+
+/**
+ * Normalise une erreur `unknown` (catch) en message affichable/loggable.
+ * Partagé entre dispatcher.js et scheduler.js pour éviter la duplication.
+ * @param {unknown} error
+ * @returns {string}
+ */
+export const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
+
+/**
+ * Extrait la stack d'une erreur `unknown`, si elle en a une.
+ * @param {unknown} error
+ * @returns {string | undefined}
+ */
+export const errorStack = (error) => (error instanceof Error ? error.stack : undefined);

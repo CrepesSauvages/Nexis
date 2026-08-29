@@ -115,8 +115,15 @@ describe('applyConventions', () => {
 
   it('devrait ignorer les fichiers de test', async () => {
     const ctx = makeCtx();
-    await run(epsilon, ctx, makeLogger());
-    // Seul ping.js est une commande valide ; aucun .test.js n'est importé.
+    const logger = makeLogger();
+    await run(epsilon, ctx, logger);
+    // Seul ping.js est une commande valide. `ping.test.js` (fixture dédiée,
+    // export par défaut délibérément invalide) prouve le filtre : sans lui,
+    // il serait importé et déclencherait un avertissement le nommant — le
+    // test resterait vert par accident sans cette seconde assertion, vu
+    // qu'un export par défaut invalide n'incrémente jamais registerCommand.
     expect(ctx.registerCommand).toHaveBeenCalledOnce();
+    const messages = logger.warn.mock.calls.map((call) => call[0]);
+    expect(messages.some((message) => message.includes('ping.test.js'))).toBe(false);
   });
 });

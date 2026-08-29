@@ -1,4 +1,5 @@
 import { config as loadDotenv } from 'dotenv';
+import { pathToFileURL } from 'node:url';
 import { REST } from 'discord.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './core/logger.js';
@@ -39,7 +40,7 @@ export const ALWAYS_ENABLED = ['core'];
  *
  * @param {object} [options]
  * @param {Record<string, string | undefined>} [options.env]
- * @param {(opts: { eventNames: string[] }) => import('discord.js').Client} [options.clientFactory]
+ * @param {(opts: { eventNames: string[], allowsDM?: boolean }) => import('discord.js').Client} [options.clientFactory]
  * @param {(token: string) => { put: (route: string, options: { body: unknown }) => Promise<unknown> }} [options.restFactory]
  * @returns {Promise<NexisApp>}
  */
@@ -88,7 +89,16 @@ export const bootstrap = async ({
   const clientProxy = new Proxy(
     {},
     {
-      get: (_target, property) => clientRef.current?.[/** @type {never} */ (property)],
+      get: (_target, property) => {
+        /** @type {unknown} */
+        const value = clientRef.current?.[/** @type {never} */ (property)];
+        // Une propriété différée qui se trouve être une méthode doit rester
+        // liée au vrai client : lue via `client.method()` sur le proxy,
+        // `this` vaudrait sinon le proxy lui-même (ou son target vide), pas
+        // l'instance réelle — ce qui casse toute méthode s'appuyant sur son
+        // état interne (champs privés compris).
+        return typeof value === 'function' ? value.bind(clientRef.current) : value;
+      },
     },
   );
 
@@ -103,6 +113,7 @@ export const bootstrap = async ({
       privileged: plugin.name === 'core',
       plugins,
       commandSync,
+      alwaysEnabled: ALWAYS_ENABLED,
     });
 
     try {
@@ -120,7 +131,8 @@ export const bootstrap = async ({
     }
   }
 
-  const client = clientFactory({ eventNames: registries.events.eventNames() });
+  const allowsDM = active.some((plugin) => plugin.manifest.allowDM === true);
+  const client = clientFactory({ eventNames: registries.events.eventNames(), allowsDM });
   clientRef.current = client;
 
   attachEventDispatcher({
@@ -197,7 +209,9 @@ const main = async () => {
 };
 
 // Ne démarre le bot que si ce fichier est le point d'entrée du processus.
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+// `pathToFileURL` gère correctement les caractères spéciaux (#, ?) d'un
+// chemin, contrairement à une concaténation manuelle en `file://${...}`.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     console.error(`Démarrage impossible : ${error.message}`);
     console.error(error.stack);

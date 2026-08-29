@@ -81,4 +81,16 @@ describe('namespaced', () => {
     await scoped.delete('a');
     expect(await storage.get('plugin:welcome:a')).toBeUndefined();
   });
+
+  it('ne devrait pas exposer init/close — un plugin ne doit pas pouvoir fermer le storage partagé', async () => {
+    const scoped = /** @type {Record<string, unknown>} */ (
+      /** @type {unknown} */ (namespaced(storage, 'plugin:welcome'))
+    );
+    expect(scoped.close).toBeUndefined();
+    expect(scoped.init).toBeUndefined();
+
+    // Le handle non namespacé, lui, doit toujours pouvoir être fermé
+    // normalement — c'est le rôle exclusif de bootstrap()/shutdown().
+    await expect(storage.close()).resolves.toBeUndefined();
+  });
 });

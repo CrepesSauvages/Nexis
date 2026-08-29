@@ -133,6 +133,23 @@ describe('runJob', () => {
     expect(logger.error.mock.calls[0][1]).toMatchObject({ plugin: 'stats', guildId: 'g1' });
   });
 
+  it("ne devrait pas propager le rejet d'une erreur de storage pendant la vérification d'activation", async () => {
+    // `isEnabled` (storage) est appelé AVANT le try/catch de la tâche elle-
+    // même : un rejet ici doit être capturé au même titre qu'une erreur du
+    // handler, pas laisser un rejet non intercepté remonter à `runJob`.
+    const handler = vi.fn();
+    registries.jobs.add('stats', '0 9 * * *', handler);
+    guildConfig.isEnabled = vi.fn().mockRejectedValue(new Error('storage indisponible'));
+
+    const logger = { ...silent(), error: vi.fn(), child: () => logger };
+    const scheduler = build([makePlugin('stats')], makeClient(['g1']), { logger });
+
+    await expect(scheduler.runJob(registries.jobs.all()[0])).resolves.toBeUndefined();
+    expect(handler).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledOnce();
+    expect(logger.error.mock.calls[0][1]).toMatchObject({ plugin: 'stats', guildId: 'g1' });
+  });
+
   it('devrait exécuter un plugin alwaysEnabled sur toutes les guilds', async () => {
     const handler = vi.fn();
     registries.jobs.add('core', '0 9 * * *', handler);

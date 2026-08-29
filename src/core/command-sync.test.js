@@ -26,7 +26,7 @@ let storage;
 let registries;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ put: any }} */
+/** @type {{ put: ReturnType<typeof vi.fn<(route: string, options: { body: unknown }) => Promise<unknown>>> }} */
 let rest;
 
 const build = (overrides = {}) =>

@@ -5,7 +5,7 @@ import { namespaced } from './storage/index.js';
  * @typedef {object} PluginContext
  * @property {import('discord.js').Client} client
  * @property {import('./logger.js').Logger} logger
- * @property {import('./storage/driver.js').StorageDriver} storage
+ * @property {import('./storage/index.js').NamespacedStorage} storage
  * @property {(guildId: string) => Promise<Record<string, unknown>>} config
  * @property {(command: import('./registry/commands.js').CommandDef) => void} registerCommand
  * @property {(eventName: string, handler: Function) => void} registerEvent
@@ -13,7 +13,7 @@ import { namespaced } from './storage/index.js';
  * @property {(api: object) => void} provideService
  * @property {(name: string) => object} useService
  * @property {(route: import('./registry/routes.js').RouteDef) => void} registerRoute
- * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries }} [core] - réservé au plugin interne
+ * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[] }} [core] - réservé au plugin interne
  */
 
 /**
@@ -30,6 +30,7 @@ import { namespaced } from './storage/index.js';
  * @param {boolean} [options.privileged]
  * @param {import('./loader.js').LoadedPlugin[]} [options.plugins]
  * @param {object} [options.commandSync]
+ * @param {string[]} [options.alwaysEnabled]
  * @returns {PluginContext}
  */
 export const createContext = ({
@@ -42,6 +43,7 @@ export const createContext = ({
   privileged = false,
   plugins = [],
   commandSync = undefined,
+  alwaysEnabled = [],
 }) => {
   const { name, manifest } = plugin;
   const declared = manifest.dependsOn ?? [];
@@ -79,7 +81,7 @@ export const createContext = ({
 
   // Cas particulier unique : le plugin interne pilote l'activation.
   if (privileged) {
-    context.core = { plugins, guildConfig, commandSync, registries };
+    context.core = { plugins, guildConfig, commandSync, registries, alwaysEnabled };
   }
 
   return context;
