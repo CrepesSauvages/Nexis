@@ -199,6 +199,29 @@ export const buildNexisCommand = (core) => {
     await reply(interaction, parts.join('\n'));
   };
 
+  // Longueur max du contexte inliné par entrée. `/nexis errors` est une
+  // liste de repérage rapide, pas une visionneuse de détail : la stack
+  // complète (souvent 700-2500 caractères, cf. errorStack() dans errors.js)
+  // resterait disponible dans Sentry et dans `core:errors` brut, mais
+  // inlinée ici elle épuiserait à elle seule le budget des 1900 caractères
+  // et ferait passer getRecent(10) pour un getRecent(1) en pratique.
+  const CONTEXT_PREVIEW_LENGTH = 150;
+
+  /**
+   * @param {Record<string, unknown>} [context]
+   * @returns {string}
+   */
+  const formatContext = (context) => {
+    if (!context) return '';
+    // `stack` est exclu : c'est lui qui fait exploser le budget par entrée.
+    const rest = Object.fromEntries(Object.entries(context).filter(([key]) => key !== 'stack'));
+    if (!Object.keys(rest).length) return '';
+    const json = JSON.stringify(rest);
+    return json.length > CONTEXT_PREVIEW_LENGTH
+      ? ` ${json.slice(0, CONTEXT_PREVIEW_LENGTH)}…`
+      : ` ${json}`;
+  };
+
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   const errorsCmd = async (interaction) => {
     if (interaction.user.id !== core.ownerId) {
@@ -213,10 +236,7 @@ export const buildNexisCommand = (core) => {
     }
 
     const lines = entries.map((entry) => {
-      const context =
-        entry.context && Object.keys(entry.context).length
-          ? ` ${JSON.stringify(entry.context)}`
-          : '';
+      const context = formatContext(entry.context);
       return `\`${entry.id}\` ${entry.timestamp} — ${entry.message}${context}`;
     });
 

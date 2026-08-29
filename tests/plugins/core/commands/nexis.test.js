@@ -280,4 +280,66 @@ describe('/nexis errors', () => {
     await command.execute(interaction);
     expect(replyText(interaction).length).toBeLessThan(2000);
   });
+
+  it('ne devrait pas inliner la stack complète, même quand le contexte en porte une', async () => {
+    // Stack réaliste : ~20 frames, du même ordre de grandeur que ce que
+    // errorStack() (errors.js) produit réellement sur les ~20 sites d'appel
+    // existants de logger.error() dans le core (700-2500 caractères).
+    const realisticStack = `Error: échec\n${Array.from(
+      { length: 20 },
+      (_, i) => `    at handler${i} (/app/plugins/x/index.js:${10 + i}:5)`,
+    ).join('\n')}`;
+    expect(realisticStack.length).toBeGreaterThan(700);
+
+    core.errorReporting.getRecent.mockResolvedValue([
+      {
+        id: 'abc12345',
+        timestamp: '2026-01-01T10:00:00.000Z',
+        level: 'error',
+        message: 'quelque chose a cassé',
+        context: { plugin: 'welcome', stack: realisticStack },
+      },
+    ]);
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+
+    expect(text).toContain('abc12345');
+    expect(text).toContain('welcome');
+    expect(text).not.toContain(realisticStack);
+    // La ligne entière (id + timestamp + message + contexte tronqué) reste
+    // très en dessous du budget total : la stack ne doit pas y contribuer.
+    expect(text.length).toBeLessThan(400);
+  });
+
+  it('devrait laisser tenir 10 entrées avec stacks réalistes sous le cap de troncature', async () => {
+    /** @param {number} n */
+    const realisticStack = (n) =>
+      `Error: échec ${n}\n${Array.from(
+        { length: 15 },
+        (_, i) => `    at handler${i} (/app/plugins/x/index.js:${10 + i}:5)`,
+      ).join('\n')}`;
+
+    /** @type {import('../../../../src/core/reporting/driver.js').ReportEntry[]} */
+    const entries = Array.from({ length: 10 }, (_, n) => ({
+      id: `abc${String(n).padStart(5, '0')}`,
+      timestamp: '2026-01-01T10:00:00.000Z',
+      level: /** @type {'error'} */ ('error'),
+      message: `erreur numéro ${n}`,
+      context: { plugin: 'welcome', stack: realisticStack(n) },
+    }));
+    core.errorReporting.getRecent.mockResolvedValue(entries);
+
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+
+    // Le plafond Discord (2000) est respecté...
+    expect(text.length).toBeLessThan(2000);
+    // ...mais surtout, ce n'est pas ~1 seule entrée qui tient dans le budget :
+    // la plupart des 10 doivent apparaître, preuve que chaque entrée ne
+    // consomme plus tout le budget de troncature à elle seule.
+    const idsPresent = entries.filter((entry) => text.includes(entry.id)).length;
+    expect(idsPresent).toBeGreaterThanOrEqual(8);
+  });
 });
