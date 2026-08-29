@@ -117,6 +117,33 @@ describe('services', () => {
   });
 });
 
+describe('traduction', () => {
+  it('devrait exposer ctx.t sur tout plugin, pas seulement privileged', () => {
+    const ctx = makeContext(makePlugin('example'), { privileged: false });
+    expect(typeof ctx.t).toBe('function');
+  });
+
+  it('ctx.t devrait déléguer au translator injecté', () => {
+    const t = vi.fn().mockReturnValue('traduit');
+    const ctx = makeContext(makePlugin('example'), { t });
+    expect(ctx.t('en', 'some.key', { a: 1 })).toBe('traduit');
+    expect(t).toHaveBeenCalledWith('en', 'some.key', { a: 1 });
+  });
+
+  it("ctx.resolveLocale devrait utiliser l'override de guildConfig puis retomber sur interaction.locale", async () => {
+    await guildConfig.setLocale('g1', 'de');
+    const ctx = makeContext(makePlugin('example'), {});
+    expect(await ctx.resolveLocale({ guildId: 'g1', locale: 'en-US' })).toBe('de');
+    expect(await ctx.resolveLocale({ guildId: 'g2', locale: 'es-ES' })).toBe('es');
+    expect(await ctx.resolveLocale({ guildId: 'g3', locale: undefined })).toBe('fr');
+  });
+
+  it('ctx.resolveLocale devrait gérer guildId absent (DM) sans planter', async () => {
+    const ctx = makeContext(makePlugin('example'), {});
+    expect(await ctx.resolveLocale({ guildId: null, locale: 'de' })).toBe('de');
+  });
+});
+
 describe('storage scopé', () => {
   it('devrait écrire dans son propre namespace', async () => {
     await makeContext(makePlugin('welcome')).storage.set('streak', 3);

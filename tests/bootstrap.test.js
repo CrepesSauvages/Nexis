@@ -135,6 +135,15 @@ describe('bootstrap', () => {
     expect(entries[0].message).toBe('erreur de test');
     expect(entries[0].context).toEqual({ source: 'test' });
   });
+
+  it('devrait exposer ctx.t traduit dans la langue résolue à un plugin', async () => {
+    // `alpha` (fixture, non privilégié) : ctx.t doit être câblé au vrai
+    // translator pour tout plugin, pas seulement le plugin interne `core`
+    // (absent des fixtures de ce fichier — voir 'core' dans plugins/core/).
+    app = await boot();
+    const ctx = app.contexts.get('alpha');
+    expect(ctx?.t('en', 'nexis.owner_only')).toBe('This command is reserved for the bot owner.');
+  });
 });
 
 describe('boot complet — comportement', () => {
