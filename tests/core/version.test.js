@@ -3,7 +3,7 @@ import { getVersion } from '../../src/core/version.js';
 
 describe('getVersion', () => {
   it('devrait retourner la version déclarée dans package.json', () => {
-    expect(getVersion()).toBe('0.0.1');
+    expect(getVersion()).toBe(require('../../package.json').version);
   });
 
   it('devrait retourner une chaîne au format semver', () => {
