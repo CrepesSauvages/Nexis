@@ -81,4 +81,71 @@ describe('createLocalReporter', () => {
     expect(recent[0]).toEqual(entry(501));
     expect(recent.at(-1)).toEqual(entry(2));
   });
+
+  it('ne devrait perdre aucune entrée quand deux report() se chevauchent (race condition)', async () => {
+    // Storage maison plutôt que le driver JSON : on retarde volontairement
+    // le premier get() (comme une vraie I/O réseau postgres/mongo) pour
+    // vérifier que le second report() n'entame son propre get() qu'une fois
+    // le premier entièrement terminé (get + set), pas avant.
+    /** @type {Record<string, unknown>} */
+    const store = {};
+    let callIndex = 0;
+    /** @type {import('../../../../src/core/storage/driver.js').StorageDriver} */
+    const racyStorage = {
+      async init() {},
+      async get(key) {
+        const i = callIndex++;
+        // Capturé avant le délai : simule une lecture réseau dont la réponse
+        // reflète l'état du serveur au moment de l'appel, pas au moment où
+        // la promesse se résout — le scénario réel sur postgres/mongo.
+        const value = store[key];
+        if (i === 0) await new Promise((resolve) => setTimeout(resolve, 20));
+        return value;
+      },
+      async set(key, value) {
+        store[key] = value;
+      },
+      async delete(key) {
+        delete store[key];
+      },
+      async keys(prefix) {
+        return Object.keys(store).filter((key) => key.startsWith(prefix));
+      },
+      async close() {},
+      raw: () => store,
+    };
+
+    const reporter = createLocalReporter({ storage: racyStorage });
+    await Promise.all([reporter.report(entry(1)), reporter.report(entry(2))]);
+
+    const recent = await reporter.getRecent();
+    expect(recent).toHaveLength(2);
+    expect(recent).toEqual(expect.arrayContaining([entry(1), entry(2)]));
+  });
+
+  it('ne devrait pas bloquer les report() suivants après un échec de storage.set', async () => {
+    let calls = 0;
+    /** @type {import('../../../../src/core/storage/driver.js').StorageDriver} */
+    const flakyStorage = {
+      async init() {},
+      async get() {
+        return undefined;
+      },
+      async set() {
+        calls += 1;
+        if (calls === 1) throw new Error('échec simulé');
+      },
+      async delete() {},
+      async keys() {
+        return [];
+      },
+      async close() {},
+      raw: () => ({}),
+    };
+
+    const reporter = createLocalReporter({ storage: flakyStorage });
+    await expect(reporter.report(entry(1))).rejects.toThrow('échec simulé');
+    await expect(reporter.report(entry(2))).resolves.toBeUndefined();
+    expect(calls).toBe(2);
+  });
 });
