@@ -13,6 +13,8 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {{ driver: string, path: string }} storage
  * @property {string} pluginsDir
  * @property {string | undefined} ownerId
+ * @property {string | undefined} sentryDsn
+ * @property {number} errorLogLimit
  */
 
 /**
@@ -48,6 +50,27 @@ const oneOf = (value, allowed, key) => {
 };
 
 /**
+ * @param {string | undefined} value
+ * @param {number} fallback
+ * @param {string} key
+ * @returns {number}
+ */
+const positiveInt = (value, fallback, key) => {
+  if (value === undefined) return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new ConfigError(
+      `Valeur invalide pour ${key} : "${value}". Attendu : un entier positif.`,
+      {
+        key,
+        value,
+      },
+    );
+  }
+  return n;
+};
+
+/**
  * Lit et valide l'environnement. Lève dès la première anomalie —
  * un bot qui démarre à moitié configuré est plus difficile à diagnostiquer
  * qu'un bot qui refuse de démarrer.
@@ -69,6 +92,8 @@ export const loadConfig = (env = process.env) => {
   }
   const pluginsDir = env.PLUGINS_DIR ?? './plugins';
 
+  const errorLogLimit = positiveInt(env.ERROR_LOG_LIMIT, 500, 'ERROR_LOG_LIMIT');
+
   return {
     token: required(env, 'DISCORD_TOKEN'),
     clientId: required(env, 'DISCORD_CLIENT_ID'),
@@ -76,5 +101,7 @@ export const loadConfig = (env = process.env) => {
     storage: { driver, path: storagePath },
     pluginsDir,
     ownerId: env.OWNER_ID,
+    sentryDsn: env.SENTRY_DSN,
+    errorLogLimit,
   };
 };
