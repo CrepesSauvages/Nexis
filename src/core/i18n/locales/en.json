@@ -1,0 +1,55 @@
+{
+  "dispatcher.command_removed": "This command no longer exists. It may have been disabled.",
+  "dispatcher.plugin_not_active": "The `{plugin}` plugin is not enabled on this server.",
+  "dispatcher.permission_denied": "You don't have permission to use this command.",
+  "dispatcher.command_error": "An error occurred. Reference: `{errorId}`",
+
+  "nexis.list.title": "**Nexis Plugins**",
+  "nexis.list.empty": "No plugins found in `plugins/`.",
+  "nexis.list.mark_always": "✅ (always active)",
+  "nexis.list.entry": "{mark} **{name}** `{version}` — {description}",
+  "nexis.list.no_description": "no description",
+
+  "nexis.plugin_not_found": "Plugin not found: `{name}`",
+  "nexis.always_enabled": "`{name}` is a built-in plugin, always active: it cannot be enabled or disabled.",
+
+  "nexis.enable.already": "`{name}` is already enabled here.",
+  "nexis.enable.missing_deps_one": "`{name}` depends on {deps}. Enable this plugin first.",
+  "nexis.enable.missing_deps_other": "`{name}` depends on {deps}. Enable these plugins first.",
+  "nexis.enable.success": "`{name}` enabled on this server.",
+
+  "nexis.disable.dependents_one": "Cannot disable: {deps} depends on it.",
+  "nexis.disable.dependents_other": "Cannot disable: {deps} depend on it.",
+  "nexis.disable.success": "`{name}` disabled on this server.",
+
+  "nexis.info.header": "**{name}** `{version}` — {status}",
+  "nexis.info.status_enabled": "enabled",
+  "nexis.info.status_disabled": "disabled",
+  "nexis.info.depends_on": "Depends on: {deps}",
+  "nexis.info.setting": "• **{label}** (`{key}`, {type}){flag} → {current}",
+  "nexis.info.required_flag": " *(required)*",
+  "nexis.info.value_undefined": "_not set_",
+  "nexis.info.settings_header": "\n**Configuration**\n{settings}",
+  "nexis.info.no_settings": "\nNo configuration options.",
+
+  "nexis.owner_only": "This command is reserved for the bot owner.",
+  "nexis.errors.none": "No recent errors.",
+  "nexis.errors.title": "**Recent errors**",
+  "nexis.errors.entry": "`{id}` {timestamp} — {message}{context}",
+
+  "nexis.locale.confirmed": "Server language set to {language}.",
+
+  "nexis.command.description": "Manage Nexis plugins",
+  "nexis.command.list.description": "List available plugins",
+  "nexis.command.enable.description": "Enable a plugin on this server",
+  "nexis.command.disable.description": "Disable a plugin on this server",
+  "nexis.command.info.description": "Details of a plugin and its configuration",
+  "nexis.command.errors.description": "Recent errors (owner only)",
+  "nexis.command.locale.description": "Set the bot's language on this server",
+  "nexis.command.option.plugin.description": "Plugin name",
+  "nexis.command.option.langue.description": "Language to use on this server",
+
+  "example.hello.command.description": "Say hello",
+  "example.hello.suffix_one": " ! ({count} time)",
+  "example.hello.suffix_other": " ! ({count} times)"
+}
