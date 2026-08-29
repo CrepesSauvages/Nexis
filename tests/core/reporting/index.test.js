@@ -84,6 +84,23 @@ describe('createErrorReporting', () => {
     expect(consoleErrorSpy).toHaveBeenCalledOnce();
   });
 
+  it("l'échec du reporter local ne devrait pas empêcher Sentry de recevoir l'entrée", async () => {
+    const reporting = createErrorReporting({ storage, sentryDsn: 'https://example/1' });
+    const Sentry = await import('@sentry/node');
+    // Le mock @sentry/node est partagé par tout le fichier (pas de
+    // clearMocks global) : on repart d'un compteur à zéro pour que
+    // toHaveBeenCalledOnce() porte bien sur CET appel, pas sur le cumul
+    // des tests précédents qui activent aussi sentryDsn.
+    /** @type {ReturnType<typeof vi.fn>} */ (Sentry.captureException).mockClear();
+    vi.spyOn(storage, 'set').mockRejectedValueOnce(new Error('disque plein'));
+
+    await reporting.reportAll(entry());
+
+    expect(Sentry.captureException).toHaveBeenCalledOnce();
+    expect(consoleErrorSpy).toHaveBeenCalledOnce();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('local'));
+  });
+
   it('devrait transmettre limit au reporter local', async () => {
     const reporting = createErrorReporting({ storage, limit: 1 });
     await reporting.reportAll(entry({ id: 'a' }));

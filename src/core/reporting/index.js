@@ -13,19 +13,23 @@ import { createSentryReporter } from './drivers/sentry.js';
  */
 export const createErrorReporting = ({ storage, sentryDsn, limit }) => {
   const local = createLocalReporter({ storage, limit });
-  /** @type {import('./driver.js').ErrorReporter[]} */
-  const reporters = [local, ...(sentryDsn ? [createSentryReporter({ dsn: sentryDsn })] : [])];
+  // Nommé pour que le log d'échec (ci-dessous) identifie le reporter fautif.
+  /** @type {{ name: string, reporter: import('./driver.js').ErrorReporter }[]} */
+  const reporters = [
+    { name: 'local', reporter: local },
+    ...(sentryDsn ? [{ name: 'sentry', reporter: createSentryReporter({ dsn: sentryDsn }) }] : []),
+  ];
 
   return {
     /** @param {import('./driver.js').ReportEntry} entry */
     async reportAll(entry) {
       await Promise.all(
-        reporters.map((reporter) =>
+        reporters.map(({ name, reporter }) =>
           reporter.report(entry).catch((error) => {
             // Jamais via le logger ici : une boucle si le reporting de
             // l'échec de reporting échouait à son tour.
             const message = error instanceof Error ? error.message : String(error);
-            console.error(`Échec d'un reporter d'erreur : ${message}`);
+            console.error(`Échec du reporter d'erreur "${name}" : ${message}`);
           }),
         ),
       );
