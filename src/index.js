@@ -163,6 +163,7 @@ export const bootstrap = async ({
     logger,
     alwaysEnabled: ALWAYS_ENABLED,
     ownerId: config.ownerId,
+    t: translator.t,
   });
 
   const scheduler = createScheduler({
