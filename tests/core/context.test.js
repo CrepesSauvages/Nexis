@@ -172,4 +172,18 @@ describe('accès privilégié', () => {
     expect(ctx.core?.plugins).toHaveLength(1);
     expect(ctx.core?.guildConfig).toBe(guildConfig);
   });
+
+  it('devrait exposer ownerId sur ctx.core', () => {
+    const ctx = makeContext(makePlugin('core'), { privileged: true, ownerId: 'owner-123' });
+    expect(ctx.core?.ownerId).toBe('owner-123');
+  });
+
+  it('devrait exposer errorReporting.getRecent sur ctx.core', () => {
+    const getRecent = vi.fn().mockResolvedValue([]);
+    const ctx = makeContext(makePlugin('core'), {
+      privileged: true,
+      errorReporting: { getRecent },
+    });
+    expect(ctx.core?.errorReporting?.getRecent).toBe(getRecent);
+  });
 });

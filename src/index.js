@@ -8,6 +8,7 @@ import { createRegistries } from './core/registry/index.js';
 import { createGuildConfig } from './core/guild-config.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
+import { createErrorReporting } from './core/reporting/index.js';
 import { createClient } from './core/client.js';
 import { attachEventDispatcher, attachCommandDispatcher } from './core/dispatcher.js';
 import { createScheduler } from './core/scheduler.js';
@@ -55,10 +56,16 @@ export const bootstrap = async ({
   },
 } = {}) => {
   const config = loadConfig(env);
-  const logger = createLogger({ level: config.logLevel });
-  logger.info('Démarrage de Nexis');
 
   const storage = await createStorage(config);
+  const errorReporting = createErrorReporting({
+    storage,
+    sentryDsn: config.sentryDsn,
+    limit: config.errorLogLimit,
+  });
+  const logger = createLogger({ level: config.logLevel, onError: errorReporting.reportAll });
+  logger.info('Démarrage de Nexis');
+
   const registries = createRegistries();
   const guildConfig = createGuildConfig({ storage });
   const plugins = await loadPlugins({ dir: config.pluginsDir, logger });
@@ -114,6 +121,8 @@ export const bootstrap = async ({
       plugins,
       commandSync,
       alwaysEnabled: ALWAYS_ENABLED,
+      ownerId: config.ownerId,
+      errorReporting: { getRecent: errorReporting.getRecent },
     });
 
     try {

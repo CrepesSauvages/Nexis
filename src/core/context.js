@@ -13,7 +13,7 @@ import { namespaced } from './storage/index.js';
  * @property {(api: object) => void} provideService
  * @property {(name: string) => object} useService
  * @property {(route: import('./registry/routes.js').RouteDef) => void} registerRoute
- * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[] }} [core] - réservé au plugin interne
+ * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined }} [core] - réservé au plugin interne
  */
 
 /**
@@ -31,6 +31,8 @@ import { namespaced } from './storage/index.js';
  * @param {import('./loader.js').LoadedPlugin[]} [options.plugins]
  * @param {object} [options.commandSync]
  * @param {string[]} [options.alwaysEnabled]
+ * @param {string} [options.ownerId]
+ * @param {{ getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> }} [options.errorReporting]
  * @returns {PluginContext}
  */
 export const createContext = ({
@@ -44,6 +46,8 @@ export const createContext = ({
   plugins = [],
   commandSync = undefined,
   alwaysEnabled = [],
+  ownerId = undefined,
+  errorReporting = undefined,
 }) => {
   const { name, manifest } = plugin;
   const declared = manifest.dependsOn ?? [];
@@ -81,7 +85,15 @@ export const createContext = ({
 
   // Cas particulier unique : le plugin interne pilote l'activation.
   if (privileged) {
-    context.core = { plugins, guildConfig, commandSync, registries, alwaysEnabled };
+    context.core = {
+      plugins,
+      guildConfig,
+      commandSync,
+      registries,
+      alwaysEnabled,
+      ownerId,
+      errorReporting,
+    };
   }
 
   return context;

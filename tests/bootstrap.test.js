@@ -117,6 +117,24 @@ describe('bootstrap', () => {
       bootstrap({ env: { DISCORD_CLIENT_ID: 'app1' }, clientFactory: fakeClient }),
     ).rejects.toThrow(/DISCORD_TOKEN/);
   });
+
+  it('devrait stocker une entrée quand le logger racine logue une erreur', async () => {
+    app = await boot();
+
+    app.logger.error('erreur de test', { source: 'test' });
+    // onError() (câblé sur reportAll) est fire-and-forget côté logger — .error()
+    // reste synchrone. `flush()` laisse l'écriture asynchrone du reporter local
+    // atteindre le storage avant la lecture ci-dessous (même pattern que le test
+    // de dispatch d'event plus haut dans ce fichier).
+    await flush();
+
+    const entries = /** @type {import('../src/core/reporting/driver.js').ReportEntry[]} */ (
+      await app.storage.get('core:errors')
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].message).toBe('erreur de test');
+    expect(entries[0].context).toEqual({ source: 'test' });
+  });
 });
 
 describe('boot complet — comportement', () => {
