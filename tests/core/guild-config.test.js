@@ -75,6 +75,40 @@ describe('activation des plugins', () => {
   });
 });
 
+describe('locale par serveur', () => {
+  it('devrait démarrer sans override de locale', async () => {
+    expect(await guildConfig.getLocale('g1')).toBeUndefined();
+  });
+
+  it('devrait fixer puis lire la locale', async () => {
+    await guildConfig.setLocale('g1', 'de');
+    expect(await guildConfig.getLocale('g1')).toBe('de');
+  });
+
+  it('devrait isoler les guilds entre elles', async () => {
+    await guildConfig.setLocale('g1', 'de');
+    expect(await guildConfig.getLocale('g2')).toBeUndefined();
+  });
+
+  it('devrait persister la locale dans le storage', async () => {
+    await guildConfig.setLocale('g1', 'pl');
+    expect(await storage.get('core:guild:g1:locale')).toBe('pl');
+  });
+
+  it('devrait remplacer une locale déjà fixée', async () => {
+    await guildConfig.setLocale('g1', 'de');
+    await guildConfig.setLocale('g1', 'es');
+    expect(await guildConfig.getLocale('g1')).toBe('es');
+  });
+
+  it('invalidate() devrait vider le cache de locale de la guild', async () => {
+    await guildConfig.setLocale('g1', 'de');
+    await storage.set('core:guild:g1:locale', 'pl');
+    guildConfig.invalidate('g1');
+    expect(await guildConfig.getLocale('g1')).toBe('pl');
+  });
+});
+
 describe('configuration des plugins', () => {
   const schema = {
     message: { type: 'string', label: 'Message', default: 'Salut' },
