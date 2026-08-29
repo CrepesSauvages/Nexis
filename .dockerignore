@@ -3,16 +3,22 @@ node_modules
 
 .env
 .env.*
+data
 
 .git
 .github
 .husky
-tests
 coverage
-backups
 logs
-uploads
-Emojis
-scripts
+tests
+docs
+**/*.test.js
 *.log
 *.md
+
+.prettierrc
+.prettierignore
+eslint.config.js
+vitest.config.js
+jsconfig.json
+.release-it.json
