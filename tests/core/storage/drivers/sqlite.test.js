@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createSqliteDriver } from './sqlite.js';
-import { runConformanceSuite } from '../../../../tests/storage-conformance.js';
+import { createSqliteDriver } from '../../../../src/core/storage/drivers/sqlite.js';
+import { runConformanceSuite } from '../../../storage-conformance.js';
 
 // Le contrat de la suite de conformité est `{ driver, reopen, cleanup }` :
 // `reopen()` doit rendre une instance NEUVE pointant sur le même fichier,

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { loadPlugins } from './loader.js';
-import { DependencyError } from './errors.js';
+import { loadPlugins } from '../../src/core/loader.js';
+import { DependencyError } from '../../src/core/errors.js';
 
-const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'tests', 'fixtures');
+const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const fixtures = join(fixturesRoot, 'plugins');
 const cycleFixtures = join(fixturesRoot, 'plugins-cycle');
 

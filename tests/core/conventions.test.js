@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyConventions } from './conventions.js';
+import { applyConventions } from '../../src/core/conventions.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixtures = join(here, '..', '..', 'tests', 'fixtures', 'plugins');
+const fixtures = join(here, '..', 'fixtures', 'plugins');
 
 const makeLogger = () => {
   const logger = {
@@ -25,7 +25,7 @@ const makeCtx = () => ({
 
 /**
  * @param {string} name
- * @returns {import('./loader.js').LoadedPlugin}
+ * @returns {import('../../src/core/loader.js').LoadedPlugin}
  */
 const makePlugin = (name) => ({
   name,
@@ -43,15 +43,19 @@ const alpha = makePlugin('alpha');
  * par `unknown` car ces doublures ne recouvrent volontairement pas tout
  * PluginContext/Logger.
  *
- * @param {import('./loader.js').LoadedPlugin} plugin
+ * @param {import('../../src/core/loader.js').LoadedPlugin} plugin
  * @param {ReturnType<typeof makeCtx>} ctx
  * @param {ReturnType<typeof makeLogger>} logger
  */
 const run = (plugin, ctx, logger) =>
   applyConventions({
     plugin,
-    ctx: /** @type {import('./context.js').PluginContext} */ (/** @type {unknown} */ (ctx)),
-    logger: /** @type {import('./logger.js').Logger} */ (/** @type {unknown} */ (logger)),
+    ctx: /** @type {import('../../src/core/context.js').PluginContext} */ (
+      /** @type {unknown} */ (ctx)
+    ),
+    logger: /** @type {import('../../src/core/logger.js').Logger} */ (
+      /** @type {unknown} */ (logger)
+    ),
   });
 
 describe('applyConventions', () => {

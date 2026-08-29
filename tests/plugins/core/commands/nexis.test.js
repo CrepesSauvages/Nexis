@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createJsonDriver } from '../../../src/core/storage/drivers/json.js';
-import { createGuildConfig } from '../../../src/core/guild-config.js';
-import { buildNexisCommand } from './nexis.js';
+import { createJsonDriver } from '../../../../src/core/storage/drivers/json.js';
+import { createGuildConfig } from '../../../../src/core/guild-config.js';
+import { buildNexisCommand } from '../../../../plugins/core/commands/nexis.js';
 
 /**
  * @param {string} name
  * @param {Record<string, unknown>} [manifest]
- * @returns {import('../../../src/core/loader.js').LoadedPlugin}
+ * @returns {import('../../../../src/core/loader.js').LoadedPlugin}
  */
 const makePlugin = (name, manifest = {}) => ({
   name,
-  manifest: /** @type {import('../../../src/core/manifest.js').PluginManifest} */ ({
+  manifest: /** @type {import('../../../../src/core/manifest.js').PluginManifest} */ ({
     name,
     version: '1.0.0',
     description: `plugin ${name}`,
@@ -47,11 +47,11 @@ const replyText = (interaction) => {
 
 /** @type {string} */
 let dir;
-/** @type {import('../../../src/core/storage/driver.js').StorageDriver} */
+/** @type {import('../../../../src/core/storage/driver.js').StorageDriver} */
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} */
+/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[] }} */
 let core;
 /** @type {ReturnType<typeof buildNexisCommand>} */
 let command;

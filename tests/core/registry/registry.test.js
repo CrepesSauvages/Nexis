@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createRegistries } from './index.js';
-import { PluginError } from '../errors.js';
+import { createRegistries } from '../../../src/core/registry/index.js';
+import { PluginError } from '../../../src/core/errors.js';
 
 const noop = () => {};
 /**
@@ -41,7 +41,7 @@ describe('registre de commandes', () => {
     // Doublure délibérément invalide : le cast passe par `unknown` plutôt
     // que par `any`, pour vérifier le rejet à l'exécution sans désactiver
     // la vérification de types sur le reste du fichier.
-    const invalidCmd = /** @type {import('./commands.js').CommandDef} */ (
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
       /** @type {unknown} */ ({ execute: noop })
     );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
@@ -49,7 +49,7 @@ describe('registre de commandes', () => {
 
   it('devrait rejeter une commande sans execute', () => {
     const { commands } = createRegistries();
-    const invalidCmd = /** @type {import('./commands.js').CommandDef} */ (
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
       /** @type {unknown} */ ({ data: { name: 'x' } })
     );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);

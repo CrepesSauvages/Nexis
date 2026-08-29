@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createJsonDriver } from './storage/drivers/json.js';
-import { createGuildConfig } from './guild-config.js';
+import { createJsonDriver } from '../../src/core/storage/drivers/json.js';
+import { createGuildConfig } from '../../src/core/guild-config.js';
 
 /** @type {string} */
 let dir;
-/** @type {import('./storage/driver.js').StorageDriver} */
+/** @type {import('../../src/core/storage/driver.js').StorageDriver} */
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;

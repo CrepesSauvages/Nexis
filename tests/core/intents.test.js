@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GatewayIntentBits } from 'discord.js';
-import { computeIntents, guildIdOf, EVENT_INTENTS } from './intents.js';
-import { PluginError } from './errors.js';
+import { computeIntents, guildIdOf, EVENT_INTENTS } from '../../src/core/intents.js';
+import { PluginError } from '../../src/core/errors.js';
 
 describe('computeIntents', () => {
   it('devrait toujours inclure Guilds', () => {

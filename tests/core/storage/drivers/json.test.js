@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createJsonDriver } from './json.js';
-import { runConformanceSuite } from '../../../../tests/storage-conformance.js';
+import { createJsonDriver } from '../../../../src/core/storage/drivers/json.js';
+import { runConformanceSuite } from '../../../storage-conformance.js';
 
 const makeDriver = async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nexis-json-'));

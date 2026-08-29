@@ -1,11 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { manifest, setup } from './index.js';
-import { validateManifest } from '../../src/core/manifest.js';
-import { applyConventions } from '../../src/core/conventions.js';
+import { manifest, setup } from '../../../plugins/example/index.js';
+import { validateManifest } from '../../../src/core/manifest.js';
+import { applyConventions } from '../../../src/core/conventions.js';
 
-const pluginDir = dirname(fileURLToPath(import.meta.url));
+const pluginDir = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  'plugins',
+  'example',
+);
 
 const makeCtx = () => ({
   client: {},
@@ -38,20 +45,22 @@ const plugin = { name: 'example', manifest, setup, dir: pluginDir };
  * propriétés utilisées par le code testé — le cast passe par `unknown`,
  * comme dans `src/core/conventions.test.js`.
  * @param {ReturnType<typeof makeCtx>} ctx
- * @returns {import('../../src/core/context.js').PluginContext}
+ * @returns {import('../../../src/core/context.js').PluginContext}
  */
 const asCtx = (ctx) =>
-  /** @type {import('../../src/core/context.js').PluginContext} */ (/** @type {unknown} */ (ctx));
+  /** @type {import('../../../src/core/context.js').PluginContext} */ (
+    /** @type {unknown} */ (ctx)
+  );
 
 /**
  * @param {ReturnType<typeof makeLogger>} logger
- * @returns {import('../../src/core/logger.js').Logger}
+ * @returns {import('../../../src/core/logger.js').Logger}
  */
 const asLogger = (logger) =>
-  /** @type {import('../../src/core/logger.js').Logger} */ (/** @type {unknown} */ (logger));
+  /** @type {import('../../../src/core/logger.js').Logger} */ (/** @type {unknown} */ (logger));
 
-/** @type {import('../../src/core/loader.js').LoadedPlugin} */
-const loadedPlugin = /** @type {import('../../src/core/loader.js').LoadedPlugin} */ (
+/** @type {import('../../../src/core/loader.js').LoadedPlugin} */
+const loadedPlugin = /** @type {import('../../../src/core/loader.js').LoadedPlugin} */ (
   /** @type {unknown} */ (plugin)
 );
 

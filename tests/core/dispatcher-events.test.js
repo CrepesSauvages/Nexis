@@ -3,19 +3,19 @@ import { EventEmitter } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createJsonDriver } from './storage/drivers/json.js';
-import { createRegistries } from './registry/index.js';
-import { createGuildConfig } from './guild-config.js';
-import { createLogger } from './logger.js';
-import { attachEventDispatcher } from './dispatcher.js';
+import { createJsonDriver } from '../../src/core/storage/drivers/json.js';
+import { createRegistries } from '../../src/core/registry/index.js';
+import { createGuildConfig } from '../../src/core/guild-config.js';
+import { createLogger } from '../../src/core/logger.js';
+import { attachEventDispatcher } from '../../src/core/dispatcher.js';
 
 const silent = () => createLogger({ level: 'error' });
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 /**
  * @param {string} name
- * @param {Partial<import('./manifest.js').PluginManifest>} [manifest]
- * @returns {import('./loader.js').LoadedPlugin}
+ * @param {Partial<import('../../src/core/manifest.js').PluginManifest>} [manifest]
+ * @returns {import('../../src/core/loader.js').LoadedPlugin}
  */
 const makePlugin = (name, manifest = {}) => ({
   name,
@@ -26,9 +26,9 @@ const makePlugin = (name, manifest = {}) => ({
 
 /** @type {string} */
 let dir;
-/** @type {import('./storage/driver.js').StorageDriver} */
+/** @type {import('../../src/core/storage/driver.js').StorageDriver} */
 let storage;
-/** @type {import('./registry/index.js').Registries} */
+/** @type {import('../../src/core/registry/index.js').Registries} */
 let registries;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;

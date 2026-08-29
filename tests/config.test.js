@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig } from './config.js';
-import { ConfigError } from './core/errors.js';
+import { loadConfig } from '../src/config.js';
+import { ConfigError } from '../src/core/errors.js';
 
 const validEnv = { DISCORD_TOKEN: 'tok', DISCORD_CLIENT_ID: '123' };
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVersion } from './version.js';
+import { getVersion } from '../../src/core/version.js';
 
 describe('getVersion', () => {
   it('devrait retourner la version déclarée dans package.json', () => {

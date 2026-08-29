@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { resolveOrder } from './resolver.js';
-import { DependencyError } from './errors.js';
+import { resolveOrder } from '../../src/core/resolver.js';
+import { DependencyError } from '../../src/core/errors.js';
 
 /**
  * @param {string} name

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { NexisError, ConfigError, PluginError, DependencyError, newErrorId } from './errors.js';
+import {
+  NexisError,
+  ConfigError,
+  PluginError,
+  DependencyError,
+  newErrorId,
+} from '../../src/core/errors.js';
 
 describe('NexisError', () => {
   it('devrait conserver le message et le contexte', () => {

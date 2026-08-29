@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createStorage, namespaced } from './index.js';
-import { ConfigError } from '../errors.js';
+import { createStorage, namespaced } from '../../../src/core/storage/index.js';
+import { ConfigError } from '../../../src/core/errors.js';
 
 /** @type {string} */
 let dir;
@@ -34,7 +34,7 @@ describe('createStorage', () => {
 });
 
 describe('namespaced', () => {
-  /** @type {import('./driver.js').StorageDriver} */
+  /** @type {import('../../../src/core/storage/driver.js').StorageDriver} */
   let storage;
 
   beforeEach(async () => {

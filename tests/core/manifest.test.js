@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateManifest } from './manifest.js';
-import { PluginError } from './errors.js';
+import { validateManifest } from '../../src/core/manifest.js';
+import { PluginError } from '../../src/core/errors.js';
 
 const valid = { name: 'welcome', version: '1.0.0' };
 
@@ -10,7 +10,7 @@ const valid = { name: 'welcome', version: '1.0.0' };
  */
 const check = (manifest) => () =>
   validateManifest(
-    /** @type {import('./manifest.js').PluginManifest | undefined} */ (manifest),
+    /** @type {import('../../src/core/manifest.js').PluginManifest | undefined} */ (manifest),
     'plugins/test',
   );
 
