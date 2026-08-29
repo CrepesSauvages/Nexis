@@ -28,6 +28,17 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 | `STORAGE_DRIVER`    | `json`          | `json` ou `sqlite`. `json` fonctionne sur tout Node 22+ ; `sqlite` nécessite une version de Node avec `node:sqlite` stable. |
 | `STORAGE_PATH`      | selon le driver | Emplacement des données.                                                                                                    |
 | `PLUGINS_DIR`       | `./plugins`     | Répertoire scanné au démarrage.                                                                                             |
+| `SENTRY_DSN`        | —               | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
+| `ERROR_LOG_LIMIT`   | `500`           | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
+
+## Reporting d'erreurs vers Sentry (optionnel)
+
+`@sentry/node` n'est **pas** installé par défaut en production (`npm ci --omit=dev` ne l'installe pas). Pour l'activer :
+
+1. `npm install @sentry/node` dans votre déploiement.
+2. Renseignez `SENTRY_DSN` dans votre environnement.
+
+Sans ces deux étapes, le bot fonctionne normalement — seul le buffer local (`/nexis errors`) reste actif.
 
 ## Écrire un plugin
 
