@@ -39,6 +39,34 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...validEnv, STORAGE_DRIVER: 'sqlite' }).storage.driver).toBe('sqlite');
   });
 
+  it('devrait accepter le driver postgres avec un STORAGE_PATH explicite', () => {
+    const config = loadConfig({
+      ...validEnv,
+      STORAGE_DRIVER: 'postgres',
+      STORAGE_PATH: 'postgres://localhost/nexis',
+    });
+    expect(config.storage.driver).toBe('postgres');
+    expect(config.storage.path).toBe('postgres://localhost/nexis');
+  });
+
+  it('devrait accepter le driver mongo avec un STORAGE_PATH explicite', () => {
+    const config = loadConfig({
+      ...validEnv,
+      STORAGE_DRIVER: 'mongo',
+      STORAGE_PATH: 'mongodb://localhost/nexis',
+    });
+    expect(config.storage.driver).toBe('mongo');
+    expect(config.storage.path).toBe('mongodb://localhost/nexis');
+  });
+
+  it('devrait lever une ConfigError si STORAGE_PATH manque pour le driver postgres', () => {
+    expect(() => loadConfig({ ...validEnv, STORAGE_DRIVER: 'postgres' })).toThrow(ConfigError);
+  });
+
+  it('devrait lever une ConfigError si STORAGE_PATH manque pour le driver mongo', () => {
+    expect(() => loadConfig({ ...validEnv, STORAGE_DRIVER: 'mongo' })).toThrow(/STORAGE_PATH/);
+  });
+
   it('devrait rejeter un niveau de log inconnu', () => {
     expect(() => loadConfig({ ...validEnv, LOG_LEVEL: 'verbose' })).toThrow(/verbose/);
   });

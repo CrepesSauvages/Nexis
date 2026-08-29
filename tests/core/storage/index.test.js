@@ -31,6 +31,22 @@ describe('createStorage', () => {
       ConfigError,
     );
   });
+
+  it('devrait connaître postgres et mongo comme drivers valides', async () => {
+    // Cible loopback dont personne n'écoute : échec de connexion quasi
+    // instantané (ECONNREFUSED), pas de vraie DB requise ici — la
+    // conformité fonctionnelle est couverte par les suites dédiées.
+    // On vérifie seulement que le driver est reconnu (l'échec vient de
+    // la connexion, jamais d'un driver "inconnu").
+    await expect(
+      createStorage({ storage: { driver: 'postgres', path: 'postgres://127.0.0.1:1/x' } }),
+    ).rejects.not.toThrow(/inconnu/);
+    await expect(
+      createStorage({
+        storage: { driver: 'mongo', path: 'mongodb://127.0.0.1:1/x?serverSelectionTimeoutMS=200' },
+      }),
+    ).rejects.not.toThrow(/inconnu/);
+  });
 });
 
 describe('namespaced', () => {

@@ -24,6 +24,14 @@ const FACTORIES = {
       );
     }
   },
+  postgres: async (options) => {
+    const { createPostgresDriver } = await import('./drivers/postgres.js');
+    return createPostgresDriver(options);
+  },
+  mongo: async (options) => {
+    const { createMongoDriver } = await import('./drivers/mongo.js');
+    return createMongoDriver(options);
+  },
 };
 
 /**

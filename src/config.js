@@ -1,6 +1,6 @@
 import { ConfigError } from './core/errors.js';
 
-const DRIVERS = ['json', 'sqlite'];
+const DRIVERS = ['json', 'sqlite', 'postgres', 'mongo'];
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 /** @type {Record<string, string>} */
 const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
@@ -61,6 +61,12 @@ export const loadConfig = (env = process.env) => {
   const logLevel = oneOf(logLevelValue, LOG_LEVELS, 'LOG_LEVEL');
 
   const storagePath = env.STORAGE_PATH ?? DEFAULT_PATHS[driver];
+  if (!storagePath) {
+    throw new ConfigError(
+      `Variable d'environnement requise manquante : STORAGE_PATH (chaîne de connexion pour le driver "${driver}")`,
+      { driver },
+    );
+  }
   const pluginsDir = env.PLUGINS_DIR ?? './plugins';
 
   return {

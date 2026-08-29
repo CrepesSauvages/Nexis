@@ -1,1 +1,15 @@
 npx lint-staged
+
+CURRENT=$(node -p "require('./package.json').version")
+MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+MINOR=$(echo "$CURRENT" | cut -d. -f2)
+PATCH=$(echo "$CURRENT" | cut -d. -f3)
+
+PATCH=$((PATCH + 1))
+if [ "$PATCH" -ge 100 ]; then
+  MINOR=$((MINOR + 1))
+  PATCH=$((PATCH - 100))
+fi
+
+npm version "$MAJOR.$MINOR.$PATCH" --no-git-tag-version --allow-same-version
+git add package.json package-lock.json
