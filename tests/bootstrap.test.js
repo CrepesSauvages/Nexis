@@ -75,8 +75,12 @@ afterEach(async () => {
 
 describe('bootstrap', () => {
   it('devrait charger les plugins valides des fixtures', async () => {
+    // `epsilon` (fixture de la Task 20) a un manifeste et un setup() valides
+    // (vide), donc il survit au loader au même titre qu'alpha et beta ; les
+    // fichiers mal formés qu'il contient dans commands/ ne sont scannés que
+    // par applyConventions, pas par loadPlugins.
     const { plugins } = await boot();
-    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta']);
+    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta', 'epsilon']);
   });
 
   it('devrait construire un contexte par plugin', async () => {
@@ -88,6 +92,15 @@ describe('bootstrap', () => {
   it('devrait démarrer malgré un plugin invalide dans le répertoire', async () => {
     const { plugins } = await boot();
     expect(plugins.map((p) => p.name)).not.toContain('Broken');
+  });
+
+  it('devrait charger les déclarations par convention de dossiers', async () => {
+    const { registries } = await boot();
+    // `get()` est typé `object | undefined` côté registre : le cast local
+    // évite d'élargir ce typage partagé pour une seule assertion de test.
+    const ping = /** @type {{ plugin: string } | undefined} */ (registries.commands.get('ping'));
+    expect(ping?.plugin).toBe('epsilon');
+    expect(registries.jobs.all().some((job) => job.plugin === 'epsilon')).toBe(true);
   });
 
   it('devrait exposer un storage fonctionnel', async () => {

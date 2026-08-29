@@ -19,7 +19,7 @@ const silentLogger = () => ({
 describe('loadPlugins', () => {
   it('devrait charger les plugins valides', async () => {
     const plugins = await loadPlugins({ dir: fixtures, logger: silentLogger() });
-    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta']);
+    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta', 'epsilon']);
   });
 
   it("devrait respecter l'ordre topologique", async () => {
@@ -40,7 +40,10 @@ describe('loadPlugins', () => {
 
   it('devrait logger un warn par plugin écarté', async () => {
     // 3 écartés directement (broken, no-setup, throws) + 2 écartés en cascade
-    // (gamma → dépend de throws, delta → dépend de gamma) = 5.
+    // (gamma → dépend de throws, delta → dépend de gamma) = 5. `epsilon` a
+    // un manifeste et un setup valides : loadPlugins ne le rejette pas — ses
+    // fichiers de commands/invalide.js et pas-fabrique.js ne sont examinés
+    // que par applyConventions, pas par le loader.
     const logger = silentLogger();
     await loadPlugins({ dir: fixtures, logger });
     expect(logger.warn).toHaveBeenCalledTimes(5);
@@ -61,7 +64,7 @@ describe('loadPlugins', () => {
     const logger = silentLogger();
     const plugins = await loadPlugins({ dir: fixtures, logger });
     expect(plugins.map((p) => p.name)).not.toContain('throws');
-    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta']);
+    expect(plugins.map((p) => p.name).sort()).toEqual(['alpha', 'beta', 'epsilon']);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('throws'),
       expect.objectContaining({ reason: expect.stringContaining('boom') }),

@@ -11,6 +11,7 @@ import { createClient } from './core/client.js';
 import { attachEventDispatcher, attachCommandDispatcher } from './core/dispatcher.js';
 import { createScheduler } from './core/scheduler.js';
 import { createCommandSync } from './core/command-sync.js';
+import { applyConventions } from './core/conventions.js';
 
 /** Plugins internes, toujours disponibles sans activation. */
 export const ALWAYS_ENABLED = ['core'];
@@ -106,6 +107,7 @@ export const bootstrap = async ({
 
     try {
       await plugin.setup(context);
+      await applyConventions({ plugin, ctx: context, logger });
       contexts.set(plugin.name, context);
       active.push(plugin);
     } catch (error) {
