@@ -49,7 +49,12 @@ export const createLogger = ({ level = 'info', prefixes = [], onError } = {}) =>
     stream.write(`${colored}\n`);
 
     if (levelName === 'error' && onError) {
-      onError({ id: newErrorId(), timestamp: time, level: 'error', message, context });
+      // Réutilise l'errorId du contexte s'il existe déjà (ex. dispatcher.js
+      // qui en mint un pour l'afficher à l'utilisateur Discord) : sinon
+      // deux identifiants distincts désigneraient la même erreur, et l'ID
+      // montré à l'utilisateur ne correspondrait à rien dans /nexis errors.
+      const id = typeof context?.errorId === 'string' ? context.errorId : newErrorId();
+      onError({ id, timestamp: time, level: 'error', message, context });
     }
   };
 

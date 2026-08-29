@@ -138,5 +138,28 @@ describe('createLogger', () => {
     it('ne devrait rien faire si onError est absent', () => {
       expect(() => createLogger({ level: 'info' }).error('sans callback')).not.toThrow();
     });
+
+    it('devrait réutiliser context.errorId comme id du rapport quand présent', () => {
+      /** @type {import('../../src/core/reporting/driver.js').ReportEntry[]} */
+      const entries = [];
+      createLogger({ level: 'info', onError: (entry) => entries.push(entry) }).error('boom', {
+        errorId: 'deadbeef',
+        plugin: 'x',
+      });
+      expect(entries).toHaveLength(1);
+      expect(entries[0].id).toBe('deadbeef');
+    });
+
+    it('devrait minter un id frais quand context.errorId est absent ou pas une chaîne', () => {
+      /** @type {import('../../src/core/reporting/driver.js').ReportEntry[]} */
+      const entries = [];
+      const logger = createLogger({ level: 'info', onError: (entry) => entries.push(entry) });
+      logger.error('boom sans errorId');
+      logger.error('boom avec errorId invalide', { errorId: 42 });
+
+      expect(entries).toHaveLength(2);
+      expect(entries[0].id).toMatch(/^[a-f0-9]{8}$/);
+      expect(entries[1].id).toMatch(/^[a-f0-9]{8}$/);
+    });
   });
 });
