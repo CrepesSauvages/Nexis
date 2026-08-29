@@ -1,5 +1,25 @@
 # Changelog
 
+# [0.2.0](https://github.com/CrepesSauvages/Nexis/compare/v0.1.0...v0.2.0) (2026-08-29)
+
+### Bug Fixes
+
+* exclure la stack et plafonner le contexte inliné dans /nexis errors ([0ba61ba](https://github.com/CrepesSauvages/Nexis/commit/0ba61ba0c5c1bdccb47116730001ca8822881f48))
+* réutiliser context.errorId comme id du rapport dans logger.js ([58fb387](https://github.com/CrepesSauvages/Nexis/commit/58fb387ea43dc8e578852068f6aac72e6f5e0c2f))
+* sérialiser report() dans le reporter local pour éviter une perte d'entrée ([1b3e16c](https://github.com/CrepesSauvages/Nexis/commit/1b3e16ccc9f2e6a15a8dc319f013ee9b071b9e2b))
+* tester l'isolation bidirectionnelle du fan-out et nommer le reporter fautif dans le log ([4ea688d](https://github.com/CrepesSauvages/Nexis/commit/4ea688dc167b9e6589f84a3be309918d3ab67d2a))
+* update version test to use dynamic version from package.json ([4df563b](https://github.com/CrepesSauvages/Nexis/commit/4df563b8bbc40adb85bc68e71176c4a32bccd0fb))
+
+### Features
+
+* ajouter /nexis errors, réservée au propriétaire du bot ([808c217](https://github.com/CrepesSauvages/Nexis/commit/808c2178f8984295082c50178eaee787b281271f))
+* ajouter l'interface ErrorReporter et le driver local à buffer circulaire ([73b1685](https://github.com/CrepesSauvages/Nexis/commit/73b1685b5f90ed96dd1514228f8bde23294b8810))
+* ajouter le driver de reporting Sentry, import différé au premier rapport ([1598e8e](https://github.com/CrepesSauvages/Nexis/commit/1598e8e17269c511868b1715ca97365088583290))
+* ajouter SENTRY_DSN et ERROR_LOG_LIMIT à la configuration ([cbd3271](https://github.com/CrepesSauvages/Nexis/commit/cbd3271ae0924e39915852def38f2f7ca0ee68b3))
+* assembler le fan-out de reporting, local toujours actif, Sentry conditionnel ([e6e0df9](https://github.com/CrepesSauvages/Nexis/commit/e6e0df92b7561e3c4cf4c2d014d52a54d3b07746))
+* câbler errorReporting au boot, exposer ownerId et errorReporting dans ctx.core ([f6b1c49](https://github.com/CrepesSauvages/Nexis/commit/f6b1c490550e325d68e05e80bb027c158d431c91))
+* séparer stdout/stderr par niveau, ajouter couleur TTY, niveau par enfant et hook onError au logger ([ac68afc](https://github.com/CrepesSauvages/Nexis/commit/ac68afc0db20c66ab579d3776dc1c5eeb06f2b08))
+
 # 0.1.0 (2026-08-29)
 
 ### Bug Fixes
