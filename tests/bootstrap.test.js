@@ -174,7 +174,7 @@ describe('setup() qui lève — seconde ligne de défense', () => {
     // mais son setup() lève de façon synchrone à l'appel — un chemin
     // différent de `throws`, qui échoue dès l'import et n'atteint jamais
     // bootstrap(). C'est le try/catch de bootstrap() qui doit l'écarter.
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { plugins, contexts } = await boot({ PLUGINS_DIR: setupThrowsFixtures });
     // `mockRestore()` efface l'historique des appels : on lit `mock.calls`
     // avant de restaurer, pas après.

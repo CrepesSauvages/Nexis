@@ -107,7 +107,7 @@ describe('ctx.client pendant setup() — le proxy client', () => {
   });
 
   it('devrait exclure sans planter un plugin qui appelle une méthode de ctx.client pendant setup()', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { plugins, contexts } = await boot();
     // `mockRestore()` efface l'historique des appels : on lit `mock.calls`
     // avant de restaurer, pas après.

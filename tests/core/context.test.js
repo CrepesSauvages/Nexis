@@ -148,7 +148,7 @@ describe('config', () => {
 
 describe('logger', () => {
   it('devrait préfixer avec le nom du plugin', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     createContext({
       plugin: makePlugin('welcome'),
       client: /** @type {never} */ ({}),
