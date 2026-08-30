@@ -116,8 +116,11 @@ plugins/mon-plugin/
 │   └── ping.js
 ├── events/
 │   └── guild-member-add.js
-└── jobs/
-    └── daily.js
+├── jobs/
+│   └── daily.js
+└── i18n/
+    ├── fr.json
+    └── en.json
 ```
 
 **Chaque fichier exporte par défaut une fabrique qui reçoit `ctx`** et retourne sa déclaration :
@@ -150,6 +153,8 @@ La fabrique est ce qui donne à un handler d'event ou de job l'accès au logger,
 Le nom du fichier dans `events/` **est** le nom de l'event, en kebab-case : `guild-member-add.js` écoute `guildMemberAdd`.
 
 Les deux voies coexistent : un plugin peut ranger ses commandes dans `commands/` et déclarer ses services dans `setup()`. C'est ce que fait `plugins/example/`. Les fichiers `.test.js` sont ignorés ; un module sans `export default`, ou dont l'export par défaut n'est pas une fonction, est signalé dans les logs et ignoré, sans empêcher le démarrage.
+
+`i18n/` suit une logique différente des trois autres : ce ne sont pas des fabriques `.js`, mais des fichiers JSON purs (`i18n/<langue>.json`), chargés au démarrage — avant `setup()` — plutôt que via `applyConventions`. Les clés s'y écrivent sans préfixe (`"greeting": "Bonjour"`) : Nexis préfixe lui-même chaque clé avec le nom du plugin pour éviter toute collision avec le core ou un autre plugin, et elles deviennent utilisables via `ctx.t(locale, 'mon-plugin.greeting')`. Seul `fr.json` est nécessaire pour un plugin qui utilise ce mécanisme — les langues absentes retombent sur le français **du plugin**, pas sur celui du core. Voir `plugins/example/i18n/` et `plugins/example/commands/hello.js` pour un exemple complet, pluriel compris.
 
 Ce qui n'a **pas** de convention de dossier — `provideService`, `useService` et `registerRoute` — passe nécessairement par `setup()`.
 

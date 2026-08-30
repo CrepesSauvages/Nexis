@@ -48,6 +48,7 @@ Nexis traduit ses propres commandes (`/nexis`) dans 8 langues : français, angla
 - **Override par serveur** : `/nexis locale <langue>` force une langue pour tout le monde sur ce serveur, prioritaire sur la langue individuelle de chacun.
 - **Pour les auteurs de plugins** : `ctx.t(locale, key, params?)` et `ctx.resolveLocale(interaction)` sont disponibles sur tout `ctx`, pas seulement le plugin interne. Voir `plugins/example/commands/hello.js` pour un exemple d'usage, y compris le pluriel (`Intl.PluralRules`, aucune règle à écrire à la main).
 - Les fichiers de traduction du core vivent dans `src/core/i18n/locales/*.json` — une clé absente dans une langue retombe automatiquement sur le français.
+- **Traductions d'un plugin** : un dossier `i18n/<langue>.json` à la racine du plugin (au même niveau que `commands/`/`events/`/`jobs/`) est chargé automatiquement au démarrage, avant `setup()`. Les clés y sont écrites sans préfixe (ex. `"greeting": "Bonjour"`) — Nexis les préfixe lui-même avec le nom du plugin pour éviter toute collision, et elles deviennent utilisables via `ctx.t(locale, '<nom-du-plugin>.greeting')`. Seul `fr.json` est nécessaire ; les langues absentes retombent sur le français du plugin. Voir `plugins/example/i18n/` pour un exemple complet.
 
 ## Écrire un plugin
 
