@@ -285,6 +285,28 @@ describe('attachCommandDispatcher', () => {
     expect(interaction.reply).toHaveBeenCalledOnce();
   });
 
+  it('ne devrait pas planter et devrait logger un warn si guildConfig.getLocale rejette', async () => {
+    // Même défense que la vérification d'activation ci-dessus, mais cette
+    // dégradation ne touche pas à la sécurité : on retombe simplement sur
+    // une locale par défaut, et on logge en `warn` (pas en `error`).
+    const execute = vi.fn();
+    registries.commands.add('welcome', { data: { name: 'hello' }, execute });
+    await guildConfig.enable('g1', 'welcome');
+    guildConfig.getLocale = vi.fn().mockRejectedValue(new Error('storage indisponible'));
+
+    const logger = { ...silent(), warn: vi.fn(), child: () => logger };
+    attach({ logger, t: translator.t });
+
+    const interaction = makeInteraction();
+    client.emit('interactionCreate', interaction);
+    await flush();
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn.mock.calls[0][0]).toMatch(/locale/i);
+    expect(logger.warn.mock.calls[0][1]).toMatchObject({ guildId: 'g1', command: 'hello' });
+  });
+
   it('devrait ignorer une commande inconnue', async () => {
     attach();
     const interaction = makeInteraction({ commandName: 'fantôme' });

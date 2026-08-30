@@ -143,12 +143,20 @@ export const attachCommandDispatcher = ({
     // Résolution de la locale une seule fois : même défense que la
     // vérification d'activation ci-dessous — une erreur de storage ne doit
     // jamais faire planter le dispatch, on retombe sur l'absence d'override.
+    // Contrairement à l'activation, cette dégradation ne touche pas à la
+    // sécurité (on retombe simplement sur une locale par défaut sensée) :
+    // c'est un `warn`, pas un `error`.
     let guildOverride;
     try {
       guildOverride = interaction.guildId
         ? await guildConfig.getLocale(interaction.guildId)
         : undefined;
-    } catch {
+    } catch (error) {
+      logger.warn(`Résolution de la locale serveur impossible : ${errorMessage(error)}`, {
+        command: interaction.commandName,
+        guildId: interaction.guildId,
+        stack: errorStack(error),
+      });
       guildOverride = undefined;
     }
     const locale = resolveLocale(interaction, guildOverride);
