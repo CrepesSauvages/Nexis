@@ -22,7 +22,7 @@ const resolve = (locales, locale, key) => locales[locale]?.[key] ?? locales.fr?.
  * `t()` finit par exposer une clé brute `[key]` à un utilisateur réel.
  *
  * @param {Record<string, Record<string, string>>} locales - { fr: {...}, en: {...}, ... }
- * @returns {{ t: (locale: string, key: string, params?: Record<string, string | number>) => string }}
+ * @returns {{ t: (locale: string, key: string, params?: Record<string, string | number>) => string, extend: (newLocales: Record<string, Record<string, string>>) => void }}
  */
 export const createTranslator = (locales) => ({
   t(locale, key, params) {
@@ -37,5 +37,19 @@ export const createTranslator = (locales) => ({
     return template.replace(/\{(\w+)\}/g, (match, name) =>
       params && name in params ? String(params[name]) : match,
     );
+  },
+
+  /**
+   * Fusionne de nouvelles clés dans les données existantes — utilisé par
+   * `registerPluginLocales` (i18n/index.js) pour enrichir le traducteur
+   * partagé au chargement d'un plugin, après sa construction initiale.
+   * Une clé déjà présente est écrasée par la nouvelle valeur.
+   * @param {Record<string, Record<string, string>>} newLocales
+   * @returns {void}
+   */
+  extend(newLocales) {
+    for (const [locale, table] of Object.entries(newLocales)) {
+      locales[locale] = { ...locales[locale], ...table };
+    }
   },
 });

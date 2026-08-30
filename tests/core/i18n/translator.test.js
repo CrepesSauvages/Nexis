@@ -59,3 +59,30 @@ describe('createTranslator', () => {
     expect(t('en', 'greeting')).toBe('Hello {name}');
   });
 });
+
+describe('extend', () => {
+  it('devrait ajouter de nouvelles clés sans toucher aux existantes', () => {
+    const { t, extend } = createTranslator({ fr: { existing: 'déjà là' }, en: {} });
+    extend({ fr: { added: 'ajouté' } });
+    expect(t('fr', 'existing')).toBe('déjà là');
+    expect(t('fr', 'added')).toBe('ajouté');
+  });
+
+  it('devrait fusionner une nouvelle locale absente au départ', () => {
+    const { t, extend } = createTranslator({ fr: { key: 'valeur' } });
+    extend({ pl: { key: 'wartość' } });
+    expect(t('pl', 'key')).toBe('wartość');
+  });
+
+  it('devrait retomber sur le français même pour une clé ajoutée après coup', () => {
+    const { t, extend } = createTranslator({ fr: {} });
+    extend({ fr: { plugin_key: 'texte plugin' } });
+    expect(t('en', 'plugin_key')).toBe('texte plugin');
+  });
+
+  it('une clé ajoutée devrait écraser une clé existante de même nom', () => {
+    const { t, extend } = createTranslator({ fr: { key: 'ancien' } });
+    extend({ fr: { key: 'nouveau' } });
+    expect(t('fr', 'key')).toBe('nouveau');
+  });
+});
