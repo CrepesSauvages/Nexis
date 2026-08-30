@@ -15,11 +15,13 @@
 
   "nexis.enable.already": "`{name}` jest już aktywna tutaj.",
   "nexis.enable.missing_deps_one": "`{name}` zależy od {deps}. Najpierw włącz tę wtyczkę.",
+  "nexis.enable.missing_deps_other": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
   "nexis.enable.missing_deps_few": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
   "nexis.enable.missing_deps_many": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
   "nexis.enable.success": "`{name}` włączona na tym serwerze.",
 
   "nexis.disable.dependents_one": "Niemożliwe: {deps} od tego zależy.",
+  "nexis.disable.dependents_other": "Niemożliwe: {deps} od tego zależą.",
   "nexis.disable.dependents_few": "Niemożliwe: {deps} od tego zależą.",
   "nexis.disable.dependents_many": "Niemożliwe: {deps} od tego zależą.",
   "nexis.disable.success": "`{name}` wyłączona na tym serwerze.",
@@ -53,6 +55,7 @@
 
   "example.hello.command.description": "Przywitaj się",
   "example.hello.suffix_one": " ! ({count} raz)",
+  "example.hello.suffix_other": " ! ({count} razy)",
   "example.hello.suffix_few": " ! ({count} razy)",
   "example.hello.suffix_many": " ! ({count} razy)"
 }
