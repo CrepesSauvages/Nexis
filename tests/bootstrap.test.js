@@ -13,6 +13,7 @@ const fixtures = join(here, 'fixtures', 'plugins');
 // valide et serait donc chargé par loader.test.js et par les assertions
 // exactes ['alpha', 'beta'] de ce fichier s'il vivait dans `fixtures`.
 const setupThrowsFixtures = join(here, 'fixtures', 'plugins-setup-throws');
+const pluginsWithI18nFixtures = join(here, 'fixtures', 'plugins-with-i18n');
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 class FakeClient extends EventEmitter {
@@ -143,6 +144,22 @@ describe('bootstrap', () => {
     app = await boot();
     const ctx = app.contexts.get('alpha');
     expect(ctx?.t('en', 'nexis.owner_only')).toBe('This command is reserved for the bot owner.');
+  });
+
+  it("devrait enregistrer les traductions d'un plugin (dossier i18n/) avant que setup() ne s'exécute", async () => {
+    app = await boot({ PLUGINS_DIR: pluginsWithI18nFixtures });
+    const ctx = app.contexts.get('greeter');
+
+    // Prouvé pendant setup() lui-même par le fixture, pas seulement après.
+    expect(await ctx?.storage.get('setup_fr')).toBe('Bonjour du plugin');
+    expect(await ctx?.storage.get('setup_en')).toBe('Hello from the plugin');
+    // Le plugin ne fournit pas de.json : repli sur SON propre fr.json, pas
+    // sur celui du core (qui n'a jamais entendu parler de cette clé).
+    expect(await ctx?.storage.get('setup_de_fallback')).toBe('Bonjour du plugin');
+
+    // Accessible aussi après coup, via ctx.t directement (pas seulement via
+    // ce que le fixture a stocké pendant son propre setup()).
+    expect(ctx?.t('fr', 'greeter.greeting')).toBe('Bonjour du plugin');
   });
 });
 

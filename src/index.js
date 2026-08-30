@@ -9,7 +9,8 @@ import { createGuildConfig } from './core/guild-config.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
 import { createErrorReporting } from './core/reporting/index.js';
-import { translator } from './core/i18n/index.js';
+import { translator, registerPluginLocales } from './core/i18n/index.js';
+import { loadPluginLocales } from './core/i18n/plugin-locales.js';
 import { createClient } from './core/client.js';
 import { attachEventDispatcher, attachCommandDispatcher } from './core/dispatcher.js';
 import { createScheduler } from './core/scheduler.js';
@@ -111,6 +112,11 @@ export const bootstrap = async ({
   );
 
   for (const plugin of plugins) {
+    // Enregistré avant createContext()/setup() : un plugin doit pouvoir
+    // traduire ses propres textes dès son premier appel à ctx.t, y compris
+    // à l'intérieur de setup() lui-même (ex: description de commande).
+    registerPluginLocales(plugin.name, await loadPluginLocales(plugin.dir));
+
     const context = createContext({
       plugin,
       client: /** @type {import('discord.js').Client} */ (/** @type {unknown} */ (clientProxy)),

@@ -52,3 +52,26 @@ export const localizationsFor = (key) =>
       .map(([locale, discordCode]) => [discordCode, locales[locale]?.[key]])
       .filter(([, value]) => value !== undefined),
   );
+
+/**
+ * Enregistre les traductions d'un plugin dans le traducteur partagé, en
+ * préfixant chaque clé par le nom du plugin (`greeting` → `mon-plugin.greeting`)
+ * — aucune collision possible avec les clés du core ou d'un autre plugin,
+ * sans que l'auteur du plugin n'ait à y penser. Appelé une fois par plugin
+ * au boot (voir `bootstrap()`, `src/index.js`), avant que son `setup()` ne
+ * s'exécute.
+ * @param {string} pluginName
+ * @param {Record<string, Record<string, string>>} pluginLocales - { fr: {...}, en: {...}, ... }
+ * @returns {void}
+ */
+export const registerPluginLocales = (pluginName, pluginLocales) => {
+  const prefixed = Object.fromEntries(
+    Object.entries(pluginLocales).map(([locale, table]) => [
+      locale,
+      Object.fromEntries(
+        Object.entries(table).map(([key, text]) => [`${pluginName}.${key}`, text]),
+      ),
+    ]),
+  );
+  translator.extend(prefixed);
+};

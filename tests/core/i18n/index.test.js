@@ -3,7 +3,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { translator, localizationsFor } from '../../../src/core/i18n/index.js';
+import {
+  translator,
+  localizationsFor,
+  registerPluginLocales,
+} from '../../../src/core/i18n/index.js';
 
 const LOCALES = ['fr', 'en', 'es', 'de', 'pt', 'it', 'nl', 'pl'];
 const LOCALE_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../src/core/i18n/locales');
@@ -78,5 +82,26 @@ describe('localizationsFor', () => {
     const map = localizationsFor('nexis.command.description');
     expect(map.fr).toBeUndefined();
     expect(Object.keys(map)).not.toContain('fr');
+  });
+});
+
+describe('registerPluginLocales', () => {
+  it('devrait préfixer les clés du plugin avec son nom et les rendre traduisibles', () => {
+    registerPluginLocales('demo-plugin-test-a', { fr: { greeting: 'Salut' } });
+    expect(translator.t('fr', 'demo-plugin-test-a.greeting')).toBe('Salut');
+  });
+
+  it("ne devrait pas affecter les clés d'un autre plugin ni du core", () => {
+    registerPluginLocales('demo-plugin-test-b', { fr: { greeting: 'Coucou' } });
+    expect(translator.t('fr', 'demo-plugin-test-b.greeting')).toBe('Coucou');
+    expect(translator.t('fr', 'demo-plugin-test-a.greeting')).toBe('Salut');
+    expect(translator.t('fr', 'nexis.owner_only')).toBe(
+      'Cette commande est réservée au propriétaire du bot.',
+    );
+  });
+
+  it("devrait retomber sur le français du plugin pour une langue qu'il ne fournit pas", () => {
+    registerPluginLocales('demo-plugin-test-c', { fr: { only_fr: 'Uniquement en français' } });
+    expect(translator.t('en', 'demo-plugin-test-c.only_fr')).toBe('Uniquement en français');
   });
 });
