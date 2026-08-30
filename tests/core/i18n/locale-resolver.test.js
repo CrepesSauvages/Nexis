@@ -45,4 +45,17 @@ describe('resolveLocale', () => {
   it('devrait ignorer un override vide (chaîne vide) et continuer la cascade', () => {
     expect(resolveLocale({ locale: 'en-US' }, '')).toBe('en');
   });
+
+  it('devrait ignorer un override malformé (BCP-47 invalide) et continuer la cascade', () => {
+    // `guildConfig.getLocale` renvoie le storage tel quel, sans validation.
+    // Un override du type `fr_FR` (underscore au lieu du tiret) ferait
+    // planter `new Intl.PluralRules(locale)` avec un RangeError non
+    // rattrapé côté dispatcher — on doit donc le traiter comme absent.
+    expect(resolveLocale({ locale: 'en-US' }, 'fr_FR')).toBe('en');
+  });
+
+  it('devrait ignorer un override qui ne fait pas partie des 8 langues supportées', () => {
+    expect(resolveLocale({ locale: 'de' }, 'xx')).toBe('de');
+    expect(resolveLocale({ locale: undefined }, 'xx')).toBe('fr');
+  });
 });
