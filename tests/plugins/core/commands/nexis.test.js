@@ -427,3 +427,38 @@ describe('locale', () => {
     expect(replyText(interaction)).toBe('Serversprache auf Deutsch gesetzt.');
   });
 });
+
+describe('localisation native du picker', () => {
+  it('devrait inclure les 7 langues (hors français) dans description_localizations', () => {
+    const json = /** @type {{ description_localizations: Record<string, string> }} */ (
+      command.data.toJSON()
+    );
+    expect(json.description_localizations).toEqual({
+      'en-US': 'Manage Nexis plugins',
+      'es-ES': 'Administrar los plugins de Nexis',
+      de: 'Nexis-Plugins verwalten',
+      'pt-BR': 'Administrar os plugins do Nexis',
+      it: 'Gestisci i plugin di Nexis',
+      nl: 'Nexis-plugins beheren',
+      pl: 'Zarządzaj wtyczkami Nexis',
+    });
+  });
+
+  it('ne devrait jamais inclure le français dans description_localizations', () => {
+    const json = /** @type {{ description_localizations: Record<string, string> }} */ (
+      command.data.toJSON()
+    );
+    expect(json.description_localizations?.fr).toBeUndefined();
+  });
+
+  it('devrait localiser la description de la sous-commande locale', () => {
+    const json =
+      /** @type {{ options: { name: string, description_localizations?: Record<string, string> }[] }} */ (
+        command.data.toJSON()
+      );
+    const localeSub = json.options.find((opt) => opt.name === 'locale');
+    expect(localeSub?.description_localizations?.['en-US']).toBe(
+      "Set the bot's language on this server",
+    );
+  });
+});

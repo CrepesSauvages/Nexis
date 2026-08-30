@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { localizationsFor } from '../../../src/core/i18n/index.js';
 
 const EPHEMERAL = { flags: 64 };
 
@@ -22,42 +23,68 @@ const LANGUAGE_NAMES = {
 const data = new SlashCommandBuilder()
   .setName('nexis')
   .setDescription('Administration des plugins Nexis')
-  .addSubcommand((sub) => sub.setName('list').setDescription('Lister les plugins disponibles'))
+  .setDescriptionLocalizations(localizationsFor('nexis.command.description'))
+  .addSubcommand((sub) =>
+    sub
+      .setName('list')
+      .setDescription('Lister les plugins disponibles')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.list.description')),
+  )
   .addSubcommand((sub) =>
     sub
       .setName('enable')
       .setDescription('Activer un plugin sur ce serveur')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.enable.description'))
       .addStringOption((option) =>
-        option.setName('plugin').setDescription('Nom du plugin').setRequired(true),
+        option
+          .setName('plugin')
+          .setDescription('Nom du plugin')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.option.plugin.description'))
+          .setRequired(true),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('disable')
       .setDescription('Désactiver un plugin sur ce serveur')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.disable.description'))
       .addStringOption((option) =>
-        option.setName('plugin').setDescription('Nom du plugin').setRequired(true),
+        option
+          .setName('plugin')
+          .setDescription('Nom du plugin')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.option.plugin.description'))
+          .setRequired(true),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('info')
       .setDescription("Détail d'un plugin et de sa configuration")
+      .setDescriptionLocalizations(localizationsFor('nexis.command.info.description'))
       .addStringOption((option) =>
-        option.setName('plugin').setDescription('Nom du plugin').setRequired(true),
+        option
+          .setName('plugin')
+          .setDescription('Nom du plugin')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.option.plugin.description'))
+          .setRequired(true),
       ),
   )
   .addSubcommand((sub) =>
-    sub.setName('errors').setDescription('Erreurs récentes (propriétaire uniquement)'),
+    sub
+      .setName('errors')
+      .setDescription('Erreurs récentes (propriétaire uniquement)')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.errors.description')),
   )
   .addSubcommand((sub) =>
     sub
       .setName('locale')
       .setDescription('Définir la langue du bot sur ce serveur')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.locale.description'))
       .addStringOption((option) =>
         option
           .setName('langue')
           .setDescription('Langue à utiliser sur ce serveur')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.option.langue.description'))
           .setRequired(true)
           .addChoices(
             { name: 'Français', value: 'fr' },
