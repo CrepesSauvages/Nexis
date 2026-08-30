@@ -8,6 +8,7 @@ import { createRegistries } from '../../src/core/registry/index.js';
 import { createGuildConfig } from '../../src/core/guild-config.js';
 import { createLogger } from '../../src/core/logger.js';
 import { attachCommandDispatcher } from '../../src/core/dispatcher.js';
+import { translator } from '../../src/core/i18n/index.js';
 
 const silent = () => createLogger({ level: 'error' });
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -174,7 +175,10 @@ describe('attachCommandDispatcher', () => {
       },
     });
     await guildConfig.enable('g1', 'welcome');
-    attach();
+    // `t` par défaut ne fait pas d'interpolation (voir sa doc) — ce test
+    // vérifie la présence d'un vrai errorId dans la réponse, il lui faut
+    // donc le traducteur réel, comme les tests de traduction ci-dessous.
+    attach({ t: translator.t });
 
     const interaction = makeInteraction();
     client.emit('interactionCreate', interaction);
@@ -281,11 +285,89 @@ describe('attachCommandDispatcher', () => {
     expect(interaction.reply).toHaveBeenCalledOnce();
   });
 
+  it('ne devrait pas planter et devrait logger un warn si guildConfig.getLocale rejette', async () => {
+    // Même défense que la vérification d'activation ci-dessus, mais cette
+    // dégradation ne touche pas à la sécurité : on retombe simplement sur
+    // une locale par défaut, et on logge en `warn` (pas en `error`).
+    const execute = vi.fn();
+    registries.commands.add('welcome', { data: { name: 'hello' }, execute });
+    await guildConfig.enable('g1', 'welcome');
+    guildConfig.getLocale = vi.fn().mockRejectedValue(new Error('storage indisponible'));
+
+    const logger = { ...silent(), warn: vi.fn(), child: () => logger };
+    attach({ logger, t: translator.t });
+
+    const interaction = makeInteraction();
+    client.emit('interactionCreate', interaction);
+    await flush();
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn.mock.calls[0][0]).toMatch(/locale/i);
+    expect(logger.warn.mock.calls[0][1]).toMatchObject({ guildId: 'g1', command: 'hello' });
+  });
+
   it('devrait ignorer une commande inconnue', async () => {
     attach();
     const interaction = makeInteraction({ commandName: 'fantôme' });
     client.emit('interactionCreate', interaction);
     await flush();
     expect(interaction.reply).toHaveBeenCalledOnce();
+  });
+
+  it('devrait traduire "commande introuvable" selon interaction.locale', async () => {
+    attach({ t: translator.t });
+    const interaction = makeInteraction({ commandName: 'fantôme', locale: 'en-US' });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    expect(interaction.reply.mock.calls[0][0].content).toBe(
+      'This command no longer exists. It may have been disabled.',
+    );
+  });
+
+  it("devrait prioriser l'override de guildConfig sur interaction.locale", async () => {
+    await guildConfig.setLocale('g1', 'de');
+    attach({ t: translator.t });
+    const interaction = makeInteraction({ commandName: 'fantôme', locale: 'en-US', guildId: 'g1' });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    expect(interaction.reply.mock.calls[0][0].content).toBe(
+      'Dieser Befehl existiert nicht mehr. Er wurde möglicherweise deaktiviert.',
+    );
+  });
+
+  it('devrait traduire le message de permission refusée', async () => {
+    registries.commands.add('welcome', {
+      data: { name: 'hello' },
+      execute: vi.fn(),
+      permissions: 'guild-admin',
+    });
+    await guildConfig.enable('g1', 'welcome');
+    attach({ t: translator.t });
+    const interaction = makeInteraction({
+      locale: 'es-ES',
+      memberPermissions: { has: () => false },
+    });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    expect(interaction.reply.mock.calls[0][0].content).toBe(
+      'No tienes permiso para usar este comando.',
+    );
+  });
+
+  it("devrait traduire le message d'erreur de commande avec l'errorId interpolé", async () => {
+    registries.commands.add('welcome', {
+      data: { name: 'hello' },
+      execute: () => {
+        throw new Error('boum');
+      },
+    });
+    await guildConfig.enable('g1', 'welcome');
+    attach({ t: translator.t });
+    const interaction = makeInteraction({ locale: 'de' });
+    client.emit('interactionCreate', interaction);
+    await flush();
+    const content = /** @type {string} */ (interaction.reply.mock.calls[0][0].content);
+    expect(content).toMatch(/^Ein Fehler ist aufgetreten\. Referenz: `[a-f0-9]{8}`$/);
   });
 });

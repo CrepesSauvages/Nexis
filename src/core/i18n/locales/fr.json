@@ -1,0 +1,61 @@
+{
+  "dispatcher.command_removed": "Cette commande n'existe plus. Elle a peut-être été désactivée.",
+  "dispatcher.plugin_not_active": "Le plugin `{plugin}` n'est pas activé sur ce serveur.",
+  "dispatcher.permission_denied": "Vous n'avez pas la permission d'utiliser cette commande.",
+  "dispatcher.command_error": "Une erreur est survenue. Référence : `{errorId}`",
+
+  "nexis.list.title": "**Plugins Nexis**",
+  "nexis.list.empty": "Aucun plugin trouvé dans `plugins/`.",
+  "nexis.list.mark_always": "✅ (toujours actif)",
+  "nexis.list.entry": "{mark} **{name}** `{version}` — {description}",
+  "nexis.list.no_description": "sans description",
+
+  "nexis.plugin_not_found": "Plugin introuvable : `{name}`",
+  "nexis.always_enabled": "`{name}` est un plugin interne toujours actif : impossible de l'activer ou de le désactiver.",
+
+  "nexis.enable.already": "`{name}` est déjà activé ici.",
+  "nexis.enable.missing_deps_one": "`{name}` dépend de {deps}. Activez ce plugin d'abord.",
+  "nexis.enable.missing_deps_other": "`{name}` dépend de {deps}. Activez ces plugins d'abord.",
+  "nexis.enable.missing_deps_few": "`{name}` dépend de {deps}. Activez ces plugins d'abord.",
+  "nexis.enable.missing_deps_many": "`{name}` dépend de {deps}. Activez ces plugins d'abord.",
+  "nexis.enable.success": "`{name}` activé sur ce serveur.",
+
+  "nexis.disable.dependents_one": "Impossible : {deps} en dépend.",
+  "nexis.disable.dependents_other": "Impossible : {deps} en dépendent.",
+  "nexis.disable.dependents_few": "Impossible : {deps} en dépendent.",
+  "nexis.disable.dependents_many": "Impossible : {deps} en dépendent.",
+  "nexis.disable.success": "`{name}` désactivé sur ce serveur.",
+
+  "nexis.info.header": "**{name}** `{version}` — {status}",
+  "nexis.info.status_enabled": "activé",
+  "nexis.info.status_disabled": "désactivé",
+  "nexis.info.depends_on": "Dépend de : {deps}",
+  "nexis.info.setting": "• **{label}** (`{key}`, {type}){flag} → {current}",
+  "nexis.info.required_flag": " *(requis)*",
+  "nexis.info.value_undefined": "_non définie_",
+  "nexis.info.settings_header": "\n**Configuration**\n{settings}",
+  "nexis.info.no_settings": "\nAucune option de configuration.",
+
+  "nexis.owner_only": "Cette commande est réservée au propriétaire du bot.",
+  "nexis.errors.none": "Aucune erreur récente.",
+  "nexis.errors.title": "**Erreurs récentes**",
+  "nexis.errors.entry": "`{id}` {timestamp} — {message}{context}",
+
+  "nexis.locale.confirmed": "Langue du serveur définie sur {language}.",
+
+  "nexis.command.description": "Administration des plugins Nexis",
+  "nexis.command.list.description": "Lister les plugins disponibles",
+  "nexis.command.enable.description": "Activer un plugin sur ce serveur",
+  "nexis.command.disable.description": "Désactiver un plugin sur ce serveur",
+  "nexis.command.info.description": "Détail d'un plugin et de sa configuration",
+  "nexis.command.errors.description": "Erreurs récentes (propriétaire uniquement)",
+  "nexis.command.locale.description": "Définir la langue du bot sur ce serveur",
+  "nexis.command.option.plugin.description": "Nom du plugin",
+  "nexis.command.option.langue.description": "Langue à utiliser sur ce serveur",
+
+  "example.hello.command.description": "Dit bonjour",
+  "example.hello.suffix_one": " ! ({count} fois)",
+  "example.hello.suffix_other": " ! ({count} fois)",
+  "example.hello.suffix_few": " ! ({count} fois)",
+  "example.hello.suffix_many": " ! ({count} fois)"
+}

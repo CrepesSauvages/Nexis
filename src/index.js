@@ -9,6 +9,7 @@ import { createGuildConfig } from './core/guild-config.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
 import { createErrorReporting } from './core/reporting/index.js';
+import { translator } from './core/i18n/index.js';
 import { createClient } from './core/client.js';
 import { attachEventDispatcher, attachCommandDispatcher } from './core/dispatcher.js';
 import { createScheduler } from './core/scheduler.js';
@@ -123,6 +124,7 @@ export const bootstrap = async ({
       alwaysEnabled: ALWAYS_ENABLED,
       ownerId: config.ownerId,
       errorReporting: { getRecent: errorReporting.getRecent },
+      t: translator.t,
     });
 
     try {
@@ -161,6 +163,7 @@ export const bootstrap = async ({
     logger,
     alwaysEnabled: ALWAYS_ENABLED,
     ownerId: config.ownerId,
+    t: translator.t,
   });
 
   const scheduler = createScheduler({

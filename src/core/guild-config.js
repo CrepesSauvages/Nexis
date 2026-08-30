@@ -12,11 +12,15 @@ export const createGuildConfig = ({ storage }) => {
   const enabledCache = new Map();
   /** @type {Map<string, Record<string, unknown>>} */
   const configCache = new Map();
+  /** @type {Map<string, string>} */
+  const localeCache = new Map();
 
   /** @param {string} guildId */
   const enabledKey = (guildId) => `core:guild:${guildId}:enabled`;
   /** @param {string} guildId @param {string} plugin */
   const configKey = (guildId, plugin) => `core:guild:${guildId}:config:${plugin}`;
+  /** @param {string} guildId */
+  const localeKey = (guildId) => `core:guild:${guildId}:locale`;
 
   /**
    * @param {string} guildId
@@ -85,6 +89,28 @@ export const createGuildConfig = ({ storage }) => {
     },
 
     /**
+     * @param {string} guildId
+     * @returns {Promise<string | undefined>}
+     */
+    async getLocale(guildId) {
+      const cached = localeCache.get(guildId);
+      if (cached) return cached;
+      const stored = /** @type {string | undefined} */ (await storage.get(localeKey(guildId)));
+      if (stored) localeCache.set(guildId, stored);
+      return stored;
+    },
+
+    /**
+     * @param {string} guildId
+     * @param {string} locale
+     * @returns {Promise<void>}
+     */
+    async setLocale(guildId, locale) {
+      await storage.set(localeKey(guildId), locale);
+      localeCache.set(guildId, locale);
+    },
+
+    /**
      * Fusionne les valeurs par défaut du schéma avec ce qui est stocké.
      * @param {string} guildId
      * @param {string} plugin
@@ -127,6 +153,7 @@ export const createGuildConfig = ({ storage }) => {
      */
     invalidate(guildId) {
       enabledCache.delete(guildId);
+      localeCache.delete(guildId);
       for (const key of configCache.keys()) {
         if (key.startsWith(`core:guild:${guildId}:`)) configCache.delete(key);
       }

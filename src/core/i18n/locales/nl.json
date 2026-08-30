@@ -1,0 +1,55 @@
+{
+  "dispatcher.command_removed": "Dit commando bestaat niet meer. Het is mogelijk uitgeschakeld.",
+  "dispatcher.plugin_not_active": "De plugin `{plugin}` is niet ingeschakeld op deze server.",
+  "dispatcher.permission_denied": "Je hebt geen toestemming om dit commando te gebruiken.",
+  "dispatcher.command_error": "Er is een fout opgetreden. Referentie: `{errorId}`",
+
+  "nexis.list.title": "**Nexis-plugins**",
+  "nexis.list.empty": "Geen plugins gevonden in `plugins/`.",
+  "nexis.list.mark_always": "✅ (altijd actief)",
+  "nexis.list.entry": "{mark} **{name}** `{version}` — {description}",
+  "nexis.list.no_description": "geen beschrijving",
+
+  "nexis.plugin_not_found": "Plugin niet gevonden: `{name}`",
+  "nexis.always_enabled": "`{name}` is een interne, altijd actieve plugin: kan niet worden in- of uitgeschakeld.",
+
+  "nexis.enable.already": "`{name}` is hier al ingeschakeld.",
+  "nexis.enable.missing_deps_one": "`{name}` is afhankelijk van {deps}. Schakel deze plugin eerst in.",
+  "nexis.enable.missing_deps_other": "`{name}` is afhankelijk van {deps}. Schakel deze plugins eerst in.",
+  "nexis.enable.success": "`{name}` ingeschakeld op deze server.",
+
+  "nexis.disable.dependents_one": "Niet mogelijk: {deps} is hiervan afhankelijk.",
+  "nexis.disable.dependents_other": "Niet mogelijk: {deps} zijn hiervan afhankelijk.",
+  "nexis.disable.success": "`{name}` uitgeschakeld op deze server.",
+
+  "nexis.info.header": "**{name}** `{version}` — {status}",
+  "nexis.info.status_enabled": "ingeschakeld",
+  "nexis.info.status_disabled": "uitgeschakeld",
+  "nexis.info.depends_on": "Afhankelijk van: {deps}",
+  "nexis.info.setting": "• **{label}** (`{key}`, {type}){flag} → {current}",
+  "nexis.info.required_flag": " *(verplicht)*",
+  "nexis.info.value_undefined": "_niet ingesteld_",
+  "nexis.info.settings_header": "\n**Configuratie**\n{settings}",
+  "nexis.info.no_settings": "\nGeen configuratieopties.",
+
+  "nexis.owner_only": "Dit commando is voorbehouden aan de bot-eigenaar.",
+  "nexis.errors.none": "Geen recente fouten.",
+  "nexis.errors.title": "**Recente fouten**",
+  "nexis.errors.entry": "`{id}` {timestamp} — {message}{context}",
+
+  "nexis.locale.confirmed": "Servertaal ingesteld op {language}.",
+
+  "nexis.command.description": "Nexis-plugins beheren",
+  "nexis.command.list.description": "Beschikbare plugins weergeven",
+  "nexis.command.enable.description": "Een plugin inschakelen op deze server",
+  "nexis.command.disable.description": "Een plugin uitschakelen op deze server",
+  "nexis.command.info.description": "Details van een plugin en zijn configuratie",
+  "nexis.command.errors.description": "Recente fouten (alleen eigenaar)",
+  "nexis.command.locale.description": "De taal van de bot instellen op deze server",
+  "nexis.command.option.plugin.description": "Naam van de plugin",
+  "nexis.command.option.langue.description": "Te gebruiken taal op deze server",
+
+  "example.hello.command.description": "Zeg hallo",
+  "example.hello.suffix_one": " ! ({count} keer)",
+  "example.hello.suffix_other": " ! ({count} keer)"
+}

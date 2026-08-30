@@ -1,0 +1,61 @@
+{
+  "dispatcher.command_removed": "To polecenie już nie istnieje. Mogło zostać wyłączone.",
+  "dispatcher.plugin_not_active": "Wtyczka `{plugin}` nie jest aktywna na tym serwerze.",
+  "dispatcher.permission_denied": "Nie masz uprawnień do użycia tego polecenia.",
+  "dispatcher.command_error": "Wystąpił błąd. Numer referencyjny: `{errorId}`",
+
+  "nexis.list.title": "**Wtyczki Nexis**",
+  "nexis.list.empty": "Nie znaleziono żadnych wtyczek w `plugins/`.",
+  "nexis.list.mark_always": "✅ (zawsze aktywna)",
+  "nexis.list.entry": "{mark} **{name}** `{version}` — {description}",
+  "nexis.list.no_description": "brak opisu",
+
+  "nexis.plugin_not_found": "Nie znaleziono wtyczki: `{name}`",
+  "nexis.always_enabled": "`{name}` to wewnętrzna wtyczka, zawsze aktywna: nie można jej włączyć ani wyłączyć.",
+
+  "nexis.enable.already": "`{name}` jest już aktywna tutaj.",
+  "nexis.enable.missing_deps_one": "`{name}` zależy od {deps}. Najpierw włącz tę wtyczkę.",
+  "nexis.enable.missing_deps_other": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
+  "nexis.enable.missing_deps_few": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
+  "nexis.enable.missing_deps_many": "`{name}` zależy od {deps}. Najpierw włącz te wtyczki.",
+  "nexis.enable.success": "`{name}` włączona na tym serwerze.",
+
+  "nexis.disable.dependents_one": "Niemożliwe: {deps} od tego zależy.",
+  "nexis.disable.dependents_other": "Niemożliwe: {deps} od tego zależą.",
+  "nexis.disable.dependents_few": "Niemożliwe: {deps} od tego zależą.",
+  "nexis.disable.dependents_many": "Niemożliwe: {deps} od tego zależą.",
+  "nexis.disable.success": "`{name}` wyłączona na tym serwerze.",
+
+  "nexis.info.header": "**{name}** `{version}` — {status}",
+  "nexis.info.status_enabled": "włączona",
+  "nexis.info.status_disabled": "wyłączona",
+  "nexis.info.depends_on": "Zależy od: {deps}",
+  "nexis.info.setting": "• **{label}** (`{key}`, {type}){flag} → {current}",
+  "nexis.info.required_flag": " *(wymagane)*",
+  "nexis.info.value_undefined": "_nieustawione_",
+  "nexis.info.settings_header": "\n**Konfiguracja**\n{settings}",
+  "nexis.info.no_settings": "\nBrak opcji konfiguracji.",
+
+  "nexis.owner_only": "To polecenie jest zarezerwowane dla właściciela bota.",
+  "nexis.errors.none": "Brak niedawnych błędów.",
+  "nexis.errors.title": "**Niedawne błędy**",
+  "nexis.errors.entry": "`{id}` {timestamp} — {message}{context}",
+
+  "nexis.locale.confirmed": "Język serwera ustawiony na {language}.",
+
+  "nexis.command.description": "Zarządzaj wtyczkami Nexis",
+  "nexis.command.list.description": "Wyświetl dostępne wtyczki",
+  "nexis.command.enable.description": "Włącz wtyczkę na tym serwerze",
+  "nexis.command.disable.description": "Wyłącz wtyczkę na tym serwerze",
+  "nexis.command.info.description": "Szczegóły wtyczki i jej konfiguracji",
+  "nexis.command.errors.description": "Niedawne błędy (tylko właściciel)",
+  "nexis.command.locale.description": "Ustaw język bota na tym serwerze",
+  "nexis.command.option.plugin.description": "Nazwa wtyczki",
+  "nexis.command.option.langue.description": "Język używany na tym serwerze",
+
+  "example.hello.command.description": "Przywitaj się",
+  "example.hello.suffix_one": " ! ({count} raz)",
+  "example.hello.suffix_other": " ! ({count} razy)",
+  "example.hello.suffix_few": " ! ({count} razy)",
+  "example.hello.suffix_many": " ! ({count} razy)"
+}

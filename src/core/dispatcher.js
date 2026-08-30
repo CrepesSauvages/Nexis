@@ -1,6 +1,7 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { guildIdOf } from './intents.js';
 import { newErrorId, errorMessage, errorStack } from './errors.js';
+import { resolveLocale } from './i18n/locale-resolver.js';
 
 const EPHEMERAL = { flags: 64 };
 
@@ -83,6 +84,7 @@ export const attachEventDispatcher = ({
  * @param {import('./logger.js').Logger} options.logger
  * @param {string[]} [options.alwaysEnabled]
  * @param {string} [options.ownerId]
+ * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
  * @returns {void}
  */
 export const attachCommandDispatcher = ({
@@ -93,6 +95,7 @@ export const attachCommandDispatcher = ({
   logger,
   alwaysEnabled = [],
   ownerId = undefined,
+  t = (_locale, key) => `[${key}]`,
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
@@ -137,9 +140,30 @@ export const attachCommandDispatcher = ({
   client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    // Résolution de la locale une seule fois : même défense que la
+    // vérification d'activation ci-dessous — une erreur de storage ne doit
+    // jamais faire planter le dispatch, on retombe sur l'absence d'override.
+    // Contrairement à l'activation, cette dégradation ne touche pas à la
+    // sécurité (on retombe simplement sur une locale par défaut sensée) :
+    // c'est un `warn`, pas un `error`.
+    let guildOverride;
+    try {
+      guildOverride = interaction.guildId
+        ? await guildConfig.getLocale(interaction.guildId)
+        : undefined;
+    } catch (error) {
+      logger.warn(`Résolution de la locale serveur impossible : ${errorMessage(error)}`, {
+        command: interaction.commandName,
+        guildId: interaction.guildId,
+        stack: errorStack(error),
+      });
+      guildOverride = undefined;
+    }
+    const locale = resolveLocale(interaction, guildOverride);
+
     const entry = registries.commands.get(interaction.commandName);
     if (!entry) {
-      await respond(interaction, "Cette commande n'existe plus. Elle a peut-être été désactivée.");
+      await respond(interaction, t(locale, 'dispatcher.command_removed'));
       return;
     }
 
@@ -158,12 +182,15 @@ export const attachCommandDispatcher = ({
       });
     }
     if (!active) {
-      await respond(interaction, `Le plugin \`${entry.plugin}\` n'est pas activé sur ce serveur.`);
+      await respond(
+        interaction,
+        t(locale, 'dispatcher.plugin_not_active', { plugin: entry.plugin }),
+      );
       return;
     }
 
     if (!isAllowed(entry.command, interaction)) {
-      await respond(interaction, "Vous n'avez pas la permission d'utiliser cette commande.");
+      await respond(interaction, t(locale, 'dispatcher.permission_denied'));
       return;
     }
 
@@ -178,7 +205,7 @@ export const attachCommandDispatcher = ({
         guildId: interaction.guildId,
         stack: errorStack(error),
       });
-      await respond(interaction, `Une erreur est survenue. Référence : \`${errorId}\``);
+      await respond(interaction, t(locale, 'dispatcher.command_error', { errorId }));
     }
   });
 };

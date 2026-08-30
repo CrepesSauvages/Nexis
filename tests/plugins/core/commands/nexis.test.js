@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { createJsonDriver } from '../../../../src/core/storage/drivers/json.js';
 import { createGuildConfig } from '../../../../src/core/guild-config.js';
 import { buildNexisCommand } from '../../../../plugins/core/commands/nexis.js';
+import { translator } from '../../../../src/core/i18n/index.js';
+import { resolveLocale as resolveLocalePure } from '../../../../src/core/i18n/locale-resolver.js';
 
 /**
  * @param {string} name
@@ -30,6 +32,7 @@ const makePlugin = (name, manifest = {}) => ({
  */
 const makeInteraction = (subcommand, pluginName, userId = 'owner-123') => ({
   guildId: 'g1',
+  locale: /** @type {string | undefined} */ (undefined),
   user: { id: userId },
   reply: vi.fn(),
   options: {
@@ -53,7 +56,7 @@ let dir;
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: import('vitest').Mock<(count?: number) => Promise<import('../../../../src/core/reporting/driver.js').ReportEntry[]>> } }} */
+/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: import('vitest').Mock<(count?: number) => Promise<import('../../../../src/core/reporting/driver.js').ReportEntry[]>> }, t: (locale: string, key: string, params?: Record<string, string | number>) => string, resolveLocale: (interaction: { locale?: string, guildId?: string | null }) => Promise<string> }} */
 let core;
 /** @type {ReturnType<typeof buildNexisCommand>} */
 let command;
@@ -70,6 +73,9 @@ beforeEach(async () => {
     alwaysEnabled: [],
     ownerId: 'owner-123',
     errorReporting: { getRecent: vi.fn().mockResolvedValue([]) },
+    t: translator.t,
+    resolveLocale: async (interaction) =>
+      resolveLocalePure(interaction, await guildConfig.getLocale(interaction.guildId ?? '')),
   };
   command = buildNexisCommand(core);
 });
@@ -114,6 +120,13 @@ describe('/nexis list', () => {
     await command.execute(interaction);
     const text = replyText(interaction);
     expect(text).toMatch(/toujours actif.*\*\*core\*\*/);
+  });
+
+  it("devrait traduire le titre selon la locale de l'interaction", async () => {
+    const interaction = makeInteraction('list');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('**Nexis Plugins**');
   });
 });
 
@@ -170,6 +183,36 @@ describe('/nexis enable', () => {
     expect(replyText(interaction)).toMatch(/toujours actif/);
     expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
   });
+
+  it('devrait traduire "plugin introuvable" selon la locale de l\'interaction', async () => {
+    const interaction = makeInteraction('enable', 'inexistant');
+    interaction.locale = 'de';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toBe('Plugin nicht gefunden: `inexistant`');
+  });
+
+  it('devrait traduire le pluriel des dépendances manquantes (une seule)', async () => {
+    const dep = makePlugin('dep');
+    const plugin = makePlugin('needs-dep', { dependsOn: ['dep'] });
+    core.plugins = [dep, plugin];
+    const interaction = makeInteraction('enable', 'needs-dep');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toBe('`needs-dep` depends on `dep`. Enable this plugin first.');
+  });
+
+  it('devrait traduire le pluriel des dépendances manquantes (plusieurs)', async () => {
+    const dep1 = makePlugin('dep1');
+    const dep2 = makePlugin('dep2');
+    const plugin = makePlugin('needs-deps', { dependsOn: ['dep1', 'dep2'] });
+    core.plugins = [dep1, dep2, plugin];
+    const interaction = makeInteraction('enable', 'needs-deps');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toBe(
+      '`needs-deps` depends on `dep1`, `dep2`. Enable these plugins first.',
+    );
+  });
 });
 
 describe('/nexis disable', () => {
@@ -208,6 +251,14 @@ describe('/nexis disable', () => {
     expect(replyText(interaction)).not.toMatch(/désactivé/);
     expect(core.commandSync.syncGuild).not.toHaveBeenCalled();
   });
+
+  it("devrait traduire le message de succès selon la locale de l'interaction", async () => {
+    await guildConfig.enable('g1', 'welcome');
+    const interaction = makeInteraction('disable', 'welcome');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toBe('`welcome` disabled on this server.');
+  });
 });
 
 describe('/nexis info', () => {
@@ -233,6 +284,14 @@ describe('/nexis info', () => {
     await command.execute(interaction);
     expect(replyText(interaction)).toMatch(/introuvable|inconnu/i);
   });
+
+  it("devrait traduire le statut selon la locale de l'interaction", async () => {
+    await guildConfig.enable('g1', 'welcome');
+    const interaction = makeInteraction('info', 'welcome');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('enabled');
+  });
 });
 
 describe('/nexis errors', () => {
@@ -247,6 +306,13 @@ describe('/nexis errors', () => {
     const interaction = makeInteraction('errors', undefined, 'owner-123');
     await command.execute(interaction);
     expect(replyText(interaction)).toMatch(/aucune erreur/i);
+  });
+
+  it('devrait traduire le message "aucune erreur" selon la locale de l\'interaction', async () => {
+    const interaction = makeInteraction('errors', undefined, 'owner-123');
+    interaction.locale = 'en-US';
+    await command.execute(interaction);
+    expect(replyText(interaction)).toBe('No recent errors.');
   });
 
   it('devrait lister les erreurs récentes', async () => {
@@ -341,5 +407,58 @@ describe('/nexis errors', () => {
     // consomme plus tout le budget de troncature à elle seule.
     const idsPresent = entries.filter((entry) => text.includes(entry.id)).length;
     expect(idsPresent).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('locale', () => {
+  it('devrait fixer la locale du serveur et confirmer dans la nouvelle langue', async () => {
+    const interaction = {
+      guildId: 'g1',
+      user: { id: 'owner-123' },
+      locale: 'fr',
+      reply: vi.fn(),
+      options: {
+        getSubcommand: () => 'locale',
+        getString: () => 'de',
+      },
+    };
+    await command.execute(interaction);
+    expect(await guildConfig.getLocale('g1')).toBe('de');
+    expect(replyText(interaction)).toBe('Serversprache auf Deutsch gesetzt.');
+  });
+});
+
+describe('localisation native du picker', () => {
+  it('devrait inclure les 7 langues (hors français) dans description_localizations', () => {
+    const json = /** @type {{ description_localizations: Record<string, string> }} */ (
+      command.data.toJSON()
+    );
+    expect(json.description_localizations).toEqual({
+      'en-US': 'Manage Nexis plugins',
+      'es-ES': 'Administrar los plugins de Nexis',
+      de: 'Nexis-Plugins verwalten',
+      'pt-BR': 'Administrar os plugins do Nexis',
+      it: 'Gestisci i plugin di Nexis',
+      nl: 'Nexis-plugins beheren',
+      pl: 'Zarządzaj wtyczkami Nexis',
+    });
+  });
+
+  it('ne devrait jamais inclure le français dans description_localizations', () => {
+    const json = /** @type {{ description_localizations: Record<string, string> }} */ (
+      command.data.toJSON()
+    );
+    expect(json.description_localizations?.fr).toBeUndefined();
+  });
+
+  it('devrait localiser la description de la sous-commande locale', () => {
+    const json =
+      /** @type {{ options: { name: string, description_localizations?: Record<string, string> }[] }} */ (
+        command.data.toJSON()
+      );
+    const localeSub = json.options.find((opt) => opt.name === 'locale');
+    expect(localeSub?.description_localizations?.['en-US']).toBe(
+      "Set the bot's language on this server",
+    );
   });
 });

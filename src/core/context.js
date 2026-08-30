@@ -1,5 +1,6 @@
 import { DependencyError } from './errors.js';
 import { namespaced } from './storage/index.js';
+import { resolveLocale } from './i18n/locale-resolver.js';
 
 /**
  * @typedef {object} PluginContext
@@ -13,6 +14,8 @@ import { namespaced } from './storage/index.js';
  * @property {(api: object) => void} provideService
  * @property {(name: string) => object} useService
  * @property {(route: import('./registry/routes.js').RouteDef) => void} registerRoute
+ * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
+ * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
  * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined }} [core] - réservé au plugin interne
  */
 
@@ -33,6 +36,7 @@ import { namespaced } from './storage/index.js';
  * @param {string[]} [options.alwaysEnabled]
  * @param {string} [options.ownerId]
  * @param {{ getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> }} [options.errorReporting]
+ * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
  * @returns {PluginContext}
  */
 export const createContext = ({
@@ -48,6 +52,7 @@ export const createContext = ({
   alwaysEnabled = [],
   ownerId = undefined,
   errorReporting = undefined,
+  t = (_locale, key) => `[${key}]`,
 }) => {
   const { name, manifest } = plugin;
   const declared = manifest.dependsOn ?? [];
@@ -64,6 +69,14 @@ export const createContext = ({
     registerJob: (cron, handler) => registries.jobs.add(name, cron, handler),
     registerRoute: (route) => registries.routes.add(name, route),
     provideService: (api) => registries.services.provide(name, api),
+
+    t,
+    resolveLocale: async (interaction) => {
+      const override = interaction.guildId
+        ? await guildConfig.getLocale(interaction.guildId)
+        : undefined;
+      return resolveLocale(interaction, override);
+    },
 
     useService: (serviceName) => {
       if (!declared.includes(serviceName)) {
