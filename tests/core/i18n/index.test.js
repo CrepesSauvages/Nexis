@@ -41,6 +41,23 @@ describe('chargement des locales', () => {
       }
     }
   });
+
+  it('devrait retourner le texte _many correct pour les pluriels en espagnol, portugais et italien', () => {
+    // Test ES avec un grand nombre pour déclencher la catégorie 'many'
+    expect(
+      translator.t('es', 'nexis.enable.missing_deps', { name: 'x', deps: 'y', count: 1000000 }),
+    ).toBe('`x` depende de y. Activa esos plugins primero.');
+
+    // Test PT avec un grand nombre
+    expect(
+      translator.t('pt', 'nexis.enable.missing_deps', { name: 'x', deps: 'y', count: 1000000 }),
+    ).toBe('`x` depende de y. Ative esses plugins primeiro.');
+
+    // Test IT avec un grand nombre
+    expect(
+      translator.t('it', 'nexis.enable.missing_deps', { name: 'x', deps: 'y', count: 1000000 }),
+    ).toBe('`x` dipende da y. Attiva prima questi plugin.');
+  });
 });
 
 describe('localizationsFor', () => {

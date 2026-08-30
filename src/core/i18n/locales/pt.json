@@ -16,10 +16,12 @@
   "nexis.enable.already": "`{name}` já está ativado aqui.",
   "nexis.enable.missing_deps_one": "`{name}` depende de {deps}. Ative esse plugin primeiro.",
   "nexis.enable.missing_deps_other": "`{name}` depende de {deps}. Ative esses plugins primeiro.",
+  "nexis.enable.missing_deps_many": "`{name}` depende de {deps}. Ative esses plugins primeiro.",
   "nexis.enable.success": "`{name}` ativado neste servidor.",
 
   "nexis.disable.dependents_one": "Impossível: {deps} depende dele.",
   "nexis.disable.dependents_other": "Impossível: {deps} dependem dele.",
+  "nexis.disable.dependents_many": "Impossível: {deps} dependem dele.",
   "nexis.disable.success": "`{name}` desativado neste servidor.",
 
   "nexis.info.header": "**{name}** `{version}` — {status}",
@@ -51,5 +53,6 @@
 
   "example.hello.command.description": "Diga olá",
   "example.hello.suffix_one": " ! ({count} vez)",
-  "example.hello.suffix_other": " ! ({count} vezes)"
+  "example.hello.suffix_other": " ! ({count} vezes)",
+  "example.hello.suffix_many": " ! ({count} vezes)"
 }
