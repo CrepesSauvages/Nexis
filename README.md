@@ -40,6 +40,15 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 
 Sans ces deux étapes, le bot fonctionne normalement — seul le buffer local (`/nexis errors`) reste actif.
 
+## Internationalisation (i18n)
+
+Nexis traduit ses propres commandes (`/nexis`) dans 8 langues : français, anglais, espagnol, allemand, portugais, italien, néerlandais, polonais.
+
+- **Résolution automatique** : chaque utilisateur voit le bot dans sa propre langue Discord (`interaction.locale`), sans configuration.
+- **Override par serveur** : `/nexis locale <langue>` force une langue pour tout le monde sur ce serveur, prioritaire sur la langue individuelle de chacun.
+- **Pour les auteurs de plugins** : `ctx.t(locale, key, params?)` et `ctx.resolveLocale(interaction)` sont disponibles sur tout `ctx`, pas seulement le plugin interne. Voir `plugins/example/commands/hello.js` pour un exemple d'usage, y compris le pluriel (`Intl.PluralRules`, aucune règle à écrire à la main).
+- Les fichiers de traduction du core vivent dans `src/core/i18n/locales/*.json` — une clé absente dans une langue retombe automatiquement sur le français.
+
 ## Écrire un plugin
 
 Voir **[docs/PLUGINS.md](docs/PLUGINS.md)**, et `plugins/example/` pour un plugin complet.
