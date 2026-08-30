@@ -9,10 +9,17 @@ const resolve = (locales, locale, key) => locales[locale]?.[key] ?? locales.fr?.
 
 /**
  * Fabrique un traducteur pur, sans dépendance à Discord ni au storage.
- * Le pluriel utilise `Intl.PluralRules` (natif Node) : chaque locale peut
- * avoir 2 formes (`_one`/`_other`, la plupart des langues) ou plus
- * (`_one`/`_few`/`_many`/`_other` pour le polonais) — la sélection est
- * automatique, aucune règle de pluriel écrite à la main.
+ * Le pluriel utilise `Intl.PluralRules` (natif Node) : la sélection est
+ * automatique, aucune règle de pluriel écrite à la main. Le jeu de
+ * catégories dépend de la locale ET de `count` — ce n'est pas juste
+ * `_one`/`_other` partout. Par exemple le français a `one`/`many`/`other`
+ * (`many` couvre entre autres les grands nombres : `Intl.PluralRules('fr')
+ * .select(1_000_000)` renvoie `'many'`, pas `'other'`), et le polonais a
+ * `one`/`few`/`many`/`other`. Le principe à retenir : chaque fichier de
+ * locale doit définir une entrée `_<catégorie>` pour chaque catégorie que
+ * `Intl.PluralRules` peut renvoyer pour cette locale sur les valeurs de
+ * `count` réellement utilisées dans le code — sinon la cascade de repli de
+ * `t()` finit par exposer une clé brute `[key]` à un utilisateur réel.
  *
  * @param {Record<string, Record<string, string>>} locales - { fr: {...}, en: {...}, ... }
  * @returns {{ t: (locale: string, key: string, params?: Record<string, string | number>) => string }}
