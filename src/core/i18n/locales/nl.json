@@ -47,9 +47,5 @@
   "nexis.command.errors.description": "Recente fouten (alleen eigenaar)",
   "nexis.command.locale.description": "De taal van de bot instellen op deze server",
   "nexis.command.option.plugin.description": "Naam van de plugin",
-  "nexis.command.option.langue.description": "Te gebruiken taal op deze server",
-
-  "example.hello.command.description": "Zeg hallo",
-  "example.hello.suffix_one": " ! ({count} keer)",
-  "example.hello.suffix_other": " ! ({count} keer)"
+  "nexis.command.option.langue.description": "Te gebruiken taal op deze server"
 }

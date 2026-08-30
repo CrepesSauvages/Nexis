@@ -1,0 +1,7 @@
+{
+  "hello.command.description": "Przywitaj się",
+  "hello.suffix_one": " ! ({count} raz)",
+  "hello.suffix_other": " ! ({count} razy)",
+  "hello.suffix_few": " ! ({count} razy)",
+  "hello.suffix_many": " ! ({count} razy)"
+}

@@ -1,0 +1,6 @@
+{
+  "hello.command.description": "Diga olá",
+  "hello.suffix_one": " ! ({count} vez)",
+  "hello.suffix_other": " ! ({count} vezes)",
+  "hello.suffix_many": " ! ({count} vezes)"
+}

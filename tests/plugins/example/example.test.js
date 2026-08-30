@@ -1,11 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { manifest, setup } from '../../../plugins/example/index.js';
 import { validateManifest } from '../../../src/core/manifest.js';
 import { applyConventions } from '../../../src/core/conventions.js';
-import { translator } from '../../../src/core/i18n/index.js';
+import { translator, registerPluginLocales } from '../../../src/core/i18n/index.js';
 import { mapDiscordLocale } from '../../../src/core/i18n/locale-resolver.js';
+import { loadPluginLocales } from '../../../src/core/i18n/plugin-locales.js';
 
 const pluginDir = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -15,6 +16,13 @@ const pluginDir = join(
   'plugins',
   'example',
 );
+
+// Ce fichier construit son `ctx` à la main (voir makeCtx), sans passer par
+// bootstrap() — l'enregistrement des traductions du plugin (fait par
+// bootstrap() en temps normal, avant setup()) doit donc être reproduit ici.
+beforeAll(async () => {
+  registerPluginLocales('example', await loadPluginLocales(pluginDir));
+});
 
 const makeCtx = () => ({
   client: {},

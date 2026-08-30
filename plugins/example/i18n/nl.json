@@ -1,0 +1,5 @@
+{
+  "hello.command.description": "Zeg hallo",
+  "hello.suffix_one": " ! ({count} keer)",
+  "hello.suffix_other": " ! ({count} keer)"
+}

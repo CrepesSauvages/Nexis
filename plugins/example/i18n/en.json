@@ -1,0 +1,5 @@
+{
+  "hello.command.description": "Say hello",
+  "hello.suffix_one": " ! ({count} time)",
+  "hello.suffix_other": " ! ({count} times)"
+}

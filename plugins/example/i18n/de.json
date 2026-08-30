@@ -1,0 +1,5 @@
+{
+  "hello.command.description": "Sag Hallo",
+  "hello.suffix_one": " ! ({count} Mal)",
+  "hello.suffix_other": " ! ({count} Mal)"
+}

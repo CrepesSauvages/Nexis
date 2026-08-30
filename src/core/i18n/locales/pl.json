@@ -51,11 +51,5 @@
   "nexis.command.errors.description": "Niedawne błędy (tylko właściciel)",
   "nexis.command.locale.description": "Ustaw język bota na tym serwerze",
   "nexis.command.option.plugin.description": "Nazwa wtyczki",
-  "nexis.command.option.langue.description": "Język używany na tym serwerze",
-
-  "example.hello.command.description": "Przywitaj się",
-  "example.hello.suffix_one": " ! ({count} raz)",
-  "example.hello.suffix_other": " ! ({count} razy)",
-  "example.hello.suffix_few": " ! ({count} razy)",
-  "example.hello.suffix_many": " ! ({count} razy)"
+  "nexis.command.option.langue.description": "Język używany na tym serwerze"
 }

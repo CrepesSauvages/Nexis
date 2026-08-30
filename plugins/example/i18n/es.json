@@ -1,0 +1,6 @@
+{
+  "hello.command.description": "Saludar",
+  "hello.suffix_one": " ! ({count} vez)",
+  "hello.suffix_other": " ! ({count} veces)",
+  "hello.suffix_many": " ! ({count} veces)"
+}

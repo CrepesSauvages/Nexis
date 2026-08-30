@@ -1,0 +1,6 @@
+{
+  "hello.command.description": "Di ciao",
+  "hello.suffix_one": " ! ({count} volta)",
+  "hello.suffix_other": " ! ({count} volte)",
+  "hello.suffix_many": " ! ({count} volte)"
+}

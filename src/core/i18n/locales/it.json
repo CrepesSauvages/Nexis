@@ -49,10 +49,5 @@
   "nexis.command.errors.description": "Errori recenti (solo proprietario)",
   "nexis.command.locale.description": "Imposta la lingua del bot su questo server",
   "nexis.command.option.plugin.description": "Nome del plugin",
-  "nexis.command.option.langue.description": "Lingua da usare su questo server",
-
-  "example.hello.command.description": "Di ciao",
-  "example.hello.suffix_one": " ! ({count} volta)",
-  "example.hello.suffix_other": " ! ({count} volte)",
-  "example.hello.suffix_many": " ! ({count} volte)"
+  "nexis.command.option.langue.description": "Lingua da usare su questo server"
 }

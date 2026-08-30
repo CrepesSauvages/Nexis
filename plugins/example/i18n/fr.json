@@ -1,0 +1,7 @@
+{
+  "hello.command.description": "Dit bonjour",
+  "hello.suffix_one": " ! ({count} fois)",
+  "hello.suffix_other": " ! ({count} fois)",
+  "hello.suffix_few": " ! ({count} fois)",
+  "hello.suffix_many": " ! ({count} fois)"
+}
