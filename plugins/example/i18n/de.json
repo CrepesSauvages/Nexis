@@ -1,5 +1,7 @@
 {
   "hello.command.description": "Sag Hallo",
   "hello.suffix_one": " ! ({count} Mal)",
-  "hello.suffix_other": " ! ({count} Mal)"
+  "hello.suffix_other": " ! ({count} Mal)",
+  "ping.command.description": "Überprüfe die Latenz des Bots",
+  "ping.response": "Pong! Latenz beträgt {latency}ms. API-Latenz beträgt {apiLatency}ms."
 }

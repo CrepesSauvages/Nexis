@@ -42,7 +42,7 @@ const checkPermission = (permissions, interaction, ownerId) => {
  * `client.on('interactionCreate', ...)` n'est jamais awaité par discord.js,
  * un rejet non capturé y tue le process depuis Node 15.
  * @param {import('./logger.js').Logger} logger
- * @param {import('discord.js').Interaction} interaction
+ * @param {import('discord.js').CommandInteraction | import('discord.js').MessageComponentInteraction} interaction
  * @param {string} content
  * @param {Record<string, unknown>} logContext
  * @returns {Promise<void>}
@@ -50,10 +50,14 @@ const checkPermission = (permissions, interaction, ownerId) => {
 const respondToInteraction = async (logger, interaction, content, logContext) => {
   try {
     const payload = { content, ...EPHEMERAL };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(payload);
+    const typed =
+      /** @type {import('discord.js').CommandInteraction | import('discord.js').MessageComponentInteraction} */ (
+        interaction
+      );
+    if (typed.replied || typed.deferred) {
+      await typed.followUp(payload);
     } else {
-      await interaction.reply(payload);
+      await typed.reply(payload);
     }
   } catch (error) {
     logger.warn(`Réponse à l'interaction impossible : ${errorMessage(error)}`, logContext);
@@ -282,14 +286,20 @@ export const attachComponentDispatcher = ({
     const type = componentTypeOf(interaction);
     if (!type) return;
 
-    const logContext = { customId: interaction.customId, guildId: interaction.guildId };
-    const locale = await resolveInteractionLocale(guildConfig, logger, interaction, logContext);
+    const typed = /** @type {import('discord.js').MessageComponentInteraction} */ (interaction);
+    const logContext = { customId: typed.customId, guildId: typed.guildId };
+    const locale = await resolveInteractionLocale(
+      guildConfig,
+      logger,
+      /** @type {import('discord.js').Interaction} */ (typed),
+      logContext,
+    );
 
-    const entry = registries.components.find(interaction.customId, type);
+    const entry = registries.components.find(typed.customId, type);
     if (!entry) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.component_removed'),
         logContext,
       );
@@ -298,7 +308,7 @@ export const attachComponentDispatcher = ({
 
     let active = false;
     try {
-      active = await isActive(entry.plugin, interaction.guildId);
+      active = await isActive(entry.plugin, typed.guildId);
     } catch (error) {
       logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
         plugin: entry.plugin,
@@ -309,17 +319,23 @@ export const attachComponentDispatcher = ({
     if (!active) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.plugin_not_active', { plugin: entry.plugin }),
         logContext,
       );
       return;
     }
 
-    if (!checkPermission(entry.permissions, interaction, ownerId)) {
+    if (
+      !checkPermission(
+        entry.permissions,
+        /** @type {import('discord.js').Interaction} */ (typed),
+        ownerId,
+      )
+    ) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.permission_denied'),
         logContext,
       );
@@ -327,7 +343,7 @@ export const attachComponentDispatcher = ({
     }
 
     try {
-      await entry.handler(interaction, contexts.get(entry.plugin));
+      await entry.handler(typed, contexts.get(entry.plugin));
     } catch (error) {
       const errorId = newErrorId();
       logger.error(`Erreur dans un component : ${errorMessage(error)}`, {
@@ -338,7 +354,7 @@ export const attachComponentDispatcher = ({
       });
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.component_error', { errorId }),
         logContext,
       );

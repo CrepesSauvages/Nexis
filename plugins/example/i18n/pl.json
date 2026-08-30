@@ -3,5 +3,7 @@
   "hello.suffix_one": " ! ({count} raz)",
   "hello.suffix_other": " ! ({count} razy)",
   "hello.suffix_few": " ! ({count} razy)",
-  "hello.suffix_many": " ! ({count} razy)"
+  "hello.suffix_many": " ! ({count} razy)",
+  "ping.command.description": "Sprawdź opóźnienie bota",
+  "ping.response": "Pong! Opóźnienie wynosi {latency}ms. Opóźnienie API wynosi {apiLatency}ms."
 }

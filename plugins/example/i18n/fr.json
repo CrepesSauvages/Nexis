@@ -3,5 +3,7 @@
   "hello.suffix_one": " ! ({count} fois)",
   "hello.suffix_other": " ! ({count} fois)",
   "hello.suffix_few": " ! ({count} fois)",
-  "hello.suffix_many": " ! ({count} fois)"
+  "hello.suffix_many": " ! ({count} fois)",
+  "ping.command.description": "Vérifie la latence du bot",
+  "ping.response": "Pong ! La latence est de {latency}ms. La latence de l'API est de {apiLatency}ms."
 }

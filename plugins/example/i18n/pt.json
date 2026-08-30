@@ -2,5 +2,7 @@
   "hello.command.description": "Diga olá",
   "hello.suffix_one": " ! ({count} vez)",
   "hello.suffix_other": " ! ({count} vezes)",
-  "hello.suffix_many": " ! ({count} vezes)"
+  "hello.suffix_many": " ! ({count} vezes)",
+  "ping.command.description": "Verifique a latência do bot",
+  "ping.response": "Pong! A latência é de {latency}ms. A latência da API é de {apiLatency}ms."
 }

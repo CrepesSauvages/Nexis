@@ -177,7 +177,16 @@ describe('registre de components', () => {
   it('devrait rejeter un type de component inconnu', () => {
     const { components } = createRegistries();
     expect(() =>
-      components.add('shop', { customId: 'buy', type: 'dropdown', handler: noop }),
+      components.add(
+        'shop',
+        /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+          /** @type {unknown} */ ({
+            customId: 'buy',
+            type: 'dropdown',
+            handler: noop,
+          })
+        ),
+      ),
     ).toThrow(PluginError);
   });
 
@@ -202,18 +211,27 @@ describe('registre de components', () => {
   it('devrait rejeter un niveau de permission inconnu', () => {
     const { components } = createRegistries();
     expect(() =>
-      components.add('shop', {
-        customId: 'buy',
-        type: 'button',
-        permissions: 'root',
-        handler: noop,
-      }),
+      components.add(
+        'shop',
+        /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+          /** @type {unknown} */ ({
+            customId: 'buy',
+            type: 'button',
+            permissions: 'root',
+            handler: noop,
+          })
+        ),
+      ),
     ).toThrow(PluginError);
   });
 
   it('devrait refuser deux components identiques (même plugin, même id, même type)', () => {
     const { components } = createRegistries();
-    const def = { customId: 'buy', type: 'button', handler: noop };
+    const def = /** @type {const} */ ({
+      customId: 'buy',
+      type: 'button',
+      handler: noop,
+    });
     components.add('shop', def);
     expect(() => components.add('shop', def)).toThrow(PluginError);
   });

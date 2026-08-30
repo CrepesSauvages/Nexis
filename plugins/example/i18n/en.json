@@ -1,5 +1,8 @@
 {
   "hello.command.description": "Say hello",
   "hello.suffix_one": " ! ({count} time)",
-  "hello.suffix_other": " ! ({count} times)"
+  "hello.suffix_other": " ! ({count} times)",
+
+  "ping.command.description": "Check the bot's latency",
+  "ping.response": "Pong! Latency is {latency}ms. API Latency is {apiLatency}ms."
 }

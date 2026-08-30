@@ -4,11 +4,12 @@ const TYPES = ['button', 'select', 'modal'];
 const PERMISSION_LEVELS = ['guild-admin', 'owner'];
 
 /**
- * @typedef {object} ComponentDef
- * @property {string} customId - relatif au plugin, sans le namespace
- * @property {'button' | 'select' | 'modal'} type
- * @property {'guild-admin' | 'owner'} [permissions]
- * @property {(interaction: unknown, ctx: unknown) => Promise<void> | void} handler
+ * @typedef {{
+ *   customId: string,
+ *   type: 'button' | 'select' | 'modal',
+ *   permissions?: 'guild-admin' | 'owner',
+ *   handler(interaction: unknown, ctx: unknown): Promise<void> | void,
+ * }} ComponentDef
  */
 
 /**
