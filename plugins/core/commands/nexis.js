@@ -52,7 +52,7 @@ const reply = (interaction, content) => interaction.reply({ content, ...EPHEMERA
  * L'appelant (`plugins/core/index.js`) fait le cast vers `CommandDef`
  * uniquement au point où `registerCommand` l'exige.
  *
- * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> } }} core
+ * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> }, t: (locale: string, key: string, params?: Record<string, string | number>) => string, resolveLocale: (interaction: { locale?: string, guildId?: string | null }) => Promise<string> }} core
  */
 export const buildNexisCommand = (core) => {
   /** @param {string} name */
@@ -71,17 +71,23 @@ export const buildNexisCommand = (core) => {
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   const list = async (interaction) => {
+    const locale = await core.resolveLocale(interaction);
     const enabled = await core.guildConfig.enabledPlugins(interaction.guildId ?? '');
     const lines = core.plugins.map((plugin) => {
       const mark = isAlwaysEnabled(plugin.name)
-        ? '✅ (toujours actif)'
+        ? core.t(locale, 'nexis.list.mark_always')
         : enabled.includes(plugin.name)
           ? '✅'
           : '◻️';
-      return `${mark} **${plugin.name}** \`${plugin.manifest.version}\` — ${plugin.manifest.description ?? 'sans description'}`;
+      return core.t(locale, 'nexis.list.entry', {
+        mark,
+        name: plugin.name,
+        version: plugin.manifest.version,
+        description: plugin.manifest.description ?? core.t(locale, 'nexis.list.no_description'),
+      });
     });
-    const body = lines.length ? lines.join('\n') : 'Aucun plugin trouvé dans `plugins/`.';
-    await reply(interaction, `**Plugins Nexis**\n${body}`);
+    const body = lines.length ? lines.join('\n') : core.t(locale, 'nexis.list.empty');
+    await reply(interaction, `${core.t(locale, 'nexis.list.title')}\n${body}`);
   };
 
   /**
@@ -89,38 +95,37 @@ export const buildNexisCommand = (core) => {
    * @param {string} name
    */
   const enable = async (interaction, name) => {
+    const locale = await core.resolveLocale(interaction);
     const plugin = find(name);
     if (!plugin) {
-      await reply(interaction, `Plugin introuvable : \`${name}\``);
+      await reply(interaction, core.t(locale, 'nexis.plugin_not_found', { name }));
       return;
     }
     if (isAlwaysEnabled(name)) {
-      await reply(
-        interaction,
-        `\`${name}\` est un plugin interne toujours actif : impossible de l'activer ou de le désactiver.`,
-      );
+      await reply(interaction, core.t(locale, 'nexis.always_enabled', { name }));
       return;
     }
 
     const guildId = interaction.guildId ?? '';
     if (await core.guildConfig.isEnabled(guildId, name)) {
-      await reply(interaction, `\`${name}\` est déjà activé ici.`);
+      await reply(interaction, core.t(locale, 'nexis.enable.already', { name }));
       return;
     }
 
     const enabled = await core.guildConfig.enabledPlugins(guildId);
     const missing = (plugin.manifest.dependsOn ?? []).filter((dep) => !enabled.includes(dep));
     if (missing.length) {
+      const deps = missing.map((dep) => `\`${dep}\``).join(', ');
       await reply(
         interaction,
-        `\`${name}\` dépend de ${missing.map((dep) => `\`${dep}\``).join(', ')}. Activez ${missing.length > 1 ? 'ces plugins' : 'ce plugin'} d'abord.`,
+        core.t(locale, 'nexis.enable.missing_deps', { name, deps, count: missing.length }),
       );
       return;
     }
 
     await core.guildConfig.enable(guildId, name);
     await core.commandSync.syncGuild(guildId);
-    await reply(interaction, `\`${name}\` activé sur ce serveur.`);
+    await reply(interaction, core.t(locale, 'nexis.enable.success', { name }));
   };
 
   /**
@@ -128,16 +133,14 @@ export const buildNexisCommand = (core) => {
    * @param {string} name
    */
   const disable = async (interaction, name) => {
+    const locale = await core.resolveLocale(interaction);
     const plugin = find(name);
     if (!plugin) {
-      await reply(interaction, `Plugin introuvable : \`${name}\``);
+      await reply(interaction, core.t(locale, 'nexis.plugin_not_found', { name }));
       return;
     }
     if (isAlwaysEnabled(name)) {
-      await reply(
-        interaction,
-        `\`${name}\` est un plugin interne toujours actif : impossible de l'activer ou de le désactiver.`,
-      );
+      await reply(interaction, core.t(locale, 'nexis.always_enabled', { name }));
       return;
     }
 
@@ -149,16 +152,17 @@ export const buildNexisCommand = (core) => {
       .map((other) => other.name);
 
     if (dependents.length) {
+      const deps = dependents.map((dep) => `\`${dep}\``).join(', ');
       await reply(
         interaction,
-        `Impossible : ${dependents.map((dep) => `\`${dep}\``).join(', ')} en dépend${dependents.length > 1 ? 'ent' : ''}.`,
+        core.t(locale, 'nexis.disable.dependents', { deps, count: dependents.length }),
       );
       return;
     }
 
     await core.guildConfig.disable(guildId, name);
     await core.commandSync.syncGuild(guildId);
-    await reply(interaction, `\`${name}\` désactivé sur ce serveur.`);
+    await reply(interaction, core.t(locale, 'nexis.disable.success', { name }));
   };
 
   /**
@@ -166,9 +170,10 @@ export const buildNexisCommand = (core) => {
    * @param {string} name
    */
   const info = async (interaction, name) => {
+    const locale = await core.resolveLocale(interaction);
     const plugin = find(name);
     if (!plugin) {
-      await reply(interaction, `Plugin introuvable : \`${name}\``);
+      await reply(interaction, core.t(locale, 'nexis.plugin_not_found', { name }));
       return;
     }
 
@@ -178,22 +183,39 @@ export const buildNexisCommand = (core) => {
     const enabled = await core.guildConfig.isEnabled(guildId, name);
 
     const settings = Object.entries(manifest.config ?? {}).map(([key, entry]) => {
-      const current = values[key] === undefined ? '_non définie_' : `\`${values[key]}\``;
-      const flag = entry.required ? ' *(requis)*' : '';
-      return `• **${entry.label}** (\`${key}\`, ${entry.type})${flag} → ${current}`;
+      const current =
+        values[key] === undefined
+          ? core.t(locale, 'nexis.info.value_undefined')
+          : `\`${values[key]}\``;
+      const flag = entry.required ? core.t(locale, 'nexis.info.required_flag') : '';
+      return core.t(locale, 'nexis.info.setting', {
+        label: entry.label,
+        key,
+        type: entry.type,
+        flag,
+        current,
+      });
     });
 
+    const status = enabled
+      ? core.t(locale, 'nexis.info.status_enabled')
+      : core.t(locale, 'nexis.info.status_disabled');
     const parts = [
-      `**${manifest.name}** \`${manifest.version}\` — ${enabled ? 'activé' : 'désactivé'}`,
-      manifest.description ?? 'sans description',
+      core.t(locale, 'nexis.info.header', {
+        name: manifest.name,
+        version: manifest.version,
+        status,
+      }),
+      manifest.description ?? core.t(locale, 'nexis.list.no_description'),
     ];
     if (manifest.dependsOn?.length) {
-      parts.push(`Dépend de : ${manifest.dependsOn.map((dep) => `\`${dep}\``).join(', ')}`);
+      const deps = manifest.dependsOn.map((dep) => `\`${dep}\``).join(', ');
+      parts.push(core.t(locale, 'nexis.info.depends_on', { deps }));
     }
     parts.push(
       settings.length
-        ? `\n**Configuration**\n${settings.join('\n')}`
-        : '\nAucune option de configuration.',
+        ? core.t(locale, 'nexis.info.settings_header', { settings: settings.join('\n') })
+        : core.t(locale, 'nexis.info.no_settings'),
     );
 
     await reply(interaction, parts.join('\n'));
@@ -224,26 +246,32 @@ export const buildNexisCommand = (core) => {
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   const errorsCmd = async (interaction) => {
+    const locale = await core.resolveLocale(interaction);
     if (interaction.user.id !== core.ownerId) {
-      await reply(interaction, 'Cette commande est réservée au propriétaire du bot.');
+      await reply(interaction, core.t(locale, 'nexis.owner_only'));
       return;
     }
 
     const entries = await core.errorReporting.getRecent(10);
     if (!entries.length) {
-      await reply(interaction, 'Aucune erreur récente.');
+      await reply(interaction, core.t(locale, 'nexis.errors.none'));
       return;
     }
 
     const lines = entries.map((entry) => {
       const context = formatContext(entry.context);
-      return `\`${entry.id}\` ${entry.timestamp} — ${entry.message}${context}`;
+      return core.t(locale, 'nexis.errors.entry', {
+        id: entry.id,
+        timestamp: entry.timestamp,
+        message: entry.message,
+        context,
+      });
     });
 
     // Garde-fou dur : une réponse Discord est plafonnée à 2000 caractères.
     // Tronque ligne par ligne plutôt que de risquer un échec de reply().
     const MAX_LENGTH = 1900;
-    let body = `**Erreurs récentes**\n${lines.join('\n')}`;
+    let body = `${core.t(locale, 'nexis.errors.title')}\n${lines.join('\n')}`;
     if (body.length > MAX_LENGTH) {
       body = `${body.slice(0, MAX_LENGTH)}…`;
     }
