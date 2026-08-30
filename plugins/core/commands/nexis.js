@@ -2,6 +2,23 @@ import { SlashCommandBuilder } from 'discord.js';
 
 const EPHEMERAL = { flags: 64 };
 
+/**
+ * Noms affichés des langues, indépendants des clés de traduction : ce sont
+ * des noms propres (chaque langue s'auto-désigne dans sa propre graphie),
+ * pas des phrases à traduire par locale.
+ * @type {Record<string, string>}
+ */
+const LANGUAGE_NAMES = {
+  fr: 'Français',
+  en: 'English',
+  es: 'Español',
+  de: 'Deutsch',
+  pt: 'Português',
+  it: 'Italiano',
+  nl: 'Nederlands',
+  pl: 'Polski',
+};
+
 const data = new SlashCommandBuilder()
   .setName('nexis')
   .setDescription('Administration des plugins Nexis')
@@ -32,6 +49,27 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName('errors').setDescription('Erreurs récentes (propriétaire uniquement)'),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('locale')
+      .setDescription('Définir la langue du bot sur ce serveur')
+      .addStringOption((option) =>
+        option
+          .setName('langue')
+          .setDescription('Langue à utiliser sur ce serveur')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Français', value: 'fr' },
+            { name: 'English', value: 'en' },
+            { name: 'Español', value: 'es' },
+            { name: 'Deutsch', value: 'de' },
+            { name: 'Português', value: 'pt' },
+            { name: 'Italiano', value: 'it' },
+            { name: 'Nederlands', value: 'nl' },
+            { name: 'Polski', value: 'pl' },
+          ),
+      ),
   );
 
 /**
@@ -279,6 +317,18 @@ export const buildNexisCommand = (core) => {
     await reply(interaction, body);
   };
 
+  /**
+   * @param {import('discord.js').ChatInputCommandInteraction} interaction
+   * @param {string} locale
+   */
+  const setLocale = async (interaction, locale) => {
+    await core.guildConfig.setLocale(interaction.guildId ?? '', locale);
+    await reply(
+      interaction,
+      core.t(locale, 'nexis.locale.confirmed', { language: LANGUAGE_NAMES[locale] }),
+    );
+  };
+
   return {
     data,
     permissions: 'guild-admin',
@@ -288,6 +338,10 @@ export const buildNexisCommand = (core) => {
       const subcommand = typed.options.getSubcommand();
       if (subcommand === 'list') return list(typed);
       if (subcommand === 'errors') return errorsCmd(typed);
+      if (subcommand === 'locale') {
+        const locale = /** @type {string} */ (typed.options.getString('langue'));
+        return setLocale(typed, locale);
+      }
       const name = /** @type {string} */ (typed.options.getString('plugin'));
       if (subcommand === 'enable') return enable(typed, name);
       if (subcommand === 'disable') return disable(typed, name);

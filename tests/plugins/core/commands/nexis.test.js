@@ -409,3 +409,21 @@ describe('/nexis errors', () => {
     expect(idsPresent).toBeGreaterThanOrEqual(8);
   });
 });
+
+describe('locale', () => {
+  it('devrait fixer la locale du serveur et confirmer dans la nouvelle langue', async () => {
+    const interaction = {
+      guildId: 'g1',
+      user: { id: 'owner-123' },
+      locale: 'fr',
+      reply: vi.fn(),
+      options: {
+        getSubcommand: () => 'locale',
+        getString: () => 'de',
+      },
+    };
+    await command.execute(interaction);
+    expect(await guildConfig.getLocale('g1')).toBe('de');
+    expect(replyText(interaction)).toBe('Serversprache auf Deutsch gesetzt.');
+  });
+});
