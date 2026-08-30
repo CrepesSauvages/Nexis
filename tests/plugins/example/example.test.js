@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { manifest, setup } from '../../../plugins/example/index.js';
 import { validateManifest } from '../../../src/core/manifest.js';
 import { applyConventions } from '../../../src/core/conventions.js';
+import { translator } from '../../../src/core/i18n/index.js';
+import { mapDiscordLocale } from '../../../src/core/i18n/locale-resolver.js';
 
 const pluginDir = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -25,6 +27,9 @@ const makeCtx = () => ({
   registerRoute: vi.fn(),
   provideService: vi.fn(),
   useService: vi.fn(),
+  t: translator.t,
+  resolveLocale: async (/** @type {{ locale?: string }} */ interaction) =>
+    mapDiscordLocale(interaction.locale) ?? 'fr',
 });
 
 const makeLogger = () => {
@@ -145,5 +150,36 @@ describe('commande hello', () => {
 
     expect(interaction.reply).toHaveBeenCalledOnce();
     expect(interaction.reply.mock.calls[0][0].content).toContain('Bienvenue');
+  });
+
+  it('devrait traduire le suffixe selon interaction.locale (pluriel, 1 fois)', async () => {
+    const ctx = makeCtx();
+    await applyConventions({
+      plugin: loadedPlugin,
+      ctx: asCtx(ctx),
+      logger: asLogger(makeLogger()),
+    });
+    const command = ctx.registerCommand.mock.calls[0][0];
+    const interaction = { guildId: 'g1', user: { id: 'u1' }, locale: 'en-US', reply: vi.fn() };
+
+    await command.execute(interaction, asCtx(ctx));
+
+    expect(interaction.reply.mock.calls[0][0].content).toContain(' ! (1 time)');
+  });
+
+  it('devrait traduire le suffixe selon interaction.locale (pluriel, plusieurs fois)', async () => {
+    const ctx = makeCtx();
+    ctx.storage.get = vi.fn().mockResolvedValue(1);
+    await applyConventions({
+      plugin: loadedPlugin,
+      ctx: asCtx(ctx),
+      logger: asLogger(makeLogger()),
+    });
+    const command = ctx.registerCommand.mock.calls[0][0];
+    const interaction = { guildId: 'g1', user: { id: 'u1' }, locale: 'en-US', reply: vi.fn() };
+
+    await command.execute(interaction, asCtx(ctx));
+
+    expect(interaction.reply.mock.calls[0][0].content).toContain(' ! (2 times)');
   });
 });
