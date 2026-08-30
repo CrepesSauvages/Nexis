@@ -12,7 +12,11 @@ import { createErrorReporting } from './core/reporting/index.js';
 import { translator, registerPluginLocales } from './core/i18n/index.js';
 import { loadPluginLocales } from './core/i18n/plugin-locales.js';
 import { createClient } from './core/client.js';
-import { attachEventDispatcher, attachCommandDispatcher } from './core/dispatcher.js';
+import {
+  attachEventDispatcher,
+  attachCommandDispatcher,
+  attachComponentDispatcher,
+} from './core/dispatcher.js';
 import { createScheduler } from './core/scheduler.js';
 import { createCommandSync } from './core/command-sync.js';
 import { applyConventions } from './core/conventions.js';
@@ -172,6 +176,17 @@ export const bootstrap = async ({
     t: translator.t,
   });
 
+  attachComponentDispatcher({
+    client,
+    contexts,
+    registries,
+    guildConfig,
+    logger,
+    alwaysEnabled: ALWAYS_ENABLED,
+    ownerId: config.ownerId,
+    t: translator.t,
+  });
+
   const scheduler = createScheduler({
     plugins: active,
     registries,
@@ -188,6 +203,7 @@ export const bootstrap = async ({
     events: registries.events.eventNames().length,
     jobs: registries.jobs.all().length,
     routes: registries.routes.all().length,
+    components: registries.components.all().length,
   });
 
   return {

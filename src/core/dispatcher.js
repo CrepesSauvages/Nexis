@@ -20,6 +20,74 @@ const makeIsActive = (guildConfig, alwaysEnabled) => async (plugin, guildId) => 
 };
 
 /**
+ * Partagé entre commandes et components : même échelle de permissions,
+ * même interprétation ("guild-admin" = ManageGuild, "owner" = propriétaire
+ * du bot, absent = tout le monde).
+ * @param {'guild-admin' | 'owner' | undefined} permissions
+ * @param {import('discord.js').Interaction} interaction
+ * @param {string | undefined} ownerId
+ * @returns {boolean}
+ */
+const checkPermission = (permissions, interaction, ownerId) => {
+  if (permissions === 'owner') return interaction.user.id === ownerId;
+  if (permissions === 'guild-admin') {
+    return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) === true;
+  }
+  return true;
+};
+
+/**
+ * Répond à l'interaction sans jamais laisser une erreur de réponse (token
+ * expiré, interaction déjà acquittée...) devenir un rejet non intercepté :
+ * `client.on('interactionCreate', ...)` n'est jamais awaité par discord.js,
+ * un rejet non capturé y tue le process depuis Node 15.
+ * @param {import('./logger.js').Logger} logger
+ * @param {import('discord.js').Interaction} interaction
+ * @param {string} content
+ * @param {Record<string, unknown>} logContext
+ * @returns {Promise<void>}
+ */
+const respondToInteraction = async (logger, interaction, content, logContext) => {
+  try {
+    const payload = { content, ...EPHEMERAL };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload);
+    } else {
+      await interaction.reply(payload);
+    }
+  } catch (error) {
+    logger.warn(`Réponse à l'interaction impossible : ${errorMessage(error)}`, logContext);
+  }
+};
+
+/**
+ * Résolution de la locale avec sa propre défense : une erreur de storage
+ * ne doit jamais faire planter le dispatch, on retombe sur l'absence
+ * d'override. Contrairement à la vérification d'activation, cette
+ * dégradation ne touche pas à la sécurité : c'est un `warn`, pas un `error`.
+ * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} guildConfig
+ * @param {import('./logger.js').Logger} logger
+ * @param {import('discord.js').Interaction} interaction
+ * @param {Record<string, unknown>} logContext
+ * @returns {Promise<string>}
+ */
+const resolveInteractionLocale = async (guildConfig, logger, interaction, logContext) => {
+  let guildOverride;
+  try {
+    guildOverride = interaction.guildId
+      ? await guildConfig.getLocale(interaction.guildId)
+      : undefined;
+  } catch (error) {
+    logger.warn(`Résolution de la locale serveur impossible : ${errorMessage(error)}`, {
+      ...logContext,
+      stack: errorStack(error),
+    });
+    guildOverride = undefined;
+  }
+  return resolveLocale(interaction, guildOverride);
+};
+
+/**
  * Attache un listener unique par type d'event déclaré. Chaque handler
  * est appelé dans son propre try/catch : un plugin qui échoue n'empêche
  * jamais ses voisins de recevoir l'event, ni les events suivants.
@@ -99,71 +167,20 @@ export const attachCommandDispatcher = ({
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
-  /**
-   * @param {import('./registry/commands.js').CommandDef} command
-   * @param {import('discord.js').ChatInputCommandInteraction} interaction
-   * @returns {boolean}
-   */
-  const isAllowed = (command, interaction) => {
-    if (command.permissions === 'owner') return interaction.user.id === ownerId;
-    if (command.permissions === 'guild-admin') {
-      return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) === true;
-    }
-    return true;
-  };
-
-  /**
-   * Répond à l'interaction sans jamais laisser une erreur de réponse
-   * (token expiré, interaction déjà acquittée...) devenir un rejet non
-   * intercepté : `client.on('interactionCreate', ...)` n'est jamais awaité
-   * par discord.js, et un rejet non capturé y tue le process depuis Node 15.
-   * @param {import('discord.js').ChatInputCommandInteraction} interaction
-   * @param {string} content
-   * @returns {Promise<void>}
-   */
-  const respond = async (interaction, content) => {
-    try {
-      const payload = { content, ...EPHEMERAL };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload);
-      } else {
-        await interaction.reply(payload);
-      }
-    } catch (error) {
-      logger.warn(`Réponse à l'interaction impossible : ${errorMessage(error)}`, {
-        command: interaction.commandName,
-        guildId: interaction.guildId,
-      });
-    }
-  };
-
   client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    // Résolution de la locale une seule fois : même défense que la
-    // vérification d'activation ci-dessous — une erreur de storage ne doit
-    // jamais faire planter le dispatch, on retombe sur l'absence d'override.
-    // Contrairement à l'activation, cette dégradation ne touche pas à la
-    // sécurité (on retombe simplement sur une locale par défaut sensée) :
-    // c'est un `warn`, pas un `error`.
-    let guildOverride;
-    try {
-      guildOverride = interaction.guildId
-        ? await guildConfig.getLocale(interaction.guildId)
-        : undefined;
-    } catch (error) {
-      logger.warn(`Résolution de la locale serveur impossible : ${errorMessage(error)}`, {
-        command: interaction.commandName,
-        guildId: interaction.guildId,
-        stack: errorStack(error),
-      });
-      guildOverride = undefined;
-    }
-    const locale = resolveLocale(interaction, guildOverride);
+    const logContext = { command: interaction.commandName, guildId: interaction.guildId };
+    const locale = await resolveInteractionLocale(guildConfig, logger, interaction, logContext);
 
     const entry = registries.commands.get(interaction.commandName);
     if (!entry) {
-      await respond(interaction, t(locale, 'dispatcher.command_removed'));
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.command_removed'),
+        logContext,
+      );
       return;
     }
 
@@ -176,21 +193,27 @@ export const attachCommandDispatcher = ({
     } catch (error) {
       logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
         plugin: entry.plugin,
-        command: interaction.commandName,
-        guildId: interaction.guildId,
+        ...logContext,
         stack: errorStack(error),
       });
     }
     if (!active) {
-      await respond(
+      await respondToInteraction(
+        logger,
         interaction,
         t(locale, 'dispatcher.plugin_not_active', { plugin: entry.plugin }),
+        logContext,
       );
       return;
     }
 
-    if (!isAllowed(entry.command, interaction)) {
-      await respond(interaction, t(locale, 'dispatcher.permission_denied'));
+    if (!checkPermission(entry.command.permissions, interaction, ownerId)) {
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.permission_denied'),
+        logContext,
+      );
       return;
     }
 
@@ -201,11 +224,124 @@ export const attachCommandDispatcher = ({
       logger.error(`Erreur dans une commande : ${errorMessage(error)}`, {
         errorId,
         plugin: entry.plugin,
-        command: interaction.commandName,
-        guildId: interaction.guildId,
+        ...logContext,
         stack: errorStack(error),
       });
-      await respond(interaction, t(locale, 'dispatcher.command_error', { errorId }));
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.command_error', { errorId }),
+        logContext,
+      );
+    }
+  });
+};
+
+/**
+ * Déduit le type de component Nexis (`button` | `select` | `modal`) d'une
+ * interaction discord.js, ou `undefined` si elle n'en est pas un.
+ * @param {import('discord.js').Interaction} interaction
+ * @returns {'button' | 'select' | 'modal' | undefined}
+ */
+const componentTypeOf = (interaction) => {
+  if (interaction.isButton()) return 'button';
+  if (interaction.isAnySelectMenu()) return 'select';
+  if (interaction.isModalSubmit()) return 'modal';
+  return undefined;
+};
+
+/**
+ * Attache le listener de components (boutons, selects, modals). Même
+ * politique que les commandes : activation puis permissions avant
+ * exécution, erreur traçable via un errorId si le handler échoue.
+ *
+ * @param {object} options
+ * @param {import('discord.js').Client} options.client
+ * @param {Map<string, import('./context.js').PluginContext>} options.contexts
+ * @param {import('./registry/index.js').Registries} options.registries
+ * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} options.guildConfig
+ * @param {import('./logger.js').Logger} options.logger
+ * @param {string[]} [options.alwaysEnabled]
+ * @param {string} [options.ownerId]
+ * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
+ * @returns {void}
+ */
+export const attachComponentDispatcher = ({
+  client,
+  contexts,
+  registries,
+  guildConfig,
+  logger,
+  alwaysEnabled = [],
+  ownerId = undefined,
+  t = (_locale, key) => `[${key}]`,
+}) => {
+  const isActive = makeIsActive(guildConfig, alwaysEnabled);
+
+  client.on('interactionCreate', async (interaction) => {
+    const type = componentTypeOf(interaction);
+    if (!type) return;
+
+    const logContext = { customId: interaction.customId, guildId: interaction.guildId };
+    const locale = await resolveInteractionLocale(guildConfig, logger, interaction, logContext);
+
+    const entry = registries.components.find(interaction.customId, type);
+    if (!entry) {
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.component_removed'),
+        logContext,
+      );
+      return;
+    }
+
+    let active = false;
+    try {
+      active = await isActive(entry.plugin, interaction.guildId);
+    } catch (error) {
+      logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
+        plugin: entry.plugin,
+        ...logContext,
+        stack: errorStack(error),
+      });
+    }
+    if (!active) {
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.plugin_not_active', { plugin: entry.plugin }),
+        logContext,
+      );
+      return;
+    }
+
+    if (!checkPermission(entry.permissions, interaction, ownerId)) {
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.permission_denied'),
+        logContext,
+      );
+      return;
+    }
+
+    try {
+      await entry.handler(interaction, contexts.get(entry.plugin));
+    } catch (error) {
+      const errorId = newErrorId();
+      logger.error(`Erreur dans un component : ${errorMessage(error)}`, {
+        errorId,
+        plugin: entry.plugin,
+        ...logContext,
+        stack: errorStack(error),
+      });
+      await respondToInteraction(
+        logger,
+        interaction,
+        t(locale, 'dispatcher.component_error', { errorId }),
+        logContext,
+      );
     }
   });
 };

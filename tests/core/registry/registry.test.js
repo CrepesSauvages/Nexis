@@ -166,3 +166,87 @@ describe('registre de routes', () => {
     expect(() => routes.add('a', route)).toThrow(PluginError);
   });
 });
+
+describe('registre de components', () => {
+  it('devrait préfixer le customId par le namespace du plugin', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(components.all()[0].customId).toBe('shop:buy');
+  });
+
+  it('devrait rejeter un type de component inconnu', () => {
+    const { components } = createRegistries();
+    expect(() =>
+      components.add('shop', { customId: 'buy', type: 'dropdown', handler: noop }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter un customId vide', () => {
+    const { components } = createRegistries();
+    expect(() => components.add('shop', { customId: '', type: 'button', handler: noop })).toThrow(
+      PluginError,
+    );
+  });
+
+  it("devrait rejeter un handler qui n'est pas une fonction", () => {
+    const { components } = createRegistries();
+    const invalid = /** @type {unknown} */ ({ customId: 'buy', type: 'button' });
+    expect(() =>
+      components.add(
+        'shop',
+        /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (invalid),
+      ),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter un niveau de permission inconnu', () => {
+    const { components } = createRegistries();
+    expect(() =>
+      components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        permissions: 'root',
+        handler: noop,
+      }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait refuser deux components identiques (même plugin, même id, même type)', () => {
+    const { components } = createRegistries();
+    const def = { customId: 'buy', type: 'button', handler: noop };
+    components.add('shop', def);
+    expect(() => components.add('shop', def)).toThrow(PluginError);
+  });
+
+  it('devrait autoriser le même customId sur deux types différents', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(() =>
+      components.add('shop', { customId: 'buy', type: 'modal', handler: noop }),
+    ).not.toThrow();
+  });
+
+  it('devrait retrouver un component par customId exact', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(components.find('shop:buy', 'button')).toMatchObject({ plugin: 'shop' });
+  });
+
+  it('devrait retrouver un component via un customId dynamique (préfixe + suffixe)', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(components.find('shop:buy:1234', 'button')).toMatchObject({ plugin: 'shop' });
+  });
+
+  it('ne devrait pas retrouver un component avec le mauvais type', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(components.find('shop:buy', 'select')).toBeUndefined();
+  });
+
+  it('ne devrait pas confondre deux préfixes proches ("buy" et "buying")', () => {
+    const { components } = createRegistries();
+    components.add('shop', { customId: 'buy', type: 'button', handler: noop });
+    expect(components.find('shop:buying', 'button')).toBeUndefined();
+  });
+});

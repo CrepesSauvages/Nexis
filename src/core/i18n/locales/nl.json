@@ -3,6 +3,8 @@
   "dispatcher.plugin_not_active": "De plugin `{plugin}` is niet ingeschakeld op deze server.",
   "dispatcher.permission_denied": "Je hebt geen toestemming om dit commando te gebruiken.",
   "dispatcher.command_error": "Er is een fout opgetreden. Referentie: `{errorId}`",
+  "dispatcher.component_removed": "Dit onderdeel is niet meer beschikbaar. Het bericht is mogelijk te oud.",
+  "dispatcher.component_error": "Er is een fout opgetreden. Referentie: `{errorId}`",
 
   "nexis.list.title": "**Nexis-plugins**",
   "nexis.list.empty": "Geen plugins gevonden in `plugins/`.",

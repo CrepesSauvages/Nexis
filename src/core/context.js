@@ -14,6 +14,8 @@ import { resolveLocale } from './i18n/locale-resolver.js';
  * @property {(api: object) => void} provideService
  * @property {(name: string) => object} useService
  * @property {(route: import('./registry/routes.js').RouteDef) => void} registerRoute
+ * @property {(component: import('./registry/components.js').ComponentDef) => void} registerComponent
+ * @property {(id: string) => string} componentId
  * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
  * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
  * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined }} [core] - réservé au plugin interne
@@ -68,6 +70,8 @@ export const createContext = ({
     registerEvent: (eventName, handler) => registries.events.add(name, eventName, handler),
     registerJob: (cron, handler) => registries.jobs.add(name, cron, handler),
     registerRoute: (route) => registries.routes.add(name, route),
+    registerComponent: (component) => registries.components.add(name, component),
+    componentId: (id) => `${name}:${id}`,
     provideService: (api) => registries.services.provide(name, api),
 
     t,

@@ -3,6 +3,8 @@
   "dispatcher.plugin_not_active": "El plugin `{plugin}` no está activado en este servidor.",
   "dispatcher.permission_denied": "No tienes permiso para usar este comando.",
   "dispatcher.command_error": "Se produjo un error. Referencia: `{errorId}`",
+  "dispatcher.component_removed": "Este componente ya no está disponible. Puede que el mensaje sea demasiado antiguo.",
+  "dispatcher.component_error": "Se produjo un error. Referencia: `{errorId}`",
 
   "nexis.list.title": "**Plugins de Nexis**",
   "nexis.list.empty": "No se encontraron plugins en `plugins/`.",

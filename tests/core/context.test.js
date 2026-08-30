@@ -85,6 +85,19 @@ describe('enregistrement', () => {
     });
     expect(registries.routes.all()[0].path).toBe('/api/plugins/welcome/stats');
   });
+
+  it('devrait enregistrer un component préfixé', () => {
+    makeContext(makePlugin('shop')).registerComponent({
+      customId: 'buy',
+      type: 'button',
+      handler: noop,
+    });
+    expect(registries.components.all()[0].customId).toBe('shop:buy');
+  });
+
+  it('devrait générer un customId namespacé via componentId', () => {
+    expect(makeContext(makePlugin('shop')).componentId('buy')).toBe('shop:buy');
+  });
 });
 
 describe('services', () => {

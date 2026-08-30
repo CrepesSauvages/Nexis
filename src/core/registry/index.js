@@ -3,6 +3,7 @@ import { createEventRegistry } from './events.js';
 import { createJobRegistry } from './jobs.js';
 import { createServiceRegistry } from './services.js';
 import { createRouteRegistry } from './routes.js';
+import { createComponentRegistry } from './components.js';
 
 /**
  * @typedef {object} Registries
@@ -11,6 +12,7 @@ import { createRouteRegistry } from './routes.js';
  * @property {ReturnType<typeof createJobRegistry>} jobs
  * @property {ReturnType<typeof createServiceRegistry>} services
  * @property {ReturnType<typeof createRouteRegistry>} routes
+ * @property {ReturnType<typeof createComponentRegistry>} components
  */
 
 /** @returns {Registries} */
@@ -20,4 +22,5 @@ export const createRegistries = () => ({
   jobs: createJobRegistry(),
   services: createServiceRegistry(),
   routes: createRouteRegistry(),
+  components: createComponentRegistry(),
 });

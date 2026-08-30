@@ -43,6 +43,7 @@ export const setup = (ctx) => {
   ctx.registerEvent('messageCreate', monHandler);
   ctx.registerJob('0 9 * * *', monJob);
   ctx.registerRoute({ method: 'GET', path: '/stats', auth: 'guild-admin', handler });
+  ctx.registerComponent({ customId: 'confirm', type: 'button', handler: onConfirm });
   ctx.provideService({ maFonction });
   const economy = ctx.useService('economy');
 };
@@ -156,7 +157,7 @@ Les deux voies coexistent : un plugin peut ranger ses commandes dans `commands/`
 
 `i18n/` suit une logique différente des trois autres : ce ne sont pas des fabriques `.js`, mais des fichiers JSON purs (`i18n/<langue>.json`), chargés au démarrage — avant `setup()` — plutôt que via `applyConventions`. Les clés s'y écrivent sans préfixe (`"greeting": "Bonjour"`) : Nexis préfixe lui-même chaque clé avec le nom du plugin pour éviter toute collision avec le core ou un autre plugin, et elles deviennent utilisables via `ctx.t(locale, 'mon-plugin.greeting')`. Seul `fr.json` est nécessaire pour un plugin qui utilise ce mécanisme — les langues absentes retombent sur le français **du plugin**, pas sur celui du core. Voir `plugins/example/i18n/` et `plugins/example/commands/hello.js` pour un exemple complet, pluriel compris.
 
-Ce qui n'a **pas** de convention de dossier — `provideService`, `useService` et `registerRoute` — passe nécessairement par `setup()`.
+Ce qui n'a **pas** de convention de dossier — `provideService`, `useService`, `registerRoute` et `registerComponent` — passe nécessairement par `setup()`.
 
 ## Storage
 
@@ -211,6 +212,31 @@ ctx.registerRoute({
 ```
 
 Le path final est `/api/plugins/mon-plugin/stats`. **Ces routes sont collectées et validées, mais aucun serveur ne les sert en v1** — le dashboard viendra s'y brancher sans qu'aucun plugin ne change.
+
+## Composants (boutons, selects, modals)
+
+```js
+export const setup = (ctx) => {
+  ctx.registerComponent({
+    customId: 'confirm',
+    type: 'button', // 'button' | 'select' | 'modal'
+    permissions: 'guild-admin', // optionnel : 'guild-admin' ou 'owner', comme les commandes
+    handler: async (interaction, ctx) => {
+      await interaction.reply({ content: 'Confirmé !', flags: 64 });
+    },
+  });
+};
+```
+
+Le `customId` déclaré est automatiquement préfixé par le nom du plugin (`mon-plugin:confirm`), pour éviter les collisions entre plugins — deux plugins peuvent chacun déclarer `'confirm'` sans se marcher dessus. `ctx.componentId(id)` donne l'id complet à poser sur le composant Discord :
+
+```js
+new ButtonBuilder().setCustomId(ctx.componentId('confirm')).setLabel('Confirmer');
+```
+
+Le matching se fait par **préfixe** : un customId dynamique comme `mon-plugin:confirm:1234` (pour encoder l'ID d'une commande, par exemple) déclenche le même handler que `mon-plugin:confirm` — au handler de parser le reste dans `interaction.customId`.
+
+Le core vérifie l'activation du plugin puis la permission avant d'appeler `handler`, exactement comme pour les commandes. Un customId qui ne correspond à aucun handler enregistré (bouton d'un message envoyé avant un redémarrage, par exemple) reçoit une réponse ephémère plutôt qu'une erreur silencieuse.
 
 ## Cycle de vie
 

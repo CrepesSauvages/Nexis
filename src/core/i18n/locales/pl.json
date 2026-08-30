@@ -3,6 +3,8 @@
   "dispatcher.plugin_not_active": "Wtyczka `{plugin}` nie jest aktywna na tym serwerze.",
   "dispatcher.permission_denied": "Nie masz uprawnień do użycia tego polecenia.",
   "dispatcher.command_error": "Wystąpił błąd. Numer referencyjny: `{errorId}`",
+  "dispatcher.component_removed": "Ten komponent nie jest już dostępny. Wiadomość może być zbyt stara.",
+  "dispatcher.component_error": "Wystąpił błąd. Numer referencyjny: `{errorId}`",
 
   "nexis.list.title": "**Wtyczki Nexis**",
   "nexis.list.empty": "Nie znaleziono żadnych wtyczek w `plugins/`.",
