@@ -222,6 +222,8 @@ export const bootstrap = async ({
     alwaysEnabled: ALWAYS_ENABLED,
     client,
     logger,
+    plugins: active,
+    commandSync,
     fetchImpl,
   });
 

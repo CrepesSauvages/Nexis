@@ -1,6 +1,8 @@
 import { createSessions } from './session.js';
 import { createOAuth } from './oauth.js';
 import { createAuthRoutes } from './auth-routes.js';
+import { createPluginAdmin } from '../plugin-admin.js';
+import { createCoreRoutes } from './core-routes.js';
 import { createRouter } from './router.js';
 import { createHttpServer } from './server.js';
 
@@ -19,6 +21,8 @@ import { createHttpServer } from './server.js';
  * @param {string[]} options.alwaysEnabled
  * @param {import('discord.js').Client} options.client
  * @param {import('../logger.js').Logger} options.logger
+ * @param {import('../loader.js').LoadedPlugin[]} options.plugins - plugins actifs
+ * @param {{ syncGuild: (guildId: string) => Promise<void> }} options.commandSync
  * @param {typeof fetch} [options.fetchImpl]
  * @returns {Promise<ReturnType<typeof createHttpServer> | undefined>}
  */
@@ -30,6 +34,8 @@ export const startDashboard = async ({
   alwaysEnabled,
   client,
   logger,
+  plugins,
+  commandSync,
   fetchImpl,
 }) => {
   const { enabled, clientSecret, host, port, baseUrl } = config.dashboard;
@@ -41,6 +47,7 @@ export const startDashboard = async ({
   const httpLogger = logger.child('http');
   const sessions = createSessions({ storage });
   const oauth = createOAuth({ clientId: config.clientId, clientSecret, baseUrl, fetchImpl });
+  const admin = createPluginAdmin({ plugins, guildConfig, commandSync, alwaysEnabled });
 
   const server = createHttpServer({
     router: createRouter({
@@ -53,6 +60,7 @@ export const startDashboard = async ({
       // chemin qui collide avec /auth/* ou /api/me.
       routes: [
         ...createAuthRoutes({ oauth, sessions, secure: baseUrl.startsWith('https://') }),
+        ...createCoreRoutes({ plugins, guildConfig, admin, client, alwaysEnabled }),
         // Le registre type son handler en `Function` générique (routes.js) ;
         // le routeur attend la signature précise (params, io) => unknown.
         // Les deux décrivent le même contrat en pratique — un plugin qui
