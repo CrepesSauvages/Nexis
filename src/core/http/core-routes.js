@@ -1,6 +1,8 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { HttpError } from '../errors.js';
 import { sendJson } from './request.js';
+import { validateConfigValues } from '../config-schema.js';
+import { SUPPORTED_LOCALES } from '../i18n/index.js';
 
 /** Message humain associé à chaque refus de règle. */
 const REFUSAL_MESSAGES = {
@@ -129,6 +131,63 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
     handler: async ({ guildId, body }, { res }) => {
       const result = await admin.disable(/** @type {string} */ (guildId), pluginNameFrom(body));
       return result.ok ? { ok: true } : sendRefusal(res, result);
+    },
+  },
+
+  {
+    method: 'PATCH',
+    path: '/api/core/config',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body }, { res }) => {
+      const name = pluginNameFrom(body);
+      const { values } = /** @type {{ values?: unknown }} */ (body ?? {});
+      if (!values || typeof values !== 'object' || Array.isArray(values)) {
+        throw new HttpError(400, 'Champ `values` manquant ou invalide');
+      }
+
+      const plugin = plugins.find((entry) => entry.name === name);
+      if (!plugin) throw new HttpError(404, 'Plugin introuvable');
+
+      const id = /** @type {string} */ (guildId);
+      const guild = client.guilds.cache.get(id);
+      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+
+      const result = await validateConfigValues({
+        schema: plugin.manifest.config,
+        values: /** @type {Record<string, unknown>} */ (values),
+        guild,
+      });
+      if (!result.ok) {
+        sendJson(res, 400, {
+          error: 'Valeurs de configuration invalides',
+          fields: result.fields,
+        });
+        return undefined;
+      }
+
+      // Fusion partielle : `setConfig` conserve ce que la requête ne mentionne
+      // pas. La validation ayant tout contrôlé avant d'arriver ici, l'écriture
+      // est soit complète, soit inexistante.
+      await guildConfig.setConfig(id, name, result.values);
+      return { ok: true, config: await guildConfig.getConfig(id, name, plugin.manifest.config) };
+    },
+  },
+
+  {
+    method: 'PUT',
+    path: '/api/core/locale',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body }, { res }) => {
+      const { locale } = /** @type {{ locale?: unknown }} */ (body ?? {});
+      if (typeof locale !== 'string' || !SUPPORTED_LOCALES.includes(locale)) {
+        sendJson(res, 400, {
+          error: `Langue non supportée. Attendu : ${SUPPORTED_LOCALES.join(', ')}`,
+          reason: 'unknown_locale',
+        });
+        return undefined;
+      }
+      await guildConfig.setLocale(/** @type {string} */ (guildId), locale);
+      return { ok: true, locale };
     },
   },
 ];

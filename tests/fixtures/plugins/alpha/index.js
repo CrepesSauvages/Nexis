@@ -1,4 +1,11 @@
-export const manifest = { name: 'alpha', version: '1.0.0', description: 'Plugin de test' };
+export const manifest = {
+  name: 'alpha',
+  version: '1.0.0',
+  description: 'Plugin de test',
+  config: {
+    greeting: { type: 'string', label: 'Salutation', default: 'Bonjour' },
+  },
+};
 
 /**
  * @param {import('../../../../src/core/context.js').PluginContext} ctx
