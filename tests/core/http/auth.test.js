@@ -30,6 +30,20 @@ const guildWithoutMember = () => ({
   members: { fetch: vi.fn().mockRejectedValue(new Error('Unknown Member')) },
 });
 
+describe('niveau inconnu', () => {
+  it('devrait refuser en 500 un niveau non reconnu', async () => {
+    await expect(
+      resolveAuth({
+        level: 'invente',
+        session,
+        client: fakeClient(),
+        guildId: undefined,
+        ownerId: undefined,
+      }),
+    ).rejects.toMatchObject({ status: 500 });
+  });
+});
+
 describe('niveau public', () => {
   it('devrait passer sans session', async () => {
     await expect(

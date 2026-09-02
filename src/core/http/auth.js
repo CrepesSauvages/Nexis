@@ -1,6 +1,9 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { HttpError } from '../errors.js';
 
+/** Les seuls niveaux d'autorisation que cette fonction sait interpréter. */
+const KNOWN_LEVELS = ['public', 'guild-member', 'guild-admin', 'owner'];
+
 /**
  * Décide si une requête a le droit d'atteindre son handler. Ne renvoie
  * rien en cas de succès ; lève une HttpError portant le statut sinon.
@@ -19,6 +22,15 @@ import { HttpError } from '../errors.js';
  * @returns {Promise<void>}
  */
 export const resolveAuth = async ({ level, session, client, guildId, ownerId }) => {
+  if (!KNOWN_LEVELS.includes(level)) {
+    // Inatteignable aujourd'hui : routes.js valide déjà `auth` contre
+    // AUTH_LEVELS, et les routes du socle sont codées en dur avec `public`.
+    // Mais un niveau non reconnu ici serait une erreur de programmation
+    // (AUTH_LEVELS élargi sans toucher ce fichier), pas une faute de
+    // l'appelant — d'où un 500 fermé par défaut, et non les droits du
+    // niveau protégé le plus faible.
+    throw new HttpError(500, `Niveau d'autorisation inconnu : "${level}"`);
+  }
   if (level === 'public') return;
   if (!session) throw new HttpError(401, 'Authentification requise');
 
