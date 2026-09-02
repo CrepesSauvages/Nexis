@@ -59,6 +59,25 @@ placer un reverse proxy qui termine le TLS devant lui et renseigner
 `DASHBOARD_BASE_URL` avec l'URL publique en `https` — le cookie de session
 devient alors `Secure`.
 
+### API d'administration
+
+| Méthode | Chemin                                 | Rôle                                                       |
+| ------- | -------------------------------------- | ---------------------------------------------------------- |
+| `GET`   | `/api/core/guilds`                     | Serveurs que vous pouvez gérer.                            |
+| `GET`   | `/api/core/plugins?guild=<id>`         | Plugins du serveur : manifeste, activation, configuration. |
+| `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                 |
+| `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                 |
+| `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.              |
+| `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                |
+
+Tout sauf `/api/core/guilds` exige la permission « Gérer le serveur » sur le
+serveur ciblé, revérifiée auprès de Discord à chaque requête.
+
+L'écriture de configuration est une fusion partielle : n'envoyez que les champs
+modifiés. Une clé absente du manifeste fait échouer la requête entière en `400`
+plutôt que de s'écrire sans jamais être lue, et un identifiant de salon, de rôle
+ou de membre est refusé s'il n'existe pas dans ce serveur.
+
 ## Internationalisation (i18n)
 
 Nexis traduit ses propres commandes (`/nexis`) dans 8 langues : français, anglais, espagnol, allemand, portugais, italien, néerlandais, polonais.

@@ -31,7 +31,7 @@ export const manifest = {
 
 Chaque entrée exige un `label` — il sera affiché dans le dashboard. `required` et `default` sont mutuellement exclusifs : une valeur par défaut rend le champ non requis par définition.
 
-**À ce jour, une valeur de configuration ne peut être que celle du `default` déclaré dans le manifeste** — il n'existe encore aucun moyen pour un administrateur de serveur de la modifier (`/nexis config` viendra avec le dashboard, pas avant). Un champ `required: true` sans `default` est donc, pour l'instant, impossible à satisfaire : préférez systématiquement donner un `default` sensé à chaque champ plutôt que de le marquer `required` sans en fournir un.
+Un administrateur de serveur modifie ces valeurs via l'API du dashboard. Les valeurs sont validées contre le `type` déclaré, et pour `channel`, `role` et `user`, l'objet référencé doit exister dans ce serveur. Un champ `required: true` sans `default` est donc satisfaisable.
 
 ## setup(ctx)
 
