@@ -6,6 +6,15 @@ const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
 
 /**
+ * @typedef {object} DashboardConfig
+ * @property {boolean} enabled
+ * @property {string | undefined} clientSecret
+ * @property {string} host
+ * @property {number} port
+ * @property {string} baseUrl
+ */
+
+/**
  * @typedef {object} NexisConfig
  * @property {string} token
  * @property {string} clientId
@@ -15,6 +24,7 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {string | undefined} ownerId
  * @property {string | undefined} sentryDsn
  * @property {number} errorLogLimit
+ * @property {DashboardConfig} dashboard
  */
 
 /**
@@ -71,6 +81,27 @@ const positiveInt = (value, fallback, key) => {
 };
 
 /**
+ * Valide un numéro de port. `0` est accepté : il demande à l'OS un port
+ * éphémère, ce dont les tests se servent pour ne jamais entrer en
+ * collision d'un fichier de test à l'autre.
+ * @param {string | undefined} value
+ * @param {number} fallback
+ * @param {string} key
+ * @returns {number}
+ */
+const portNumber = (value, fallback, key) => {
+  if (value === undefined) return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+    throw new ConfigError(
+      `Valeur invalide pour ${key} : "${value}". Attendu : un entier entre 0 et 65535.`,
+      { key, value },
+    );
+  }
+  return n;
+};
+
+/**
  * Lit et valide l'environnement. Lève dès la première anomalie —
  * un bot qui démarre à moitié configuré est plus difficile à diagnostiquer
  * qu'un bot qui refuse de démarrer.
@@ -94,6 +125,20 @@ export const loadConfig = (env = process.env) => {
 
   const errorLogLimit = positiveInt(env.ERROR_LOG_LIMIT, 500, 'ERROR_LOG_LIMIT');
 
+  // Le secret OAuth EST l'interrupteur du dashboard : sans lui aucun port
+  // n'est ouvert, et une installation qui ne veut que le bot n'a rien à
+  // configurer. Port et hôte sont validés même dashboard éteint — une
+  // valeur invalide reste une erreur de configuration.
+  const dashboardPort = portNumber(env.DASHBOARD_PORT, 3000, 'DASHBOARD_PORT');
+  const clientSecret = env.DISCORD_CLIENT_SECRET || undefined;
+  const dashboard = {
+    enabled: clientSecret !== undefined,
+    clientSecret,
+    host: env.DASHBOARD_HOST ?? '127.0.0.1',
+    port: dashboardPort,
+    baseUrl: (env.DASHBOARD_BASE_URL ?? `http://localhost:${dashboardPort}`).replace(/\/+$/, ''),
+  };
+
   return {
     token: required(env, 'DISCORD_TOKEN'),
     clientId: required(env, 'DISCORD_CLIENT_ID'),
@@ -103,5 +148,6 @@ export const loadConfig = (env = process.env) => {
     ownerId: env.OWNER_ID,
     sentryDsn: env.SENTRY_DSN,
     errorLogLimit,
+    dashboard,
   };
 };

@@ -112,3 +112,56 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...validEnv, ERROR_LOG_LIMIT: '0' })).toThrow(/ERROR_LOG_LIMIT/);
   });
 });
+
+describe('configuration du dashboard', () => {
+  it('devrait désactiver le dashboard sans DISCORD_CLIENT_SECRET', () => {
+    expect(loadConfig(validEnv).dashboard.enabled).toBe(false);
+  });
+
+  it('devrait activer le dashboard dès que DISCORD_CLIENT_SECRET est présent', () => {
+    const { dashboard } = loadConfig({ ...validEnv, DISCORD_CLIENT_SECRET: 'secret' });
+    expect(dashboard.enabled).toBe(true);
+    expect(dashboard.clientSecret).toBe('secret');
+  });
+
+  it('devrait traiter un DISCORD_CLIENT_SECRET vide comme absent', () => {
+    expect(loadConfig({ ...validEnv, DISCORD_CLIENT_SECRET: '' }).dashboard.enabled).toBe(false);
+  });
+
+  it('devrait appliquer les valeurs par défaut du dashboard', () => {
+    const { dashboard } = loadConfig(validEnv);
+    expect(dashboard.host).toBe('127.0.0.1');
+    expect(dashboard.port).toBe(3000);
+    expect(dashboard.baseUrl).toBe('http://localhost:3000');
+  });
+
+  it("devrait dériver l'URL de base du port choisi", () => {
+    expect(loadConfig({ ...validEnv, DASHBOARD_PORT: '8080' }).dashboard.baseUrl).toBe(
+      'http://localhost:8080',
+    );
+  });
+
+  it('devrait respecter une URL de base explicite', () => {
+    expect(
+      loadConfig({ ...validEnv, DASHBOARD_BASE_URL: 'https://nexis.example' }).dashboard.baseUrl,
+    ).toBe('https://nexis.example');
+  });
+
+  it("devrait retirer le slash final d'une URL de base", () => {
+    expect(
+      loadConfig({ ...validEnv, DASHBOARD_BASE_URL: 'https://nexis.example/' }).dashboard.baseUrl,
+    ).toBe('https://nexis.example');
+  });
+
+  it('devrait accepter le port 0, qui demande un port éphémère', () => {
+    expect(loadConfig({ ...validEnv, DASHBOARD_PORT: '0' }).dashboard.port).toBe(0);
+  });
+
+  it('devrait rejeter un port non numérique même dashboard désactivé', () => {
+    expect(() => loadConfig({ ...validEnv, DASHBOARD_PORT: 'abc' })).toThrow(ConfigError);
+  });
+
+  it('devrait rejeter un port hors plage', () => {
+    expect(() => loadConfig({ ...validEnv, DASHBOARD_PORT: '70000' })).toThrow(/DASHBOARD_PORT/);
+  });
+});
