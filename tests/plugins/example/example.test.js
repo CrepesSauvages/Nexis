@@ -111,15 +111,16 @@ describe('plugin example — setup()', () => {
 });
 
 describe('plugin example — conventions de dossiers', () => {
-  it('devrait charger la commande hello', async () => {
+  it('devrait charger les commandes hello et ping', async () => {
     const ctx = makeCtx();
     await applyConventions({
       plugin: loadedPlugin,
       ctx: asCtx(ctx),
       logger: asLogger(makeLogger()),
     });
-    expect(ctx.registerCommand).toHaveBeenCalledOnce();
-    expect(ctx.registerCommand.mock.calls[0][0].data.name).toBe('hello');
+    expect(ctx.registerCommand).toHaveBeenCalledTimes(2);
+    const commandNames = ctx.registerCommand.mock.calls.map((call) => call[0].data.name);
+    expect(commandNames).toEqual(expect.arrayContaining(['hello', 'ping']));
   });
 
   it('devrait charger le handler guildMemberAdd', async () => {
