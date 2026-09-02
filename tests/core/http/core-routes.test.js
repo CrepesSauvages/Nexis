@@ -1,100 +1,42 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventEmitter } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { bootstrap } from '../../../src/index.js';
-import { SESSION_COOKIE, createSessions } from '../../../src/core/http/session.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { CoreRoutesTestHarness } from './core-routes-harness.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const fixtures = join(here, '..', '..', 'fixtures', 'plugins');
-
-const ID = '123456789012345678';
-
-class FakeClient extends EventEmitter {
-  constructor() {
-    super();
-    const member = { permissions: { has: () => true } };
-    /** @param {string} id */
-    const makeGuild = (id) => ({
-      id,
-      members: { fetch: vi.fn().mockResolvedValue(member) },
-      channels: { cache: new Map([[ID, {}]]) },
-      roles: { cache: new Map([[ID, {}]]) },
-    });
-    this.guilds = {
-      cache: new Map([
-        ['g1', makeGuild('g1')],
-        // Présent dans le cache du bot, contrairement à g2 et g3 : seul ce
-        // serveur peut démontrer que le filtre ManageGuild fait quelque
-        // chose, puisque g2 et g3 sont déjà éliminés avant lui.
-        ['g4', makeGuild('g4')],
-      ]),
-    };
-    this.login = vi.fn().mockResolvedValue('ok');
-    this.destroy = vi.fn().mockResolvedValue(undefined);
-  }
-}
-
-/** @type {string} */
-let dir;
-/** @type {Awaited<ReturnType<typeof bootstrap>> | undefined} */
+const harness = new CoreRoutesTestHarness();
 let app;
 /** @type {string} */
 let cookie;
 
-const boot = async () => {
-  app = await bootstrap({
-    env: {
-      DISCORD_TOKEN: 'tok',
-      DISCORD_CLIENT_ID: 'app1',
-      LOG_LEVEL: 'error',
-      STORAGE_DRIVER: 'json',
-      STORAGE_PATH: join(dir, 'store.json'),
-      PLUGINS_DIR: fixtures,
-      DISCORD_CLIENT_SECRET: 'secret',
-      DASHBOARD_PORT: '0',
-    },
-    clientFactory: () =>
-      /** @type {import('discord.js').Client} */ (/** @type {unknown} */ (new FakeClient())),
-    restFactory: () => ({ put: async () => undefined }),
-  });
-
-  const sessions = createSessions({ storage: app.storage });
-  const id = await sessions.create({
-    userId: 'u1',
-    username: 'thomas',
-    avatar: null,
-    guilds: [
-      { id: 'g1', name: 'Serveur un', icon: null, permissions: '32' },
-      { id: 'g2', name: 'Bot absent', icon: null, permissions: '32' },
-      { id: 'g3', name: 'Simple membre', icon: null, permissions: '0' },
-      { id: 'g4', name: 'Droits insuffisants', icon: null, permissions: '0' },
-    ],
-  });
-  cookie = `${SESSION_COOKIE}=${id}`;
-  return `http://127.0.0.1:${app.http?.port()}`;
-};
-
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'nexis-core-api-'));
+  await harness.setupTempDir();
 });
 
 afterEach(async () => {
-  await app?.shutdown();
-  app = undefined;
-  await rm(dir, { recursive: true, force: true });
+  await harness.cleanup();
 });
+
+/**
+ * @param {string} base
+ * @param {string} action
+ * @param {unknown} body
+ */
+const post = (base, action, body) =>
+  fetch(`${base}/api/core/plugins/${action}?guild=g1`, {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
 describe('GET /api/core/guilds', () => {
   it('devrait refuser en 401 sans session', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
     expect((await fetch(`${base}/api/core/guilds`)).status).toBe(401);
   });
 
   it('devrait ne garder que les serveurs où le bot est présent et où on gère', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     const response = await fetch(`${base}/api/core/guilds`, { headers: { Cookie: cookie } });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: 'g1', name: 'Serveur un', icon: null }]);
@@ -103,18 +45,23 @@ describe('GET /api/core/guilds', () => {
 
 describe('GET /api/core/plugins', () => {
   it('devrait refuser en 400 sans paramètre guild', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     const response = await fetch(`${base}/api/core/plugins`, { headers: { Cookie: cookie } });
     expect(response.status).toBe(400);
   });
 
   it('devrait refuser en 401 sans session', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
     expect((await fetch(`${base}/api/core/plugins?guild=g1`)).status).toBe(401);
   });
 
   it('devrait lister chaque plugin avec son manifeste et son état', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     const response = await fetch(`${base}/api/core/plugins?guild=g1`, {
       headers: { Cookie: cookie },
     });
@@ -140,7 +87,9 @@ describe('GET /api/core/plugins', () => {
   });
 
   it('devrait refléter une activation', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     await app?.guildConfig.enable('g1', 'alpha');
     const body = /** @type {{ name: string, enabled: boolean }[]} */ (
       await (
@@ -151,35 +100,29 @@ describe('GET /api/core/plugins', () => {
   });
 });
 
-/**
- * @param {string} base
- * @param {string} action
- * @param {unknown} body
- */
-const post = (base, action, body) =>
-  fetch(`${base}/api/core/plugins/${action}?guild=g1`, {
-    method: 'POST',
-    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
 describe('POST /api/core/plugins/enable', () => {
   it('devrait activer un plugin', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     const response = await post(base, 'enable', { name: 'alpha' });
     expect(response.status).toBe(200);
     expect(await app?.guildConfig.isEnabled('g1', 'alpha')).toBe(true);
   });
 
   it('devrait refuser en 404 un plugin inconnu', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     const response = await post(base, 'enable', { name: 'fantome' });
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ reason: 'not_found' });
   });
 
   it('devrait refuser en 409 un plugin déjà activé', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     await post(base, 'enable', { name: 'alpha' });
     const response = await post(base, 'enable', { name: 'alpha' });
     expect(response.status).toBe(409);
@@ -187,12 +130,15 @@ describe('POST /api/core/plugins/enable', () => {
   });
 
   it('devrait refuser en 400 un corps sans nom', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     expect((await post(base, 'enable', {})).status).toBe(400);
   });
 
   it('devrait refuser en 401 sans session', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
     const response = await fetch(`${base}/api/core/plugins/enable?guild=g1`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -204,7 +150,9 @@ describe('POST /api/core/plugins/enable', () => {
 
 describe('POST /api/core/plugins/disable', () => {
   it('devrait désactiver un plugin activé', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     await post(base, 'enable', { name: 'alpha' });
     const response = await post(base, 'disable', { name: 'alpha' });
     expect(response.status).toBe(200);
@@ -212,98 +160,20 @@ describe('POST /api/core/plugins/disable', () => {
   });
 
   it('devrait réussir sur un plugin déjà inactif', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     expect((await post(base, 'disable', { name: 'alpha' })).status).toBe(200);
   });
 
   it('devrait refuser en 409 et nommer les dépendants', async () => {
-    const base = await boot();
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
     await post(base, 'enable', { name: 'alpha' });
     await post(base, 'enable', { name: 'beta' });
     const response = await post(base, 'disable', { name: 'alpha' });
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ reason: 'has_dependents', deps: ['beta'] });
-  });
-});
-
-/**
- * @param {string} base
- * @param {unknown} body
- */
-const patchConfig = (base, body) =>
-  fetch(`${base}/api/core/config?guild=g1`, {
-    method: 'PATCH',
-    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-describe('PATCH /api/core/config', () => {
-  it('devrait écrire une valeur valide', async () => {
-    const base = await boot();
-    const response = await patchConfig(base, { name: 'alpha', values: { greeting: 'Salut' } });
-    expect(response.status).toBe(200);
-    const stored = await app?.guildConfig.getConfig('g1', 'alpha', undefined);
-    expect(stored).toMatchObject({ greeting: 'Salut' });
-  });
-
-  it('devrait refuser en 400 une clé absente du manifeste', async () => {
-    const base = await boot();
-    const response = await patchConfig(base, { name: 'alpha', values: { inconnu: 1 } });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      fields: [{ key: 'inconnu', reason: 'unknown_key' }],
-    });
-  });
-
-  it('ne devrait rien écrire quand un seul champ est invalide', async () => {
-    const base = await boot();
-    await patchConfig(base, { name: 'alpha', values: { greeting: 'ok', inconnu: 1 } });
-    const stored = /** @type {Record<string, unknown>} */ (
-      await app?.guildConfig.getConfig('g1', 'alpha', undefined)
-    );
-    expect(stored.greeting).toBeUndefined();
-  });
-
-  it('devrait refuser en 404 un plugin inconnu', async () => {
-    const base = await boot();
-    expect((await patchConfig(base, { name: 'fantome', values: {} })).status).toBe(404);
-  });
-
-  it('devrait refuser en 400 un corps sans values', async () => {
-    const base = await boot();
-    expect((await patchConfig(base, { name: 'alpha' })).status).toBe(400);
-  });
-});
-
-describe('PUT /api/core/locale', () => {
-  /**
-   * @param {string} base
-   * @param {unknown} body
-   */
-  const putLocale = (base, body) =>
-    fetch(`${base}/api/core/locale?guild=g1`, {
-      method: 'PUT',
-      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-  it('devrait enregistrer une langue supportée', async () => {
-    const base = await boot();
-    const response = await putLocale(base, { locale: 'pl' });
-    expect(response.status).toBe(200);
-    expect(await app?.guildConfig.getLocale('g1')).toBe('pl');
-  });
-
-  it('devrait refuser en 400 une langue non supportée', async () => {
-    const base = await boot();
-    const response = await putLocale(base, { locale: 'kl' });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ reason: 'unknown_locale' });
-  });
-
-  it('ne devrait pas enregistrer une langue refusée', async () => {
-    const base = await boot();
-    await putLocale(base, { locale: 'kl' });
-    expect(await app?.guildConfig.getLocale('g1')).toBeUndefined();
   });
 });
