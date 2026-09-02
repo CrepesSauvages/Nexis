@@ -20,6 +20,7 @@ import {
 import { createScheduler } from './core/scheduler.js';
 import { createCommandSync } from './core/command-sync.js';
 import { applyConventions } from './core/conventions.js';
+import { startDashboard } from './core/http/index.js';
 
 /** Plugins internes, toujours disponibles sans activation. */
 export const ALWAYS_ENABLED = ['core'];
@@ -36,6 +37,7 @@ export const ALWAYS_ENABLED = ['core'];
  * @property {ReturnType<typeof createScheduler>} scheduler
  * @property {ReturnType<typeof createCommandSync>} commandSync
  * @property {import('discord.js').Client} client
+ * @property {ReturnType<typeof import('./core/http/server.js').createHttpServer> | undefined} http
  * @property {() => Promise<void>} shutdown
  */
 
@@ -49,11 +51,13 @@ export const ALWAYS_ENABLED = ['core'];
  * @param {Record<string, string | undefined>} [options.env]
  * @param {(opts: { eventNames: string[], allowsDM?: boolean }) => import('discord.js').Client} [options.clientFactory]
  * @param {(token: string) => { put: (route: string, options: { body: unknown }) => Promise<unknown> }} [options.restFactory]
+ * @param {typeof fetch} [options.fetchImpl]
  * @returns {Promise<NexisApp>}
  */
 export const bootstrap = async ({
   env = process.env,
   clientFactory = createClient,
+  fetchImpl = fetch,
   restFactory = (token) => {
     const rest = new REST({ version: '10' }).setToken(token);
     return {
@@ -197,6 +201,17 @@ export const bootstrap = async ({
   });
   scheduler.start();
 
+  // Après les registres et le client : le routeur a besoin de la liste
+  // complète des routes, et l'autorisation a besoin du client.
+  const http = await startDashboard({
+    config,
+    storage,
+    registries,
+    client,
+    logger,
+    fetchImpl,
+  });
+
   logger.info('Nexis assemblé', {
     plugins: active.length,
     commands: registries.commands.all().length,
@@ -217,8 +232,10 @@ export const bootstrap = async ({
     scheduler,
     commandSync,
     client,
+    http,
     async shutdown() {
       scheduler.stop();
+      await http?.close();
       await client.destroy?.();
       await storage.close();
       logger.info('Nexis arrêté');
