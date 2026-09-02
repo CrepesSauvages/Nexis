@@ -45,8 +45,11 @@ const checkType = (value, entry) => {
     if (typeof value !== 'string') return 'wrong_type';
     return (entry.options ?? []).includes(value) ? undefined : 'not_in_options';
   }
-  // channel, role, user : un identifiant Discord avant toute chose.
-  return typeof value === 'string' && SNOWFLAKE.test(value) ? undefined : 'wrong_type';
+  if (GUILD_REFERENCES.includes(entry.type)) {
+    // channel, role, user : un identifiant Discord avant toute chose.
+    return typeof value === 'string' && SNOWFLAKE.test(value) ? undefined : 'wrong_type';
+  }
+  return 'wrong_type';
 };
 
 /**
@@ -68,11 +71,15 @@ export const validateConfigValues = async ({ schema, values, guild }) => {
   const fields = [];
 
   for (const [key, value] of Object.entries(values)) {
-    const entry = schema?.[key];
-    if (!entry) {
+    // `schema?.[key]` teste un accès, pas une appartenance : sur une clé
+    // héritée du prototype (`__proto__`, `constructor`, `toString`…), l'accès
+    // renvoie une valeur truthy alors que la clé n'existe pas dans le
+    // manifeste. `Object.hasOwn` tranche sur l'appartenance réelle.
+    if (!Object.hasOwn(schema ?? {}, key)) {
       fields.push({ key, reason: 'unknown_key' });
       continue;
     }
+    const entry = /** @type {Record<string, import('./manifest.js').ConfigEntry>} */ (schema)[key];
 
     const typeError = checkType(value, entry);
     if (typeError) {

@@ -102,6 +102,24 @@ describe('clés inconnues', () => {
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'quoi', reason: 'unknown_key' }] });
   });
+
+  it('devrait refuser les clés héritées du prototype comme unknown_key', async () => {
+    // `JSON.parse` fait de `__proto__` une propriété propre ordinaire (pas un
+    // vrai changement de prototype) : ces trois clés sont donc de vraies
+    // propriétés propres d'un objet sans jamais figurer dans le manifeste.
+    const values = JSON.parse(
+      '{"__proto__":"123456789012345678","constructor":"x","toString":"y"}',
+    );
+    const result = await validateConfigValues({ schema, values, guild: fakeGuild() });
+    expect(result).toEqual({
+      ok: false,
+      fields: [
+        { key: '__proto__', reason: 'unknown_key' },
+        { key: 'constructor', reason: 'unknown_key' },
+        { key: 'toString', reason: 'unknown_key' },
+      ],
+    });
+  });
 });
 
 describe('références au serveur', () => {
