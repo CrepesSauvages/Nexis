@@ -150,3 +150,78 @@ describe('GET /api/core/plugins', () => {
     expect(body.find((entry) => entry.name === 'alpha')?.enabled).toBe(true);
   });
 });
+
+/**
+ * @param {string} base
+ * @param {string} action
+ * @param {unknown} body
+ */
+const post = (base, action, body) =>
+  fetch(`${base}/api/core/plugins/${action}?guild=g1`, {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+describe('POST /api/core/plugins/enable', () => {
+  it('devrait activer un plugin', async () => {
+    const base = await boot();
+    const response = await post(base, 'enable', { name: 'alpha' });
+    expect(response.status).toBe(200);
+    expect(await app?.guildConfig.isEnabled('g1', 'alpha')).toBe(true);
+  });
+
+  it('devrait refuser en 404 un plugin inconnu', async () => {
+    const base = await boot();
+    const response = await post(base, 'enable', { name: 'fantome' });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ reason: 'not_found' });
+  });
+
+  it('devrait refuser en 409 un plugin déjà activé', async () => {
+    const base = await boot();
+    await post(base, 'enable', { name: 'alpha' });
+    const response = await post(base, 'enable', { name: 'alpha' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ reason: 'already_enabled' });
+  });
+
+  it('devrait refuser en 400 un corps sans nom', async () => {
+    const base = await boot();
+    expect((await post(base, 'enable', {})).status).toBe(400);
+  });
+
+  it('devrait refuser en 401 sans session', async () => {
+    const base = await boot();
+    const response = await fetch(`${base}/api/core/plugins/enable?guild=g1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'alpha' }),
+    });
+    expect(response.status).toBe(401);
+  });
+});
+
+describe('POST /api/core/plugins/disable', () => {
+  it('devrait désactiver un plugin activé', async () => {
+    const base = await boot();
+    await post(base, 'enable', { name: 'alpha' });
+    const response = await post(base, 'disable', { name: 'alpha' });
+    expect(response.status).toBe(200);
+    expect(await app?.guildConfig.isEnabled('g1', 'alpha')).toBe(false);
+  });
+
+  it('devrait réussir sur un plugin déjà inactif', async () => {
+    const base = await boot();
+    expect((await post(base, 'disable', { name: 'alpha' })).status).toBe(200);
+  });
+
+  it('devrait refuser en 409 et nommer les dépendants', async () => {
+    const base = await boot();
+    await post(base, 'enable', { name: 'alpha' });
+    await post(base, 'enable', { name: 'beta' });
+    const response = await post(base, 'disable', { name: 'alpha' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ reason: 'has_dependents', deps: ['beta'] });
+  });
+});

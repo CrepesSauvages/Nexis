@@ -1,5 +1,49 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { HttpError } from '../errors.js';
+import { sendJson } from './request.js';
+
+/** Message humain associé à chaque refus de règle. */
+const REFUSAL_MESSAGES = {
+  not_found: 'Plugin introuvable',
+  always_enabled: 'Ce plugin est interne : il est toujours actif',
+  already_enabled: 'Ce plugin est déjà activé sur ce serveur',
+  missing_deps: 'Ce plugin dépend de plugins qui ne sont pas activés',
+  has_dependents: "D'autres plugins activés dépendent de celui-ci",
+};
+
+/**
+ * Rend un refus de règle.
+ *
+ * Le routeur ne sait rendre qu'un `{ error }` à partir d'une HttpError : il ne
+ * transporte aucun champ supplémentaire. Comme la réponse doit porter `reason`
+ * et parfois `deps`, on écrit ici et on renvoie `undefined` — c'est
+ * exactement le cas que le contrat du routeur prévoit.
+ *
+ * @param {import('node:http').ServerResponse} res
+ * @param {{ ok: false, reason: string, deps?: string[] }} result
+ * @returns {undefined}
+ */
+const sendRefusal = (res, result) => {
+  const status = result.reason === 'not_found' ? 404 : 409;
+  sendJson(res, status, {
+    error: REFUSAL_MESSAGES[/** @type {keyof typeof REFUSAL_MESSAGES} */ (result.reason)],
+    reason: result.reason,
+    ...(result.deps ? { deps: result.deps } : {}),
+  });
+  return undefined;
+};
+
+/**
+ * @param {unknown} body
+ * @returns {string} le nom de plugin porté par le corps
+ */
+const pluginNameFrom = (body) => {
+  const { name } = /** @type {{ name?: unknown }} */ (body ?? {});
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new HttpError(400, 'Champ `name` manquant ou vide');
+  }
+  return name;
+};
 
 /**
  * Les endpoints d'administration du dashboard.
@@ -65,6 +109,26 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
           config: await guildConfig.getConfig(id, name, manifest.config),
         })),
       );
+    },
+  },
+
+  {
+    method: 'POST',
+    path: '/api/core/plugins/enable',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body }, { res }) => {
+      const result = await admin.enable(/** @type {string} */ (guildId), pluginNameFrom(body));
+      return result.ok ? { ok: true } : sendRefusal(res, result);
+    },
+  },
+
+  {
+    method: 'POST',
+    path: '/api/core/plugins/disable',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body }, { res }) => {
+      const result = await admin.disable(/** @type {string} */ (guildId), pluginNameFrom(body));
+      return result.ok ? { ok: true } : sendRefusal(res, result);
     },
   },
 ];
