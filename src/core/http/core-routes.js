@@ -22,17 +22,38 @@ const REFUSAL_MESSAGES = {
  * exactement le cas que le contrat du routeur prévoit.
  *
  * @param {import('node:http').ServerResponse} res
- * @param {{ ok: false, reason: string, deps?: string[] }} result
+ * @param {{ ok: false, reason: import('../plugin-admin.js').AdminRefusalReason, deps?: string[] }} result
  * @returns {undefined}
  */
 const sendRefusal = (res, result) => {
   const status = result.reason === 'not_found' ? 404 : 409;
   sendJson(res, status, {
-    error: REFUSAL_MESSAGES[/** @type {keyof typeof REFUSAL_MESSAGES} */ (result.reason)],
+    error: REFUSAL_MESSAGES[result.reason],
     reason: result.reason,
     ...(result.deps ? { deps: result.deps } : {}),
   });
   return undefined;
+};
+
+/**
+ * Teste la permission « Gérer le serveur » sur une chaîne de permissions
+ * brute venue de Discord.
+ *
+ * `BigInt(...)` lève une `SyntaxError` sur tout ce qui n'est pas un entier
+ * décimal — un serveur mal formé ne doit pas faire échouer `/api/core/guilds`
+ * pour tous les autres : il est simplement écarté de la liste.
+ *
+ * @param {string} permissions
+ * @returns {boolean}
+ */
+const canManageGuild = (permissions) => {
+  try {
+    return (
+      (BigInt(permissions) & PermissionFlagsBits.ManageGuild) === PermissionFlagsBits.ManageGuild
+    );
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -80,10 +101,9 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
       // revérifiée auprès de Discord à chaque requête, donc un administrateur
       // rétrogradé voit peut-être un serveur de trop, mais reçoit un 403 dès
       // qu'il le touche.
-      const manageGuild = PermissionFlagsBits.ManageGuild;
       return session.guilds
         .filter((guild) => client.guilds.cache.has(guild.id))
-        .filter((guild) => (BigInt(guild.permissions) & manageGuild) === manageGuild)
+        .filter((guild) => canManageGuild(guild.permissions))
         .map(({ id, name, icon }) => ({ id, name, icon }));
     },
   },
@@ -170,6 +190,19 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
       // est soit complète, soit inexistante.
       await guildConfig.setConfig(id, name, result.values);
       return { ok: true, config: await guildConfig.getConfig(id, name, plugin.manifest.config) };
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/locale',
+    auth: 'guild-admin',
+    handler: async ({ guildId }) => {
+      // `null`, pas `undefined` : la sérialisation JSON supprimerait une clé
+      // à `undefined`, et l'appelant ne pourrait plus distinguer « aucune
+      // langue choisie » d'un champ manquant.
+      const locale = await guildConfig.getLocale(/** @type {string} */ (guildId));
+      return { locale: locale ?? null };
     },
   },
 

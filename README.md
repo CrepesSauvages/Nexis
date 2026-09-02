@@ -68,6 +68,7 @@ devient alors `Secure`.
 | `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                 |
 | `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                 |
 | `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.              |
+| `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.           |
 | `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                |
 
 Tout sauf `/api/core/guilds` exige la permission « Gérer le serveur » sur le

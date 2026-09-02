@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CoreRoutesTestHarness } from './core-routes-harness.js';
+import { createSessions, SESSION_COOKIE } from '../../../src/core/http/session.js';
 
 const harness = new CoreRoutesTestHarness();
 let app;
@@ -40,6 +41,28 @@ describe('GET /api/core/guilds', () => {
     const response = await fetch(`${base}/api/core/guilds`, { headers: { Cookie: cookie } });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: 'g1', name: 'Serveur un', icon: null }]);
+  });
+
+  it('devrait écarter un serveur dont les permissions sont mal formées, sans faire échouer la liste', async () => {
+    const base = await harness.boot();
+    app = harness.app;
+    const sessions = createSessions({
+      storage: /** @type {NonNullable<typeof app>} */ (app).storage,
+    });
+    const id = await sessions.create({
+      userId: 'u2',
+      username: 'malforme',
+      avatar: null,
+      guilds: [
+        { id: 'g1', name: 'Serveur un', icon: null, permissions: 'pas-un-nombre' },
+        { id: 'g4', name: 'Aussi géré', icon: null, permissions: '32' },
+      ],
+    });
+    const response = await fetch(`${base}/api/core/guilds`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([{ id: 'g4', name: 'Aussi géré', icon: null }]);
   });
 });
 
@@ -145,6 +168,20 @@ describe('POST /api/core/plugins/enable', () => {
       body: JSON.stringify({ name: 'alpha' }),
     });
     expect(response.status).toBe(401);
+  });
+});
+
+describe('autorisation bout en bout', () => {
+  it('devrait refuser en 403 un membre réel du serveur sans la permission « Gérer le serveur »', async () => {
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await fetch(`${base}/api/core/plugins/enable?guild=g5`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'alpha' }),
+    });
+    expect(response.status).toBe(403);
   });
 });
 

@@ -73,6 +73,35 @@ describe('PATCH /api/core/config', () => {
   });
 });
 
+describe('GET /api/core/locale', () => {
+  it('devrait renvoyer null quand aucune langue n a été définie', async () => {
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await fetch(`${base}/api/core/locale?guild=g1`, {
+      headers: { Cookie: cookie },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ locale: null });
+  });
+
+  it('devrait renvoyer la langue après un PUT', async () => {
+    const base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    await fetch(`${base}/api/core/locale?guild=g1`, {
+      method: 'PUT',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: 'de' }),
+    });
+    const response = await fetch(`${base}/api/core/locale?guild=g1`, {
+      headers: { Cookie: cookie },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ locale: 'de' });
+  });
+});
+
 describe('PUT /api/core/locale', () => {
   /**
    * @param {string} base

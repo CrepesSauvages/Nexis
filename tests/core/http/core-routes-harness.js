@@ -16,10 +16,18 @@ export class FakeClient extends EventEmitter {
   constructor() {
     super();
     const member = { permissions: { has: () => true } };
-    /** @param {string} id */
-    const makeGuild = (id) => ({
+    // Membre réel du serveur, mais sans « Gérer le serveur ». Sans ce
+    // deuxième profil, resolveAuth n'est exercé qu'avec des membres toujours
+    // autorisés, et le vrai chemin de refus 403 câblé bout en bout (routeur
+    // + auth.js + client) ne l'est jamais.
+    const memberWithoutManageGuild = { permissions: { has: () => false } };
+    /**
+     * @param {string} id
+     * @param {{ permissions: { has: () => boolean } }} [memberProfile]
+     */
+    const makeGuild = (id, memberProfile = member) => ({
       id,
-      members: { fetch: vi.fn().mockResolvedValue(member) },
+      members: { fetch: vi.fn().mockResolvedValue(memberProfile) },
       channels: { cache: new Map([[ID, {}]]) },
       roles: { cache: new Map([[ID, {}]]) },
     });
@@ -30,6 +38,10 @@ export class FakeClient extends EventEmitter {
         // serveur peut démontrer que le filtre ManageGuild fait quelque
         // chose, puisque g2 et g3 sont déjà éliminés avant lui.
         ['g4', makeGuild('g4')],
+        // Membre réel, sans la permission requise : seul serveur qui exerce
+        // le refus 403 de resolveAuth plutôt que la coupe faite en amont sur
+        // session.guilds.
+        ['g5', makeGuild('g5', memberWithoutManageGuild)],
       ]),
     };
     this.login = vi.fn().mockResolvedValue('ok');
