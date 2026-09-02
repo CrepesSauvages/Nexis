@@ -1,6 +1,6 @@
 /**
- * Un manifeste décrit le plugin sans l'exécuter. Le futur dashboard le
- * lit tel quel pour générer un formulaire de configuration.
+ * Un manifeste décrit le plugin sans l'exécuter. Le dashboard le lit
+ * tel quel, bien que le formulaire de configuration soit à venir.
  */
 export const manifest = {
   name: 'example',
@@ -52,7 +52,7 @@ export const setup = (ctx) => {
     },
   );
 
-  // Collectée et validée maintenant ; servie par le dashboard plus tard.
+  // Collectée, validée et servie par le dashboard si activé.
   ctx.registerRoute({
     method: 'GET',
     path: '/greetings',

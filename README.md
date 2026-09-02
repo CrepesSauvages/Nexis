@@ -19,17 +19,21 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 
 ## Configuration
 
-| Variable            | Défaut          | Rôle                                                                                                                        |
-| ------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `DISCORD_TOKEN`     | —               | Requis. Token du bot.                                                                                                       |
-| `DISCORD_CLIENT_ID` | —               | Requis. Identifiant de l'application.                                                                                       |
-| `OWNER_ID`          | —               | Autorise les commandes marquées `owner`, et requis pour `/nexis errors`.                                                    |
-| `LOG_LEVEL`         | `info`          | `debug`, `info`, `warn`, `error`.                                                                                           |
-| `STORAGE_DRIVER`    | `json`          | `json` ou `sqlite`. `json` fonctionne sur tout Node 22+ ; `sqlite` nécessite une version de Node avec `node:sqlite` stable. |
-| `STORAGE_PATH`      | selon le driver | Emplacement des données.                                                                                                    |
-| `PLUGINS_DIR`       | `./plugins`     | Répertoire scanné au démarrage.                                                                                             |
-| `SENTRY_DSN`        | —               | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
-| `ERROR_LOG_LIMIT`   | `500`           | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
+| Variable                | Défaut                  | Rôle                                                                                                                        |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `DISCORD_TOKEN`         | —                       | Requis. Token du bot.                                                                                                       |
+| `DISCORD_CLIENT_ID`     | —                       | Requis. Identifiant de l'application.                                                                                       |
+| `OWNER_ID`              | —                       | Autorise les commandes marquées `owner`, et requis pour `/nexis errors`.                                                    |
+| `LOG_LEVEL`             | `info`                  | `debug`, `info`, `warn`, `error`.                                                                                           |
+| `STORAGE_DRIVER`        | `json`                  | `json` ou `sqlite`. `json` fonctionne sur tout Node 22+ ; `sqlite` nécessite une version de Node avec `node:sqlite` stable. |
+| `STORAGE_PATH`          | selon le driver         | Emplacement des données.                                                                                                    |
+| `PLUGINS_DIR`           | `./plugins`             | Répertoire scanné au démarrage.                                                                                             |
+| `SENTRY_DSN`            | —                       | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
+| `ERROR_LOG_LIMIT`       | `500`                   | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
+| `DISCORD_CLIENT_SECRET` | —                       | Optionnel. Sa présence active le dashboard. Sans lui, aucun port n'est ouvert.                                              |
+| `DASHBOARD_HOST`        | `127.0.0.1`             | Adresse d'écoute du dashboard.                                                                                              |
+| `DASHBOARD_PORT`        | `3000`                  | Port d'écoute du dashboard.                                                                                                 |
+| `DASHBOARD_BASE_URL`    | `http://localhost:3000` | Origine publique du dashboard, utilisée comme `redirect_uri` OAuth et pour le `Secure` du cookie.                           |
 
 ## Reporting d'erreurs vers Sentry (optionnel)
 

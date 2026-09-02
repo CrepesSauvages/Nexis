@@ -12,8 +12,8 @@ const AUTH_LEVELS = ['public', 'guild-member', 'guild-admin', 'owner'];
  */
 
 /**
- * Les routes sont collectées et validées, mais aucun serveur ne les sert
- * en v1. Le sous-projet dashboard se branchera sur ce registre.
+ * Registre des routes HTTP : collecte, validation et enregistrement.
+ * Lorsque le dashboard est activé, son routeur sert ces routes.
  */
 export const createRouteRegistry = () => {
   /** @type {Array<RouteDef & { plugin: string }>} */
