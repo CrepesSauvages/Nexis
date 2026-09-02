@@ -110,6 +110,17 @@ describe('niveau owner', () => {
   });
 });
 
+describe('client Discord pas encore connecté', () => {
+  it('devrait répondre 503 tant que le client n est pas prêt', async () => {
+    const client = /** @type {import('discord.js').Client} */ (
+      /** @type {unknown} */ ({ isReady: () => false, guilds: { cache: new Map() } })
+    );
+    await expect(
+      resolveAuth({ level: 'guild-member', session, client, guildId: 'g1', ownerId: undefined }),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+});
+
 describe('niveaux liés à un serveur', () => {
   it('devrait refuser en 400 sans paramètre guild', async () => {
     await expect(

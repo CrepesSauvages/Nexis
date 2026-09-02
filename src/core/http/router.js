@@ -72,7 +72,11 @@ export const createRouter = ({
     // L'origine est arbitraire : seuls le chemin et la query nous
     // intéressent, et URL exige une base pour accepter une URL relative.
     const url = new URL(req.url ?? '/', 'http://localhost');
-    const route = table.get(`${req.method} ${url.pathname}`);
+    // Node n'envoie jamais le corps d'une réponse à une requête HEAD : servir
+    // celle-ci avec le handler GET donne le bon statut et les bons en-têtes
+    // sans traitement particulier.
+    const method = req.method === 'HEAD' ? 'GET' : req.method;
+    const route = table.get(`${method} ${url.pathname}`);
     if (!route) {
       sendJson(res, 404, { error: 'Route inconnue' });
       return;

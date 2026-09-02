@@ -43,6 +43,15 @@ export const resolveAuth = async ({ level, session, client, guildId, ownerId }) 
 
   if (!guildId) throw new HttpError(400, 'Paramètre `guild` manquant');
 
+  // Le serveur HTTP écoute dès la fin de bootstrap(), alors que client.login()
+  // vient après : pendant la connexion à la passerelle le cache des serveurs
+  // est vide, et répondre 404 « le bot n'est pas sur ce serveur » serait un
+  // mensonge. `isReady` est optionnel pour rester compatible avec les faux
+  // clients des tests, qui ne l'implémentent pas.
+  if (client.isReady?.() === false) {
+    throw new HttpError(503, 'Le bot est en cours de connexion à Discord, réessayez');
+  }
+
   const guild = client.guilds.cache.get(guildId);
   if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 

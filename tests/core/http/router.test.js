@@ -144,6 +144,24 @@ describe('dispatch', () => {
     ]);
     expect((await fetch(`${base}/api/x`)).status).toBe(204);
   });
+
+  it('devrait servir une requête HEAD avec le handler GET, sans corps', async () => {
+    const { base } = await start([
+      { method: 'GET', path: '/api/x', auth: 'public', handler: () => ({ ok: true }) },
+    ]);
+    const response = await fetch(`${base}/api/x`, { method: 'HEAD' });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('');
+  });
+
+  it('devrait poser les en-têtes de durcissement sur les réponses', async () => {
+    const { base } = await start([
+      { method: 'GET', path: '/api/x', auth: 'public', handler: () => ({ ok: true }) },
+    ]);
+    const response = await fetch(`${base}/api/x`);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
 });
 
 describe('erreurs', () => {

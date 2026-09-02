@@ -96,6 +96,11 @@ export const sendJson = (res, status, payload, setCookies = []) => {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
+    // Le dashboard rend des identités et des configurations : rien de tout
+    // cela ne doit être deviné par reniflage de type, ni stocké par un cache
+    // intermédiaire.
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
     ...(setCookies.length > 0 ? { 'Set-Cookie': setCookies } : {}),
   });
   res.end(body);
