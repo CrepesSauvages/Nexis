@@ -1,6 +1,6 @@
 /**
- * Un manifeste décrit le plugin sans l'exécuter. Le dashboard le lit
- * tel quel, bien que le formulaire de configuration soit à venir.
+ * Un manifeste décrit le plugin sans l'exécuter. Son schéma `config`
+ * existe pour qu'une interface de configuration puisse générer un formulaire, mais rien ne le lit encore.
  */
 export const manifest = {
   name: 'example',
