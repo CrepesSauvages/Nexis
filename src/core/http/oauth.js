@@ -52,7 +52,8 @@ export const createOAuth = ({ clientId, clientSecret, baseUrl, fetchImpl = fetch
      * @returns {Promise<string>}
      */
     async exchangeCode(code) {
-      const response = await fetchImpl(`${API}/oauth2/token`, {
+      const url = `${API}/oauth2/token`;
+      const response = await fetchImpl(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -64,10 +65,14 @@ export const createOAuth = ({ clientId, clientSecret, baseUrl, fetchImpl = fetch
         }).toString(),
       });
       if (!response.ok) {
-        throw new HttpError(502, `Échange du code OAuth refusé par Discord (${response.status})`);
+        throw new HttpError(502, `Échange du code OAuth refusé par Discord (${response.status})`, {
+          url,
+        });
       }
       const payload = /** @type {{ access_token?: string }} */ (await response.json());
-      if (!payload.access_token) throw new HttpError(502, 'Réponse OAuth sans access_token');
+      if (!payload.access_token) {
+        throw new HttpError(502, 'Réponse OAuth sans access_token', { url });
+      }
       return payload.access_token;
     },
 

@@ -27,4 +27,14 @@ export const setup = (ctx) => {
       throw new Error('handler cassé');
     },
   });
+
+  // Niveau lié à un serveur : sert de cible aux tests d'activation par
+  // guild (dashboard.test.js) — 'router' n'est jamais dans ALWAYS_ENABLED,
+  // donc la route n'est servie que sur une guild où il a été activé.
+  ctx.registerRoute({
+    method: 'GET',
+    path: '/guild-only',
+    auth: 'guild-member',
+    handler: async () => ({ ok: true }),
+  });
 };

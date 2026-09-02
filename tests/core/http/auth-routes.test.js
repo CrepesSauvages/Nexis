@@ -7,6 +7,7 @@ import { createJsonDriver } from '../../../src/core/storage/drivers/json.js';
 import { createSessions, SESSION_COOKIE } from '../../../src/core/http/session.js';
 import { createRouter } from '../../../src/core/http/router.js';
 import { createAuthRoutes, OAUTH_STATE_COOKIE } from '../../../src/core/http/auth-routes.js';
+import { createGuildConfig } from '../../../src/core/guild-config.js';
 
 /** @type {string} */
 let dir;
@@ -40,6 +41,7 @@ const start = async () => {
     client: /** @type {import('discord.js').Client} */ (
       /** @type {unknown} */ ({ guilds: { cache: new Map() } })
     ),
+    guildConfig: createGuildConfig({ storage }),
     ownerId: undefined,
     logger: /** @type {import('../../../src/core/logger.js').Logger} */ (
       /** @type {unknown} */ ({

@@ -9,11 +9,16 @@ const EPHEMERAL = { flags: 64 };
  * Un plugin est actif pour une guild s'il est explicitement activé, ou
  * s'il fait partie des plugins internes toujours disponibles.
  *
+ * Exportée pour que le routeur HTTP (router.js) applique exactement la même
+ * règle d'activation que les trois dispatchers Discord ci-dessous : un
+ * plugin désactivé sur un serveur doit perdre sa surface HTTP au même
+ * titre que ses commandes, events et jobs.
+ *
  * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} guildConfig
  * @param {string[]} alwaysEnabled
  * @returns {(plugin: string, guildId: string | null | undefined) => Promise<boolean>}
  */
-const makeIsActive = (guildConfig, alwaysEnabled) => async (plugin, guildId) => {
+export const makeIsActive = (guildConfig, alwaysEnabled) => async (plugin, guildId) => {
   if (alwaysEnabled.includes(plugin)) return true;
   if (!guildId) return false;
   return guildConfig.isEnabled(guildId, plugin);

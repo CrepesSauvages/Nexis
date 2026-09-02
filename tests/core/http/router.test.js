@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createJsonDriver } from '../../../src/core/storage/drivers/json.js';
 import { createSessions, SESSION_COOKIE } from '../../../src/core/http/session.js';
 import { createRouter } from '../../../src/core/http/router.js';
+import { createGuildConfig } from '../../../src/core/guild-config.js';
 import { HttpError } from '../../../src/core/errors.js';
 
 /** @type {string} */
@@ -27,17 +28,30 @@ const silentLogger = () => ({
  * Démarre un vrai serveur sur le port 0 : l'OS attribue un port libre,
  * donc aucun risque de collision entre fichiers de test.
  * @param {import('../../../src/core/http/router.js').HttpRoute[]} routes
- * @param {{ ownerId?: string, logger?: ReturnType<typeof silentLogger> }} [options]
+ * @param {{
+ *   ownerId?: string,
+ *   logger?: ReturnType<typeof silentLogger>,
+ *   client?: import('discord.js').Client,
+ *   guildConfig?: ReturnType<typeof createGuildConfig>,
+ *   alwaysEnabled?: string[],
+ * }} [options]
  */
-const start = async (routes, { ownerId, logger = silentLogger() } = {}) => {
+const start = async (
+  routes,
+  { ownerId, logger = silentLogger(), client, guildConfig, alwaysEnabled } = {},
+) => {
   const sessions = createSessions({ storage });
-  const client = /** @type {import('discord.js').Client} */ (
-    /** @type {unknown} */ ({ guilds: { cache: new Map() } })
-  );
+  const resolvedClient =
+    client ??
+    /** @type {import('discord.js').Client} */ (
+      /** @type {unknown} */ ({ guilds: { cache: new Map() } })
+    );
   const router = createRouter({
     routes,
     sessions,
-    client,
+    client: resolvedClient,
+    guildConfig: guildConfig ?? createGuildConfig({ storage }),
+    alwaysEnabled,
     ownerId,
     logger: /** @type {import('../../../src/core/logger.js').Logger} */ (
       /** @type {unknown} */ (logger)
@@ -149,6 +163,53 @@ describe('erreurs', () => {
     expect(await response.json()).toEqual({ error: 'Théière' });
   });
 
+  it('devrait rendre 502 avec un errorId sur une HttpError 5xx, comme un incident', async () => {
+    const logger = silentLogger();
+    const { base } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'public',
+          plugin: 'demo',
+          handler: () => {
+            throw new HttpError(502, 'Discord indisponible');
+          },
+        },
+      ],
+      { logger },
+    );
+    const response = await fetch(`${base}/api/x`);
+    expect(response.status).toBe(502);
+    const payload = /** @type {{ error: string, errorId: string }} */ (await response.json());
+    expect(payload.errorId).toMatch(/^[0-9a-f]{8}$/);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Discord indisponible'),
+      expect.objectContaining({ errorId: payload.errorId, plugin: 'demo' }),
+    );
+  });
+
+  it('ne devrait pas logger une HttpError 4xx', async () => {
+    const logger = silentLogger();
+    const { base } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'public',
+          handler: () => {
+            throw new HttpError(418, 'Théière');
+          },
+        },
+      ],
+      { logger },
+    );
+    const response = await fetch(`${base}/api/x`);
+    expect(response.status).toBe(418);
+    expect(await response.json()).toEqual({ error: 'Théière' });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it('devrait rendre 500 avec un errorId sur une erreur inattendue', async () => {
     const { base } = await start([
       {
@@ -216,5 +277,101 @@ describe('erreurs', () => {
       headers: { Cookie: `${SESSION_COOKIE}=${id}` },
     });
     expect(await response.json()).toEqual({ user: 'u1' });
+  });
+});
+
+describe('activation par serveur', () => {
+  /** Un client dont la guild `g1` existe et où l'appelant en est membre. */
+  const clientWithMember = () =>
+    /** @type {import('discord.js').Client} */ (
+      /** @type {unknown} */ ({
+        guilds: {
+          cache: new Map([
+            ['g1', { members: { fetch: async () => ({ permissions: { has: () => true } }) } }],
+          ]),
+        },
+      })
+    );
+
+  it("devrait rendre 404 la route d'un plugin désactivé sur ce serveur", async () => {
+    const guildConfig = createGuildConfig({ storage });
+    const { base, sessions } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'guild-member',
+          plugin: 'demo',
+          handler: () => ({ ok: true }),
+        },
+      ],
+      { client: clientWithMember(), guildConfig },
+    );
+    const id = await sessions.create({ userId: 'u1', username: 't', avatar: null, guilds: [] });
+    const response = await fetch(`${base}/api/x?guild=g1`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it("devrait servir la route d'un plugin activé sur ce serveur", async () => {
+    const guildConfig = createGuildConfig({ storage });
+    await guildConfig.enable('g1', 'demo');
+    const { base, sessions } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'guild-member',
+          plugin: 'demo',
+          handler: () => ({ ok: true }),
+        },
+      ],
+      { client: clientWithMember(), guildConfig },
+    );
+    const id = await sessions.create({ userId: 'u1', username: 't', avatar: null, guilds: [] });
+    const response = await fetch(`${base}/api/x?guild=g1`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('devrait toujours servir un plugin de la liste alwaysEnabled, même désactivé', async () => {
+    const guildConfig = createGuildConfig({ storage });
+    const { base, sessions } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'guild-member',
+          plugin: 'core',
+          handler: () => ({ ok: true }),
+        },
+      ],
+      { client: clientWithMember(), guildConfig, alwaysEnabled: ['core'] },
+    );
+    const id = await sessions.create({ userId: 'u1', username: 't', avatar: null, guilds: [] });
+    const response = await fetch(`${base}/api/x?guild=g1`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('ne devrait pas vérifier le plugin sur un niveau public, même avec ?guild=', async () => {
+    const guildConfig = createGuildConfig({ storage });
+    const { base } = await start(
+      [
+        {
+          method: 'GET',
+          path: '/api/x',
+          auth: 'public',
+          plugin: 'demo',
+          handler: () => ({ ok: true }),
+        },
+      ],
+      { client: clientWithMember(), guildConfig },
+    );
+    const response = await fetch(`${base}/api/x?guild=g1`);
+    expect(response.status).toBe(200);
   });
 });

@@ -2,6 +2,10 @@ import { HttpError, newErrorId, errorMessage, errorStack } from '../errors.js';
 import { parseCookies, readJsonBody, sendJson } from './request.js';
 import { SESSION_COOKIE } from './session.js';
 import { resolveAuth } from './auth.js';
+import { makeIsActive } from '../dispatcher.js';
+
+/** Niveaux d'autorisation qui ciblent un serveur précis. */
+const GUILD_SCOPED_LEVELS = new Set(['guild-member', 'guild-admin']);
 
 /**
  * @typedef {object} RouteParams
@@ -46,12 +50,23 @@ const WITH_BODY = ['POST', 'PUT', 'PATCH'];
  * @param {HttpRoute[]} options.routes
  * @param {ReturnType<typeof import('./session.js').createSessions>} options.sessions
  * @param {import('discord.js').Client} options.client
+ * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
+ * @param {string[]} [options.alwaysEnabled]
  * @param {string | undefined} options.ownerId
  * @param {import('../logger.js').Logger} options.logger
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export const createRouter = ({ routes, sessions, client, ownerId, logger }) => {
+export const createRouter = ({
+  routes,
+  sessions,
+  client,
+  guildConfig,
+  alwaysEnabled = [],
+  ownerId,
+  logger,
+}) => {
   const table = new Map(routes.map((route) => [`${route.method} ${route.path}`, route]));
+  const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
   return async (req, res) => {
     // L'origine est arbitraire : seuls le chemin et la query nous
@@ -68,6 +83,21 @@ export const createRouter = ({ routes, sessions, client, ownerId, logger }) => {
       const session = await sessions.get(sessionId);
       const guildId = url.searchParams.get('guild') ?? undefined;
       await resolveAuth({ level: route.auth, session, client, guildId, ownerId });
+
+      // Même règle d'activation que pour les commandes, events et jobs
+      // (dispatcher.js) : un plugin désactivé sur ce serveur perd sa
+      // surface HTTP, même si sa route reste enregistrée. Seuls les
+      // niveaux liés à un serveur ont un serveur à vérifier — `guildId`
+      // est alors garanti non vide par resolveAuth ci-dessus. Un 404, pas
+      // un 403 : une route désactivée doit rester indiscernable d'une
+      // route qui n'existe pas.
+      if (
+        GUILD_SCOPED_LEVELS.has(route.auth) &&
+        route.plugin &&
+        !(await isActive(route.plugin, guildId))
+      ) {
+        throw new HttpError(404, "Ce plugin n'est pas activé sur ce serveur");
+      }
 
       const body = WITH_BODY.includes(req.method ?? '') ? await readJsonBody(req) : undefined;
       const user = session
@@ -88,18 +118,41 @@ export const createRouter = ({ routes, sessions, client, ownerId, logger }) => {
         return;
       }
       if (error instanceof HttpError) {
+        // Un 4xx est une faute de l'appelant, rendue telle quelle sans
+        // trace. Un 5xx forgé par un plugin ou par oauth.js (Discord
+        // injoignable, par exemple) est un incident au même titre qu'une
+        // exception inattendue : il mérite le même errorId et le même log.
+        if (error.status >= 500) {
+          const errorId = logServerError(logger, route, error);
+          sendJson(res, error.status, { error: error.message, errorId });
+          return;
+        }
         sendJson(res, error.status, { error: error.message });
         return;
       }
-      const errorId = newErrorId();
-      logger.error(`Erreur dans une route HTTP : ${errorMessage(error)}`, {
-        errorId,
-        plugin: route.plugin,
-        method: route.method,
-        path: route.path,
-        stack: errorStack(error),
-      });
+      const errorId = logServerError(logger, route, error);
       sendJson(res, 500, { error: 'Erreur interne', errorId });
     }
   };
+};
+
+/**
+ * Journalise une erreur serveur (5xx) avec un errorId frais, en réutilisant
+ * exactement les champs déjà loggés pour une exception inattendue.
+ *
+ * @param {import('../logger.js').Logger} logger
+ * @param {HttpRoute} route
+ * @param {unknown} error
+ * @returns {string}
+ */
+const logServerError = (logger, route, error) => {
+  const errorId = newErrorId();
+  logger.error(`Erreur dans une route HTTP : ${errorMessage(error)}`, {
+    errorId,
+    plugin: route.plugin,
+    method: route.method,
+    path: route.path,
+    stack: errorStack(error),
+  });
+  return errorId;
 };

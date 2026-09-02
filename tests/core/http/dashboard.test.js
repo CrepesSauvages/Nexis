@@ -9,6 +9,7 @@ import { bootstrap } from '../../../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, '..', '..', 'fixtures', 'plugins-with-routes');
+const fixturesSetupThrows = join(here, '..', '..', 'fixtures', 'plugins-routes-setup-throws');
 
 class FakeClient extends EventEmitter {
   constructor() {
@@ -48,6 +49,30 @@ const boot = async (overrides = {}) => {
 /** @param {Awaited<ReturnType<typeof bootstrap>>} instance */
 const baseUrl = (instance) => `http://127.0.0.1:${instance.http?.port()}`;
 
+/**
+ * Espionne stderr le temps d'un test, pour observer les `warn` du logger
+ * réel : `boot()` tourne à LOG_LEVEL=error, qui les avale silencieusement
+ * avant même d'atteindre le flux. Il faut donc relever le niveau (voir
+ * appelants) et intercepter l'écriture elle-même, pas un mock de méthode.
+ * @returns {{ text: () => string, restore: () => void }}
+ */
+const captureStderr = () => {
+  /** @type {string[]} */
+  const chunks = [];
+  const spy = vi
+    .spyOn(process.stderr, 'write')
+    .mockImplementation((chunk, encodingOrCallback, callback) => {
+      chunks.push(chunk.toString());
+      const done = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
+      if (typeof done === 'function') done();
+      return true;
+    });
+  return {
+    text: () => chunks.join(''),
+    restore: () => spy.mockRestore(),
+  };
+};
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'nexis-dashboard-'));
 });
@@ -65,8 +90,11 @@ describe('activation', () => {
   });
 
   it('devrait ne rien démarrer sans DISCORD_CLIENT_SECRET', async () => {
-    const instance = await boot({ DISCORD_CLIENT_SECRET: '' });
+    const stderr = captureStderr();
+    const instance = await boot({ DISCORD_CLIENT_SECRET: '', LOG_LEVEL: 'warn' });
+    stderr.restore();
     expect(instance.http).toBeUndefined();
+    expect(stderr.text()).toContain('Dashboard désactivé');
   });
 
   it('devrait quand même assembler le bot sans dashboard', async () => {
@@ -121,11 +149,30 @@ describe('cycle de vie', () => {
     const squatter = createServer(() => {});
     await new Promise((resolve) => squatter.listen(0, '127.0.0.1', () => resolve(undefined)));
     const address = /** @type {import('node:net').AddressInfo} */ (squatter.address());
+    const stderr = captureStderr();
     try {
-      const instance = await boot({ DASHBOARD_PORT: String(address.port) });
+      const instance = await boot({ DASHBOARD_PORT: String(address.port), LOG_LEVEL: 'warn' });
+      stderr.restore();
       expect(instance.http).toBeUndefined();
+      expect(stderr.text()).toContain('Serveur HTTP en erreur');
     } finally {
+      stderr.restore();
       await new Promise((resolve) => squatter.close(() => resolve(undefined)));
     }
+  });
+});
+
+describe("routes d'un plugin dont setup() échoue", () => {
+  it("ne devrait pas servir la route d'un plugin exclu de active", async () => {
+    const instance = await boot({ PLUGINS_DIR: fixturesSetupThrows });
+    const response = await fetch(`${baseUrl(instance)}/api/plugins/throws-in-setup/ping`);
+    expect(response.status).toBe(404);
+  });
+
+  it("devrait quand même servir la route d'un plugin voisin resté actif", async () => {
+    const instance = await boot({ PLUGINS_DIR: fixturesSetupThrows });
+    const response = await fetch(`${baseUrl(instance)}/api/plugins/ok/ping`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ pong: true });
   });
 });

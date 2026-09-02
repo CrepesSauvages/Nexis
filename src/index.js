@@ -201,12 +201,25 @@ export const bootstrap = async ({
   });
   scheduler.start();
 
+  // Les routes des plugins dont setup() a échoué ne doivent jamais être
+  // servies : `active` ne contient que les plugins effectivement
+  // initialisés, exactement le filtre déjà appliqué aux events, commandes
+  // et jobs ci-dessus. Filtrer ici plutôt que dans startDashboard() évite
+  // de lui apprendre ce qu'est un plugin « actif » — il reçoit une liste
+  // de routes déjà prête à servir.
+  const activePluginNames = new Set(active.map((plugin) => plugin.name));
+  const activeRoutes = registries.routes
+    .all()
+    .filter((route) => activePluginNames.has(route.plugin));
+
   // Après les registres et le client : le routeur a besoin de la liste
   // complète des routes, et l'autorisation a besoin du client.
   const http = await startDashboard({
     config,
     storage,
-    registries,
+    routes: activeRoutes,
+    guildConfig,
+    alwaysEnabled: ALWAYS_ENABLED,
     client,
     logger,
     fetchImpl,

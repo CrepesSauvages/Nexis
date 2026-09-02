@@ -14,7 +14,9 @@ import { createHttpServer } from './server.js';
  * @param {object} options
  * @param {import('../../config.js').NexisConfig} options.config
  * @param {import('../storage/driver.js').StorageDriver} options.storage
- * @param {import('../registry/index.js').Registries} options.registries
+ * @param {Array<import('../registry/routes.js').RouteDef & { plugin: string }>} options.routes - déjà filtrées aux plugins actifs par bootstrap() (index.js)
+ * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
+ * @param {string[]} options.alwaysEnabled
  * @param {import('discord.js').Client} options.client
  * @param {import('../logger.js').Logger} options.logger
  * @param {typeof fetch} [options.fetchImpl]
@@ -23,7 +25,9 @@ import { createHttpServer } from './server.js';
 export const startDashboard = async ({
   config,
   storage,
-  registries,
+  routes,
+  guildConfig,
+  alwaysEnabled,
   client,
   logger,
   fetchImpl,
@@ -40,8 +44,13 @@ export const startDashboard = async ({
 
   const server = createHttpServer({
     router: createRouter({
-      // Les endpoints du socle d'abord : une route de plugin ne peut pas
-      // les masquer, le registre les préfixant tous par /api/plugins/.
+      // L'ordre n'a pas d'incidence sur la protection des endpoints du
+      // socle : `createRouter` construit une Map où la dernière entrée
+      // gagne en cas de doublon, donc les mettre en premier les rendrait
+      // masquables, pas l'inverse. Ce qui les protège réellement, c'est le
+      // préfixe /api/plugins/ que le registre impose à tout path de plugin
+      // (routes.js) — un plugin ne peut tout simplement pas déclarer un
+      // chemin qui collide avec /auth/* ou /api/me.
       routes: [
         ...createAuthRoutes({ oauth, sessions, secure: baseUrl.startsWith('https://') }),
         // Le registre type son handler en `Function` générique (routes.js) ;
@@ -50,12 +59,12 @@ export const startDashboard = async ({
         // enregistre une route via ctx.registerRoute reçoit déjà ces deux
         // arguments (context.js). Un simple cast suffit, sans élargir le
         // typage public du registre pour ce seul appelant.
-        .../** @type {import('./router.js').HttpRoute[]} */ (
-          /** @type {unknown} */ (registries.routes.all())
-        ),
+        .../** @type {import('./router.js').HttpRoute[]} */ (/** @type {unknown} */ (routes)),
       ],
       sessions,
       client,
+      guildConfig,
+      alwaysEnabled,
       ownerId: config.ownerId,
       logger: httpLogger,
     }),
