@@ -35,6 +35,32 @@ const GUILD_SCOPED_LEVELS = new Set(['guild-member', 'guild-admin']);
 const WITH_BODY = ['POST', 'PUT', 'PATCH'];
 
 /**
+ * Une requête a un corps si elle porte un Transfer-Encoding (l'encodage par
+ * blocs laisse justement `Content-Length` absent alors qu'un corps arrive)
+ * ou un `Content-Length` strictement positif. C'est cette règle, et non la
+ * présence d'un `Content-Type`, qui distingue un `POST /auth/logout`
+ * légitime — sans corps, sans `Content-Type` — d'un POST mutateur qui doit
+ * décliner sa nature.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @returns {boolean}
+ */
+const hasBody = (req) => {
+  if (req.headers['transfer-encoding']) return true;
+  return Number(req.headers['content-length'] ?? 0) > 0;
+};
+
+/**
+ * Teste le type de média d'un en-tête Content-Type, en ignorant ses
+ * paramètres (`; charset=utf-8`, etc.).
+ *
+ * @param {string | undefined} header
+ * @returns {boolean}
+ */
+const isJsonContentType = (header) =>
+  header?.split(';')[0].trim().toLowerCase() === 'application/json';
+
+/**
  * Fabrique le listener remis à node:http.
  *
  * La correspondance est exacte sur méthode et chemin : le registre de
@@ -101,6 +127,21 @@ export const createRouter = ({
         !(await isActive(route.plugin, guildId))
       ) {
         throw new HttpError(404, "Ce plugin n'est pas activé sur ce serveur");
+      }
+
+      // Deuxième ligne de défense contre le CSRF, en plus de SameSite=Lax sur
+      // le cookie de session : SameSite ne bloque pas une requête inter-
+      // origine mais même site (un autre sous-domaine, un autre port, un
+      // `http` sur le domaine `https` du dashboard). Un formulaire HTML ne
+      // sait pas poser `Content-Type: application/json` ; un `fetch` qui le
+      // fait déclenche un preflight CORS que l'origine attaquante ne peut
+      // pas satisfaire.
+      if (
+        WITH_BODY.includes(req.method ?? '') &&
+        hasBody(req) &&
+        !isJsonContentType(req.headers['content-type'])
+      ) {
+        throw new HttpError(415, 'Content-Type application/json requis');
       }
 
       const body = WITH_BODY.includes(req.method ?? '') ? await readJsonBody(req) : undefined;
