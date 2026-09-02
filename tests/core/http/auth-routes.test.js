@@ -134,6 +134,16 @@ describe('GET /auth/callback', () => {
     expect(await sessions.get(id)).toMatchObject({ userId: 'u1', username: 'thomas' });
   });
 
+  it('devrait poser les en-têtes de durcissement sur la redirection', async () => {
+    const { base } = await start();
+    const response = await fetch(`${base}/auth/callback?code=c1&state=vrai`, {
+      headers: { Cookie: `${OAUTH_STATE_COOKIE}=vrai` },
+      redirect: 'manual',
+    });
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('devrait effacer le cookie state après usage', async () => {
     const { base } = await start();
     const response = await fetch(`${base}/auth/callback?code=c1&state=vrai`, {

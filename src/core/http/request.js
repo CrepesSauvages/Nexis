@@ -117,6 +117,11 @@ export const sendJson = (res, status, payload, setCookies = []) => {
 export const sendRedirect = (res, location, setCookies = []) => {
   res.writeHead(302, {
     Location: location,
+    // Le 302 de /auth/callback est précisément la réponse qui pose le
+    // cookie de session : les mêmes en-têtes de durcissement que sendJson
+    // s'y appliquent.
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
     ...(setCookies.length > 0 ? { 'Set-Cookie': setCookies } : {}),
   });
   res.end();
