@@ -129,4 +129,9 @@ describe('disable', () => {
   it('devrait réussir sur un plugin déjà inactif', async () => {
     expect(await build().disable('g1', 'alpha')).toEqual({ ok: true });
   });
+
+  it('ne devrait pas resynchroniser les commandes sur un plugin déjà inactif', async () => {
+    await build().disable('g1', 'alpha');
+    expect(commandSync.syncGuild).not.toHaveBeenCalled();
+  });
 });

@@ -135,6 +135,24 @@ export const buildNexisCommand = (core) => {
    */
   const isAlwaysEnabled = (name) => core.alwaysEnabled.includes(name);
 
+  /**
+   * Les règles d'activation vivent dans le core : cette commande n'en est
+   * qu'une des deux interfaces, l'API du dashboard étant l'autre.
+   *
+   * Construit une instance à chaque appel plutôt qu'une seule fois ici :
+   * les tests réassignent `core.plugins` après la construction de la
+   * commande, et une instance capturée une bonne fois pour toutes fermerait
+   * sur le tableau désormais périmé.
+   * @returns {ReturnType<typeof createPluginAdmin>}
+   */
+  const admin = () =>
+    createPluginAdmin({
+      plugins: core.plugins,
+      guildConfig: core.guildConfig,
+      commandSync: core.commandSync,
+      alwaysEnabled: core.alwaysEnabled,
+    });
+
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   const list = async (interaction) => {
     const locale = await core.resolveLocale(interaction);
@@ -162,15 +180,7 @@ export const buildNexisCommand = (core) => {
    */
   const enable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    // Les règles d'activation vivent dans le core : cette commande n'en est
-    // qu'une des deux interfaces, l'API du dashboard étant l'autre.
-    const admin = createPluginAdmin({
-      plugins: core.plugins,
-      guildConfig: core.guildConfig,
-      commandSync: core.commandSync,
-      alwaysEnabled: core.alwaysEnabled,
-    });
-    const result = await admin.enable(interaction.guildId ?? '', name);
+    const result = await admin().enable(interaction.guildId ?? '', name);
 
     if (result.ok) {
       await reply(interaction, core.t(locale, 'nexis.enable.success', { name }));
@@ -203,15 +213,7 @@ export const buildNexisCommand = (core) => {
    */
   const disable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    // Les règles d'activation vivent dans le core : cette commande n'en est
-    // qu'une des deux interfaces, l'API du dashboard étant l'autre.
-    const admin = createPluginAdmin({
-      plugins: core.plugins,
-      guildConfig: core.guildConfig,
-      commandSync: core.commandSync,
-      alwaysEnabled: core.alwaysEnabled,
-    });
-    const result = await admin.disable(interaction.guildId ?? '', name);
+    const result = await admin().disable(interaction.guildId ?? '', name);
 
     if (result.ok) {
       await reply(interaction, core.t(locale, 'nexis.disable.success', { name }));

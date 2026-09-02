@@ -1,5 +1,9 @@
 /**
- * @typedef {{ ok: true } | { ok: false, reason: string, deps?: string[] }} AdminResult
+ * @typedef {'not_found' | 'always_enabled' | 'already_enabled' | 'missing_deps' | 'has_dependents'} AdminRefusalReason
+ */
+
+/**
+ * @typedef {{ ok: true } | { ok: false, reason: AdminRefusalReason, deps?: string[] }} AdminResult
  */
 
 /**
@@ -52,7 +56,9 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
     /**
      * Désactiver un plugin déjà inactif réussit : `guildConfig.disable` ne fait
      * rien dans ce cas, et c'est le comportement que `/nexis disable` a
-     * toujours eu.
+     * toujours eu. Mais ce no-op rend la main avant `syncGuild` : un appel
+     * répété sur un plugin déjà inactif ne doit pas consommer une
+     * resynchronisation des commandes Discord à chaque fois.
      *
      * @param {string} guildId
      * @param {string} name
@@ -64,6 +70,8 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
       if (alwaysEnabled.includes(name)) return { ok: false, reason: 'always_enabled' };
 
       const enabled = await guildConfig.enabledPlugins(guildId);
+      if (!enabled.includes(name)) return { ok: true };
+
       const dependents = plugins
         .filter((other) => enabled.includes(other.name))
         .filter((other) => (other.manifest.dependsOn ?? []).includes(name))
