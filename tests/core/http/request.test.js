@@ -34,6 +34,10 @@ describe('parseCookies', () => {
   it('devrait garder les signes égal présents dans la valeur', () => {
     expect(parseCookies('t=a=b')).toEqual({ t: 'a=b' });
   });
+
+  it('devrait conserver la valeur brute si le décodage échoue', () => {
+    expect(parseCookies('a=%; b=2')).toEqual({ a: '%', b: '2' });
+  });
 });
 
 describe('serializeCookie', () => {

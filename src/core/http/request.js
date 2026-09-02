@@ -16,7 +16,16 @@ export const parseCookies = (header) => {
     const separator = part.indexOf('=');
     if (separator === -1) continue;
     const name = part.slice(0, separator).trim();
-    if (name) cookies[name] = decodeURIComponent(part.slice(separator + 1).trim());
+    if (name) {
+      const value = part.slice(separator + 1).trim();
+      try {
+        cookies[name] = decodeURIComponent(value);
+      } catch {
+        // Un cookie mal formé (ex: a=%) ne doit pas causer une erreur 500.
+        // C'est une faute de l'appelant : on conserve la valeur brute.
+        cookies[name] = value;
+      }
+    }
   }
   return cookies;
 };
