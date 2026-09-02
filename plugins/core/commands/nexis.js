@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { localizationsFor } from '../../../src/core/i18n/index.js';
+import { createPluginAdmin } from '../../../src/core/plugin-admin.js';
 
 const EPHEMERAL = { flags: 64 };
 
@@ -161,36 +162,39 @@ export const buildNexisCommand = (core) => {
    */
   const enable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    const plugin = find(name);
-    if (!plugin) {
+    // Les règles d'activation vivent dans le core : cette commande n'en est
+    // qu'une des deux interfaces, l'API du dashboard étant l'autre.
+    const admin = createPluginAdmin({
+      plugins: core.plugins,
+      guildConfig: core.guildConfig,
+      commandSync: core.commandSync,
+      alwaysEnabled: core.alwaysEnabled,
+    });
+    const result = await admin.enable(interaction.guildId ?? '', name);
+
+    if (result.ok) {
+      await reply(interaction, core.t(locale, 'nexis.enable.success', { name }));
+      return;
+    }
+    if (result.reason === 'not_found') {
       await reply(interaction, core.t(locale, 'nexis.plugin_not_found', { name }));
       return;
     }
-    if (isAlwaysEnabled(name)) {
+    if (result.reason === 'always_enabled') {
       await reply(interaction, core.t(locale, 'nexis.always_enabled', { name }));
       return;
     }
-
-    const guildId = interaction.guildId ?? '';
-    if (await core.guildConfig.isEnabled(guildId, name)) {
+    if (result.reason === 'already_enabled') {
       await reply(interaction, core.t(locale, 'nexis.enable.already', { name }));
       return;
     }
 
-    const enabled = await core.guildConfig.enabledPlugins(guildId);
-    const missing = (plugin.manifest.dependsOn ?? []).filter((dep) => !enabled.includes(dep));
-    if (missing.length) {
-      const deps = missing.map((dep) => `\`${dep}\``).join(', ');
-      await reply(
-        interaction,
-        core.t(locale, 'nexis.enable.missing_deps', { name, deps, count: missing.length }),
-      );
-      return;
-    }
-
-    await core.guildConfig.enable(guildId, name);
-    await core.commandSync.syncGuild(guildId);
-    await reply(interaction, core.t(locale, 'nexis.enable.success', { name }));
+    const missing = result.deps ?? [];
+    const deps = missing.map((dep) => `\`${dep}\``).join(', ');
+    await reply(
+      interaction,
+      core.t(locale, 'nexis.enable.missing_deps', { name, deps, count: missing.length }),
+    );
   };
 
   /**
@@ -199,35 +203,35 @@ export const buildNexisCommand = (core) => {
    */
   const disable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    const plugin = find(name);
-    if (!plugin) {
+    // Les règles d'activation vivent dans le core : cette commande n'en est
+    // qu'une des deux interfaces, l'API du dashboard étant l'autre.
+    const admin = createPluginAdmin({
+      plugins: core.plugins,
+      guildConfig: core.guildConfig,
+      commandSync: core.commandSync,
+      alwaysEnabled: core.alwaysEnabled,
+    });
+    const result = await admin.disable(interaction.guildId ?? '', name);
+
+    if (result.ok) {
+      await reply(interaction, core.t(locale, 'nexis.disable.success', { name }));
+      return;
+    }
+    if (result.reason === 'not_found') {
       await reply(interaction, core.t(locale, 'nexis.plugin_not_found', { name }));
       return;
     }
-    if (isAlwaysEnabled(name)) {
+    if (result.reason === 'always_enabled') {
       await reply(interaction, core.t(locale, 'nexis.always_enabled', { name }));
       return;
     }
 
-    const guildId = interaction.guildId ?? '';
-    const enabled = await core.guildConfig.enabledPlugins(guildId);
-    const dependents = core.plugins
-      .filter((other) => enabled.includes(other.name))
-      .filter((other) => (other.manifest.dependsOn ?? []).includes(name))
-      .map((other) => other.name);
-
-    if (dependents.length) {
-      const deps = dependents.map((dep) => `\`${dep}\``).join(', ');
-      await reply(
-        interaction,
-        core.t(locale, 'nexis.disable.dependents', { deps, count: dependents.length }),
-      );
-      return;
-    }
-
-    await core.guildConfig.disable(guildId, name);
-    await core.commandSync.syncGuild(guildId);
-    await reply(interaction, core.t(locale, 'nexis.disable.success', { name }));
+    const dependents = result.deps ?? [];
+    const deps = dependents.map((dep) => `\`${dep}\``).join(', ');
+    await reply(
+      interaction,
+      core.t(locale, 'nexis.disable.dependents', { deps, count: dependents.length }),
+    );
   };
 
   /**
