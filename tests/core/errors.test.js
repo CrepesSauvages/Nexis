@@ -4,6 +4,7 @@ import {
   ConfigError,
   PluginError,
   DependencyError,
+  HttpError,
   newErrorId,
 } from '../../src/core/errors.js';
 
@@ -46,5 +47,20 @@ describe('newErrorId', () => {
 
   it('devrait produire des identifiants différents', () => {
     expect(newErrorId()).not.toBe(newErrorId());
+  });
+});
+
+describe('HttpError', () => {
+  it('devrait porter le statut HTTP à renvoyer', () => {
+    const error = new HttpError(403, 'Interdit');
+    expect(error.status).toBe(403);
+    expect(error.message).toBe('Interdit');
+  });
+
+  it('devrait rester une NexisError avec son code propre', () => {
+    const error = new HttpError(404, 'Introuvable', { path: '/x' });
+    expect(error).toBeInstanceOf(NexisError);
+    expect(error.code).toBe('HTTP_ERROR');
+    expect(error.context).toEqual({ path: '/x' });
   });
 });

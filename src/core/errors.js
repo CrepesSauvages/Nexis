@@ -51,6 +51,24 @@ export class DependencyError extends NexisError {
 }
 
 /**
+ * Erreur destinée au client HTTP. Elle porte le statut à renvoyer, ce qui
+ * permet au routeur de distinguer une faute de l'appelant — à rendre telle
+ * quelle — d'un incident du serveur, qui mérite un errorId et un log.
+ */
+export class HttpError extends NexisError {
+  /**
+   * @param {number} status
+   * @param {string} message
+   * @param {Record<string, unknown>} [context]
+   */
+  constructor(status, message, context) {
+    super(message, context);
+    this.code = 'HTTP_ERROR';
+    this.status = status;
+  }
+}
+
+/**
  * Identifiant court montré à l'utilisateur et repris dans les logs,
  * pour qu'un rapport de bug puisse être relié à sa trace.
  * @returns {string}
