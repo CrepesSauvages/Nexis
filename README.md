@@ -2,7 +2,7 @@
 
 Template de bot Discord extensible par plugins.
 
-Un plugin est un dossier déposé dans `plugins/`. Il apporte des commandes, des listeners d'events, des tâches planifiées, une configuration par serveur, des services consommables par d'autres plugins et des routes pour un futur dashboard — sans modifier le core.
+Un plugin est un dossier déposé dans `plugins/`. Il apporte des commandes, des listeners d'events, des tâches planifiées, une configuration par serveur, des services consommables par d'autres plugins et des routes HTTP servies par le dashboard — sans modifier le core.
 
 ## Démarrer
 
@@ -39,6 +39,21 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 2. Renseignez `SENTRY_DSN` dans votre environnement.
 
 Sans ces deux étapes, le bot fonctionne normalement — seul le buffer local (`/nexis errors`) reste actif.
+
+## Dashboard
+
+Le dashboard s'active en renseignant `DISCORD_CLIENT_SECRET` — sans lui,
+aucun port n'est ouvert et le bot démarre normalement. Il tourne dans le
+process du bot et sert les routes déclarées par les plugins.
+
+Dans le portail développeur Discord, ajouter l'URL de redirection
+`<DASHBOARD_BASE_URL>/auth/callback` à l'application, puis ouvrir
+`/auth/login` pour se connecter.
+
+L'écoute se fait sur `127.0.0.1` par défaut. Pour exposer le dashboard,
+placer un reverse proxy qui termine le TLS devant lui et renseigner
+`DASHBOARD_BASE_URL` avec l'URL publique en `https` — le cookie de session
+devient alors `Secure`.
 
 ## Internationalisation (i18n)
 

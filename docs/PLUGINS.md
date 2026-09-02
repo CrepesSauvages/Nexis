@@ -207,11 +207,42 @@ ctx.registerRoute({
   method: 'GET',
   path: '/stats',
   auth: 'guild-admin', // 'public' | 'guild-member' | 'guild-admin' | 'owner'
-  handler: async ({ guildId }) => ({ total: 42 }),
+  handler: async ({ guildId, user, query, body }) => ({ total: 42 }),
 });
 ```
 
-Le path final est `/api/plugins/mon-plugin/stats`. **Ces routes sont collectées et validées, mais aucun serveur ne les sert en v1** — le dashboard viendra s'y brancher sans qu'aucun plugin ne change.
+Le path final est `/api/plugins/mon-plugin/stats`. La valeur retournée par le
+handler est sérialisée en JSON avec un statut 200.
+
+Le handler reçoit :
+
+| Champ     | Contenu                                                                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------- |
+| `guildId` | Le paramètre `?guild=<id>` de l'URL. `undefined` sur les niveaux `public` et `owner`.                          |
+| `user`    | `{ id, username, avatar }` de l'utilisateur connecté, `undefined` sur une route `public` appelée sans session. |
+| `query`   | Tous les paramètres de l'URL, y compris `guild`.                                                               |
+| `body`    | Le corps JSON parsé, sur `POST`, `PUT` et `PATCH` seulement. Limite : 64 Ko.                                   |
+
+**Les niveaux `guild-member` et `guild-admin` exigent `?guild=<id>`** : le
+chemin n'identifie pas le serveur, et une requête sans ce paramètre reçoit
+un 400. L'autorisation est vérifiée auprès de Discord à chaque requête, pas
+d'après ce qui a été lu au login : retirer « Gérer le serveur » à quelqu'un
+lui coupe l'accès immédiatement.
+
+Pour renvoyer autre chose qu'un 200, lever une `HttpError` de
+`src/core/errors.js` — son statut et son message sont rendus tels quels :
+
+```js
+import { HttpError } from '../../src/core/errors.js';
+
+handler: async ({ guildId }) => {
+  if (!(await estConfigure(guildId))) throw new HttpError(409, 'Plugin non configuré');
+  return { ok: true };
+};
+```
+
+Toute autre exception donne un 500 accompagné d'un `errorId`, retrouvable
+dans `/nexis errors` et dans Sentry.
 
 ## Composants (boutons, selects, modals)
 
