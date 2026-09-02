@@ -216,12 +216,12 @@ handler est sérialisée en JSON avec un statut 200.
 
 Le handler reçoit :
 
-| Champ     | Contenu                                                                                                        |
-| --------- | -------------------------------------------------------------------------------------------------------------- |
-| `guildId` | Le paramètre `?guild=<id>` de l'URL. `undefined` sur les niveaux `public` et `owner`.                          |
-| `user`    | `{ id, username, avatar }` de l'utilisateur connecté, `undefined` sur une route `public` appelée sans session. |
-| `query`   | Tous les paramètres de l'URL, y compris `guild`.                                                               |
-| `body`    | Le corps JSON parsé, sur `POST`, `PUT` et `PATCH` seulement. Limite : 64 Ko.                                   |
+| Champ     | Contenu                                                                                                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `guildId` | Le paramètre `?guild=<id>` de l'URL, dès que l'appelant le fournit — y compris sur `public` et `owner`. Il n'est **validé** (présence, appartenance au serveur) que sur `guild-member` et `guild-admin` ; un handler `public` ou `owner` ne doit pas lui faire confiance. |
+| `user`    | `{ id, username, avatar }` de l'utilisateur connecté, `undefined` sur une route `public` appelée sans session.                                                                                                                                                            |
+| `query`   | Tous les paramètres de l'URL, y compris `guild`.                                                                                                                                                                                                                          |
+| `body`    | Le corps JSON parsé, sur `POST`, `PUT` et `PATCH` seulement. Limite : 64 Ko.                                                                                                                                                                                              |
 
 **Les niveaux `guild-member` et `guild-admin` exigent `?guild=<id>`** : le
 chemin n'identifie pas le serveur, et une requête sans ce paramètre reçoit
