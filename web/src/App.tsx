@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiRequestError } from './api/client';
 import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
+import { ConfigDrawer } from './components/ConfigDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { PluginGrid } from './components/PluginGrid';
 import { TopBar } from './components/TopBar';
@@ -20,10 +21,9 @@ export const App = () => {
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildId, setGuildId] = useState<string | null>(null);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
-  // `resources` sera consommé par la tâche 5 : seul le setter est utile ici,
-  // le triplet d'appels ci-dessous ne fait que le déclencher en parallèle.
-  const [, setResources] = useState<GuildResources>({ channels: [], roles: [] });
+  const [resources, setResources] = useState<GuildResources>({ channels: [], roles: [] });
   const [locale, setLocale] = useState<string | null>(null);
+  const [configuring, setConfiguring] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
 
   /**
@@ -181,10 +181,26 @@ export const App = () => {
           plugins={plugins}
           guildId={guildId}
           onChanged={() => void reloadPlugins()}
-          onConfigure={() => undefined}
+          onConfigure={setConfiguring}
           onError={handleError}
         />
       </main>
+      {configuring
+        ? (() => {
+            const plugin = plugins.find((entry) => entry.name === configuring);
+            return plugin ? (
+              <ConfigDrawer
+                plugin={plugin}
+                guildId={guildId}
+                resources={resources}
+                onClose={() => setConfiguring(null)}
+                onSaved={() => void reloadPlugins()}
+                onStale={() => void reloadPlugins()}
+                onError={handleError}
+              />
+            ) : null;
+          })()
+        : null}
     </>
   );
 };

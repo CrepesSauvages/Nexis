@@ -210,3 +210,22 @@ button {
   font-size: 12px;
   margin-left: 6px;
 }
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bar);
+  border-left: 1px solid var(--border);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}

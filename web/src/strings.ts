@@ -49,6 +49,10 @@ const fr = {
   'fieldError.not_found_in_guild': 'Introuvable sur ce serveur.',
   'fieldError.missing_required': 'Ce champ est obligatoire.',
   'fieldError.unknown_key': 'Champ inconnu du plugin.',
+  'drawer.save': 'Enregistrer',
+  'drawer.close': 'Fermer',
+  'drawer.saved': 'Configuration enregistrée.',
+  'drawer.stale': 'Cet état était périmé, la liste a été rechargée.',
 } as const;
 
 export type StringKey = keyof typeof fr;
