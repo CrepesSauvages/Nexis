@@ -40,6 +40,15 @@ const fr = {
   'refusal.already_enabled': 'Ce plugin était déjà activé.',
   'refusal.missing_deps': "Activez d'abord : {deps}",
   'refusal.has_dependents': 'Ces plugins en dépendent : {deps}',
+  'field.required': 'Requis',
+  'field.unknownType': 'Type « {type} » inconnu de cette interface.',
+  'field.none': '— aucun —',
+  'field.userHint': "Identifiant du membre (clic droit sur le membre, « Copier l'identifiant »)",
+  'fieldError.wrong_type': 'Valeur du mauvais type.',
+  'fieldError.not_in_options': 'Valeur hors des choix proposés.',
+  'fieldError.not_found_in_guild': 'Introuvable sur ce serveur.',
+  'fieldError.missing_required': 'Ce champ est obligatoire.',
+  'fieldError.unknown_key': 'Champ inconnu du plugin.',
 } as const;
 
 export type StringKey = keyof typeof fr;

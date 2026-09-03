@@ -187,3 +187,26 @@ button {
   padding: 0;
   color: #8f9bff;
 }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.field-input {
+  background: var(--sunken);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 7px 9px;
+  font: inherit;
+  width: 100%;
+}
+
+.required {
+  color: var(--danger);
+  font-size: 12px;
+  margin-left: 6px;
+}
