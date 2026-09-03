@@ -83,7 +83,7 @@ export const PluginCard = ({
         )}
       </div>
       <p className="muted small">{plugin.description ?? t('plugin.noDescription')}</p>
-      {message ? <p className="error small">{message}</p> : null}
+      {message ? <p className="inline-error small">{message}</p> : null}
       {Object.keys(plugin.schema).length > 0 ? (
         <button type="button" className="link" onClick={() => onConfigure(plugin.name)}>
           {t('plugin.configure')}

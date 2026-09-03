@@ -142,7 +142,9 @@ button {
   font-size: 13px;
 }
 
-.error {
+/* Message d'erreur affiché en ligne, dans une carte ou un formulaire —
+   par opposition à .error, la bannière pleine largeur. */
+.inline-error {
   color: var(--danger);
 }
 

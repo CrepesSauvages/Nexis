@@ -84,7 +84,7 @@ describe('PluginCard', () => {
 
   it("devrait ne pas offrir d'interrupteur sur un plugin toujours actif", () => {
     render(<PluginCard {...props} plugin={{ ...plugin, alwaysEnabled: true, enabled: true }} />);
-    expect(screen.queryByRole('button', { name: /moderation/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /moderation/ })).not.toBeInTheDocument();
     expect(screen.getByText('Toujours actif')).toBeInTheDocument();
   });
 
