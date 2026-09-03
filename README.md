@@ -92,7 +92,24 @@ lancer. C'est le cas d'une installation de production : le script `prepare`
 s'exécute bien avec `npm ci --omit=dev`, mais il ignore délibérément la
 construction de l'interface dans ce mode — `vite`, nécessaire pour la
 construire, est une devDependency du workspace `web` qui n'y est pas
-installée.
+installée. La construire manuellement se fait avec `npm run build:web`.
+
+#### Développer l'interface
+
+L'interface vit dans le workspace npm `web/`. `npm install` à la racine
+installe ses dépendances et `prepare` la construit.
+
+En développement, lancer le bot et Vite côte à côte :
+
+```bash
+npm run dev                    # le bot, sur le port de DASHBOARD_PORT
+npm run dev --workspace web    # Vite, sur 5173, avec rechargement à chaud
+```
+
+Vite relaie `/api` et `/auth` vers `http://localhost:3000`. Renseigner alors
+`DASHBOARD_BASE_URL=http://localhost:5173` pour que la redirection OAuth
+retombe sur le serveur Vite, et déclarer `http://localhost:5173/auth/callback`
+comme seconde URL de redirection dans le portail développeur Discord.
 
 ## Internationalisation (i18n)
 
