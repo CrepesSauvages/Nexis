@@ -64,9 +64,10 @@ const checkType = (value, entry) => {
  * @param {Record<string, import('./manifest.js').ConfigEntry> | undefined} options.schema
  * @param {Record<string, unknown>} options.values
  * @param {import('discord.js').Guild} options.guild
+ * @param {Record<string, unknown>} [options.current] - configuration en vigueur, défauts déjà fusionnés
  * @returns {Promise<ValidationResult>}
  */
-export const validateConfigValues = async ({ schema, values, guild }) => {
+export const validateConfigValues = async ({ schema, values, guild, current = {} }) => {
   /** @type {FieldError[]} */
   const fields = [];
 
@@ -92,6 +93,19 @@ export const validateConfigValues = async ({ schema, values, guild }) => {
       !(await existsInGuild(guild, entry.type, /** @type {string} */ (value)))
     ) {
       fields.push({ key, reason: 'not_found_in_guild' });
+    }
+  }
+
+  // Champs obligatoires, contrôlés sur la valeur fusionnée : la requête est
+  // une fusion partielle, un champ absent du corps garde sa valeur actuelle.
+  // `false` et `0` sont des valeurs légitimes — seuls `undefined`, `null` et
+  // la chaîne vide manquent réellement.
+  const failed = new Set(fields.map((field) => field.key));
+  for (const [key, entry] of Object.entries(schema ?? {})) {
+    if (!entry.required || failed.has(key)) continue;
+    const value = Object.hasOwn(values, key) ? values[key] : current[key];
+    if (value === undefined || value === null || value === '') {
+      fields.push({ key, reason: 'missing_required' });
     }
   }
 

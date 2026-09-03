@@ -117,10 +117,15 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
       const guild = client.guilds.cache.get(id);
       if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 
+      // La validation des champs obligatoires raisonne sur le résultat de la
+      // fusion, pas sur le corps seul : un champ déjà stocké et non mentionné
+      // reste renseigné.
+      const current = await guildConfig.getConfig(id, name, plugin.manifest.config);
       const result = await validateConfigValues({
         schema: plugin.manifest.config,
         values: /** @type {Record<string, unknown>} */ (values),
         guild,
+        current,
       });
       if (!result.ok) {
         sendJson(res, 400, {

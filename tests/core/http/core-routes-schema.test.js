@@ -26,7 +26,7 @@ const call = (path, init) =>
   });
 
 /**
- * @returns {Promise<{ description: string, schema: Record<string, { label: string }> }>}
+ * @returns {Promise<{ description: string, config: Record<string, unknown>, schema: Record<string, { label: string }> }>}
  */
 const greeter = async () => {
   const response = await call('/api/core/plugins?guild=g1');
@@ -75,5 +75,43 @@ describe('GET /api/core/plugins — libellés traduits', () => {
       body: JSON.stringify({ locale: 'fr' }),
     });
     expect((await greeter()).schema.greeting.label).toBe('Salutation');
+  });
+});
+
+describe('PATCH /api/core/config — champs obligatoires', () => {
+  /**
+   * @param {Record<string, unknown>} values
+   * @returns {Promise<Response>}
+   */
+  const patch = (values) =>
+    call('/api/core/config?guild=g1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'greeter', values }),
+    });
+
+  it('devrait refuser un enregistrement laissant un champ obligatoire vide', async () => {
+    const response = await patch({ greeting: 'Salut' });
+    expect(response.status).toBe(400);
+    const body = /** @type {{ fields: Array<{ key: string, reason: string }> }} */ (
+      await response.json()
+    );
+    expect(body.fields).toEqual([{ key: 'logs', reason: 'missing_required' }]);
+  });
+
+  it("devrait n'avoir rien écrit après un refus", async () => {
+    await patch({ greeting: 'Salut' });
+    expect((await greeter()).config.greeting).toBe('Bonjour');
+  });
+
+  it('devrait accepter un enregistrement renseignant le champ obligatoire', async () => {
+    const response = await patch({ greeting: 'Salut', logs: '123456789012345678' });
+    expect(response.status).toBe(200);
+  });
+
+  it('devrait accepter une modification partielle une fois le champ obligatoire stocké', async () => {
+    await patch({ logs: '123456789012345678' });
+    const response = await patch({ greeting: 'Coucou' });
+    expect(response.status).toBe(200);
   });
 });
