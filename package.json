@@ -1,6 +1,6 @@
 {
   "name": "nexis",
-  "version": "0.3.51",
+  "version": "0.3.52",
   "description": "Nexis a bot discord, fully customisable in Js",
   "keywords": [
     "discord",
@@ -24,7 +24,7 @@
     "deploy-commands": "node src/deploy-commands.js",
     "release": "release-it",
     "build:web": "npm run build --workspace web",
-    "prepare": "husky && node scripts/prepare-web.js"
+    "prepare": "node scripts/prepare.js"
   },
   "lint-staged": {
     "{src,plugins,tests}/**/*.js": [
