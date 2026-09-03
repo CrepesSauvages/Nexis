@@ -1,20 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiRequestError } from './api/client';
-import type { Guild, SessionUser } from './api/types';
+import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
 import { LoginScreen } from './components/LoginScreen';
+import { TopBar } from './components/TopBar';
 import { t } from './strings';
 
-type Phase = 'loading' | 'anonymous' | 'ready';
+type Phase = 'loading' | 'anonymous' | 'ready' | 'error';
+
+/** Le serveur nommé par `?guild=`, s'il figure dans la liste. */
+const guildFromQuery = (guilds: Guild[]): string | null => {
+  const wanted = new URLSearchParams(window.location.search).get('guild');
+  return wanted && guilds.some((guild) => guild.id === wanted) ? wanted : null;
+};
 
 export const App = () => {
   const [phase, setPhase] = useState<Phase>('loading');
   const [user, setUser] = useState<SessionUser | null>(null);
   const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [guildId, setGuildId] = useState<string | null>(null);
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+  // `resources` sera consommé par la tâche 5 : seul le setter est utile ici,
+  // le triplet d'appels ci-dessous ne fait que le déclencher en parallèle.
+  const [, setResources] = useState<GuildResources>({ channels: [], roles: [] });
+  const [locale, setLocale] = useState<string | null>(null);
 
   /**
    * Toute erreur d'appel passe par ici. Un 401 signifie que la session a
    * expiré ou a été détruite : l'application repart de l'écran de connexion
    * plutôt que d'afficher une grille qu'aucun appel ne pourra plus alimenter.
+   * Toute autre erreur (réseau, 5xx…) n'indique rien sur la session : c'est
+   * à l'appelant de décider quoi en faire.
    */
   const handleError = useCallback((error: unknown) => {
     if (error instanceof ApiRequestError && error.status === 401) {
@@ -34,10 +49,15 @@ export const App = () => {
         if (cancelled) return;
         setUser(session);
         setGuilds(list);
+        setGuildId(guildFromQuery(list) ?? list[0]?.id ?? null);
         setPhase('ready');
       } catch (error) {
         if (cancelled) return;
-        if (!handleError(error)) setPhase('ready');
+        // Un échec réseau brut (pas de statut HTTP) n'est pas une session
+        // expirée : afficher l'écran de connexion inviterait à cliquer sur
+        // un lien qui échouerait de la même façon. On distingue donc les
+        // deux avec une phase dédiée.
+        if (!handleError(error)) setPhase('error');
       }
     };
     void load();
@@ -46,10 +66,73 @@ export const App = () => {
     };
   }, [handleError]);
 
+  useEffect(() => {
+    if (!guildId) return undefined;
+    let cancelled = false;
+    // Le chemin reste « / » : seule la query change, donc aucun repli SPA
+    // n'est nécessaire côté serveur, et recharger conserve le serveur.
+    window.history.replaceState({}, '', `/?guild=${encodeURIComponent(guildId)}`);
+
+    const load = async () => {
+      try {
+        const [list, saved, guildResources] = await Promise.all([
+          api.plugins(guildId),
+          api.locale(guildId),
+          api.resources(guildId),
+        ]);
+        if (cancelled) return;
+        setPlugins(list);
+        setLocale(saved.locale);
+        setResources(guildResources);
+      } catch (error) {
+        if (!cancelled) handleError(error);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [guildId, handleError]);
+
+  const changeLocale = async (next: string) => {
+    if (!guildId || next === '') return;
+    try {
+      await api.setLocale(guildId, next);
+      setLocale(next);
+      // Les libellés du schéma sont traduits par l'API dans la langue du
+      // serveur : changer de langue périme la liste des plugins.
+      setPlugins(await api.plugins(guildId));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      // Une déconnexion qui échoue ne doit pas retenir l'utilisateur sur une
+      // interface qu'il quitte : on repart de l'écran de connexion.
+      handleError(error);
+    }
+    setUser(null);
+    setPhase('anonymous');
+  };
+
   if (phase === 'loading') return <div className="centered">{t('app.loading')}</div>;
+
+  if (phase === 'error') {
+    return (
+      <div className="centered">
+        <h1>{t('app.error.title')}</h1>
+        <p className="muted">{t('app.error.body')}</p>
+      </div>
+    );
+  }
+
   if (phase === 'anonymous' || !user) return <LoginScreen />;
 
-  if (guilds.length === 0) {
+  if (guilds.length === 0 || !guildId) {
     return (
       <div className="centered">
         <h1>{t('guilds.none.title')}</h1>
@@ -58,5 +141,18 @@ export const App = () => {
     );
   }
 
-  return <div className="centered">{t('app.title')}</div>;
+  return (
+    <>
+      <TopBar
+        user={user}
+        guilds={guilds}
+        guildId={guildId}
+        locale={locale}
+        onGuildChange={setGuildId}
+        onLocaleChange={(next) => void changeLocale(next)}
+        onLogout={() => void logout()}
+      />
+      <main className="content">{plugins.length}</main>
+    </>
+  );
 };
