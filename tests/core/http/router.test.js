@@ -98,3 +98,83 @@ describe('dispatch', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });
+
+describe('service statique en repli', () => {
+  it('devrait servir le repli quand aucune route exacte ne correspond', async () => {
+    const { base } = await harness.start([], {
+      fallback: async (res, pathname) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(`servi ${pathname}`);
+        return true;
+      },
+    });
+    const response = await fetch(`${base}/quelque-chose`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('servi /quelque-chose');
+  });
+
+  it('devrait rendre le 404 JSON quand le repli décline', async () => {
+    const { base } = await harness.start([], { fallback: async () => false });
+    const response = await fetch(`${base}/absent`);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'Route inconnue' });
+  });
+
+  it('devrait laisser une route exacte gagner sur le repli', async () => {
+    const { base } = await harness.start(
+      [{ method: 'GET', path: '/api/x', auth: 'public', handler: () => ({ ok: true }) }],
+      {
+        fallback: async (res) => {
+          res.writeHead(200);
+          res.end('repli');
+          return true;
+        },
+      },
+    );
+    expect(await (await fetch(`${base}/api/x`)).json()).toEqual({ ok: true });
+  });
+
+  it('devrait ne jamais consulter le repli sur une méthode mutative', async () => {
+    // Un POST sur un chemin inconnu reste un 404 : le service de fichiers ne
+    // sert qu'en lecture.
+    let consulted = false;
+    const { base } = await harness.start([], {
+      fallback: async () => {
+        consulted = true;
+        return true;
+      },
+    });
+    const response = await fetch(`${base}/absent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(response.status).toBe(404);
+    expect(consulted).toBe(false);
+  });
+
+  it('devrait consulter le repli sur une requête HEAD', async () => {
+    const { base } = await harness.start([], {
+      fallback: async (res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': 5 });
+        res.end('salut');
+        return true;
+      },
+    });
+    const response = await fetch(`${base}/page`, { method: 'HEAD' });
+    expect(response.status).toBe(200);
+  });
+
+  it('devrait rendre 500 avec un errorId si le repli échoue', async () => {
+    const { base, logger } = await harness.start([], {
+      fallback: async () => {
+        throw new Error('disque illisible');
+      },
+    });
+    const response = await fetch(`${base}/page`);
+    expect(response.status).toBe(500);
+    const body = /** @type {{ errorId: string }} */ (await response.json());
+    expect(body.errorId).toMatch(/\w/);
+    expect(logger.error).toHaveBeenCalled();
+  });
+});

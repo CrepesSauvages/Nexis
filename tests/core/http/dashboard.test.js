@@ -134,6 +134,16 @@ describe('routes de plugins servies', () => {
     const instance = await boot();
     expect((await fetch(`${baseUrl(instance)}/api/me`)).status).toBe(401);
   });
+
+  it("devrait servir autre chose qu'un 404 JSON sur la racine", async () => {
+    // Preuve du branchement : selon que `web/dist` a été construit ou non, la
+    // racine rend l'interface (200) ou la page d'explication (503) — mais
+    // jamais le 404 « Route inconnue » du routeur.
+    const instance = await boot();
+    const response = await fetch(`${baseUrl(instance)}/`);
+    expect([200, 503]).toContain(response.status);
+    expect(response.headers.get('content-type')).toContain('text/html');
+  });
 });
 
 describe('cycle de vie', () => {

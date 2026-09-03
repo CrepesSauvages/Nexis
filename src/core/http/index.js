@@ -5,6 +5,7 @@ import { createPluginAdmin } from '../plugin-admin.js';
 import { createCoreRoutes } from './core-routes.js';
 import { createRouter } from './router.js';
 import { createHttpServer } from './server.js';
+import { createStaticHandler } from './static.js';
 
 /**
  * Assemble et démarre le dashboard, ou renonce proprement.
@@ -75,6 +76,9 @@ export const startDashboard = async ({
       alwaysEnabled,
       ownerId: config.ownerId,
       logger: httpLogger,
+      // Construit sans condition : l'absence de `web/dist` est gérée dans le
+      // module, qui rend alors une page d'explication sur la racine.
+      fallback: createStaticHandler(),
     }),
     host,
     port,

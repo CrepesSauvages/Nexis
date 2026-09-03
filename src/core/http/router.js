@@ -80,6 +80,7 @@ const isJsonContentType = (header) =>
  * @param {string[]} [options.alwaysEnabled]
  * @param {string | undefined} options.ownerId
  * @param {import('../logger.js').Logger} options.logger
+ * @param {(res: import('node:http').ServerResponse, pathname: string) => Promise<boolean>} [options.fallback] - service de fichiers statiques, consulté quand aucune route ne correspond
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
 export const createRouter = ({
@@ -90,6 +91,7 @@ export const createRouter = ({
   alwaysEnabled = [],
   ownerId,
   logger,
+  fallback,
 }) => {
   const table = new Map(routes.map((route) => [`${route.method} ${route.path}`, route]));
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
@@ -103,12 +105,19 @@ export const createRouter = ({
     // sans traitement particulier.
     const method = req.method === 'HEAD' ? 'GET' : req.method;
     const route = table.get(`${method} ${url.pathname}`);
-    if (!route) {
-      sendJson(res, 404, { error: 'Route inconnue' });
-      return;
-    }
+    // Descripteur des logs : une requête sans route n'a pas de plugin, mais
+    // garde une méthode et un chemin.
+    const descriptor = route ?? { method: req.method ?? 'GET', path: url.pathname };
 
     try {
+      if (!route) {
+        // Le service statique n'a sa chance qu'en lecture : un POST sur un
+        // chemin inconnu reste un 404.
+        if (method === 'GET' && fallback && (await fallback(res, url.pathname))) return;
+        sendJson(res, 404, { error: 'Route inconnue' });
+        return;
+      }
+
       const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
       const session = await sessions.get(sessionId);
       const guildId = url.searchParams.get('guild') ?? undefined;
@@ -168,14 +177,14 @@ export const createRouter = ({
         // injoignable, par exemple) est un incident au même titre qu'une
         // exception inattendue : il mérite le même errorId et le même log.
         if (error.status >= 500) {
-          const errorId = logServerError(logger, route, error);
+          const errorId = logServerError(logger, descriptor, error);
           sendJson(res, error.status, { error: error.message, errorId });
           return;
         }
         sendJson(res, error.status, { error: error.message });
         return;
       }
-      const errorId = logServerError(logger, route, error);
+      const errorId = logServerError(logger, descriptor, error);
       sendJson(res, 500, { error: 'Erreur interne', errorId });
     }
   };
@@ -186,17 +195,17 @@ export const createRouter = ({
  * exactement les champs déjà loggés pour une exception inattendue.
  *
  * @param {import('../logger.js').Logger} logger
- * @param {HttpRoute} route
+ * @param {{ plugin?: string, method: string, path: string }} descriptor
  * @param {unknown} error
  * @returns {string}
  */
-const logServerError = (logger, route, error) => {
+const logServerError = (logger, descriptor, error) => {
   const errorId = newErrorId();
   logger.error(`Erreur dans une route HTTP : ${errorMessage(error)}`, {
     errorId,
-    plugin: route.plugin,
-    method: route.method,
-    path: route.path,
+    plugin: descriptor.plugin,
+    method: descriptor.method,
+    path: descriptor.path,
     stack: errorStack(error),
   });
   return errorId;

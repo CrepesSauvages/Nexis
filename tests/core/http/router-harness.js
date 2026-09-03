@@ -66,6 +66,7 @@ export class RouterTestHarness {
    *   client?: import('discord.js').Client,
    *   guildConfig?: ReturnType<typeof createGuildConfig>,
    *   alwaysEnabled?: string[],
+   *   fallback?: (res: import('node:http').ServerResponse, pathname: string) => Promise<boolean>,
    * }} [options]
    * @returns {Promise<{
    *   base: string,
@@ -75,7 +76,7 @@ export class RouterTestHarness {
    */
   async start(
     routes,
-    { ownerId, logger = silentLogger(), client, guildConfig, alwaysEnabled } = {},
+    { ownerId, logger = silentLogger(), client, guildConfig, alwaysEnabled, fallback } = {},
   ) {
     const storage = /** @type {import('../../../src/core/storage/driver.js').StorageDriver} */ (
       this.storage
@@ -92,6 +93,7 @@ export class RouterTestHarness {
       client: resolvedClient,
       guildConfig: guildConfig ?? createGuildConfig({ storage }),
       alwaysEnabled,
+      fallback,
       ownerId,
       logger: /** @type {import('../../../src/core/logger.js').Logger} */ (
         /** @type {unknown} */ (logger)
