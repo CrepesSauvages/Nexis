@@ -40,9 +40,9 @@ const NOT_BUILT = `<!doctype html>
     <p>Le dashboard répond, mais les fichiers de l'interface sont absents.</p>
     <p>Construisez-les avec&nbsp;: <code>npm run build --workspace web</code></p>
     <p>
-      Une installation de production (<code>npm ci --omit=dev</code>) n'exécute pas le script
-      <code>prepare</code> qui construit l'interface : la commande ci-dessus est alors à lancer
-      à la main.
+      Une installation de production (<code>npm ci --omit=dev</code>) exécute bien le script
+      <code>prepare</code>, mais celui-ci ignore délibérément la construction de l'interface
+      dans ce mode : la commande ci-dessus est alors à lancer à la main.
     </p>
   </body>
 </html>
@@ -85,7 +85,9 @@ export const createStaticHandler = ({ root = WEB_DIST } = {}) => {
     }
 
     if (!info?.isFile()) {
-      // Front non construit : `npm ci --omit=dev` n'exécute pas `prepare`.
+      // Front non construit : `prepare` ignore délibérément sa construction sur
+      // une installation sans devDependencies (`npm ci --omit=dev`), voir
+      // `scripts/prepare-web.js`.
       // On l'explique sur la page d'accueil plutôt que de laisser le routeur
       // rendre un 404 JSON incompréhensible pour un humain.
       if (pathname === '/') {

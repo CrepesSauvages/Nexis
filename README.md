@@ -88,8 +88,11 @@ sur un chemin inconnu reste un 404. Les fichiers hachés de `web/dist/assets/`
 sont servis comme immuables, `index.html` avec `Cache-Control: no-store`.
 
 Si `web/dist/` est absent, la racine rend une page expliquant la commande à
-lancer. C'est le cas d'une installation de production : `npm ci --omit=dev`
-n'exécute pas le script `prepare` qui construit l'interface.
+lancer. C'est le cas d'une installation de production : le script `prepare`
+s'exécute bien avec `npm ci --omit=dev`, mais il ignore délibérément la
+construction de l'interface dans ce mode — `vite`, nécessaire pour la
+construire, est une devDependency du workspace `web` qui n'y est pas
+installée.
 
 ## Internationalisation (i18n)
 
