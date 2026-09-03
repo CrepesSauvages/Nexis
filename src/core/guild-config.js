@@ -15,6 +15,38 @@ export const createGuildConfig = ({ storage }) => {
   /** @type {Map<string, string>} */
   const localeCache = new Map();
 
+  // Une file par serveur. `enable`, `disable` et `setConfig` font un cycle
+  // lecture → attente → écriture : sans sérialisation, deux appels simultanés
+  // sur le même serveur lisent le même état et le second écrase le premier,
+  // qui a pourtant rendu un succès à son appelant. Même mécanisme que la file
+  // de `reporting/drivers/local.js`.
+  /** @type {Map<string, Promise<void>>} */
+  const queues = new Map();
+
+  /**
+   * @template T
+   * @param {string} guildId
+   * @param {() => Promise<T>} task
+   * @returns {Promise<T>}
+   */
+  const serialize = (guildId, task) => {
+    const previous = queues.get(guildId) ?? Promise.resolve();
+    const attempt = previous.then(task);
+    // La file avale le rejet — sinon un échec bloquerait toutes les écritures
+    // suivantes du serveur — mais `attempt`, rendu à l'appelant, le propage.
+    // L'entrée se supprime quand la file se vide, faute de quoi la Map
+    // grandirait avec le nombre de serveurs vus.
+    const settled = attempt.then(
+      () => undefined,
+      () => undefined,
+    );
+    const cleared = settled.then(() => {
+      if (queues.get(guildId) === cleared) queues.delete(guildId);
+    });
+    queues.set(guildId, cleared);
+    return attempt;
+  };
+
   /** @param {string} guildId */
   const enabledKey = (guildId) => `core:guild:${guildId}:enabled`;
   /** @param {string} guildId @param {string} plugin */
@@ -69,9 +101,11 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<void>}
      */
     async enable(guildId, plugin) {
-      const list = await readEnabled(guildId);
-      if (list.includes(plugin)) return;
-      await writeEnabled(guildId, [...list, plugin]);
+      return serialize(guildId, async () => {
+        const list = await readEnabled(guildId);
+        if (list.includes(plugin)) return;
+        await writeEnabled(guildId, [...list, plugin]);
+      });
     },
 
     /**
@@ -80,12 +114,14 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<void>}
      */
     async disable(guildId, plugin) {
-      const list = await readEnabled(guildId);
-      if (!list.includes(plugin)) return;
-      await writeEnabled(
-        guildId,
-        list.filter((name) => name !== plugin),
-      );
+      return serialize(guildId, async () => {
+        const list = await readEnabled(guildId);
+        if (!list.includes(plugin)) return;
+        await writeEnabled(
+          guildId,
+          list.filter((name) => name !== plugin),
+        );
+      });
     },
 
     /**
@@ -106,8 +142,10 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<void>}
      */
     async setLocale(guildId, locale) {
-      await storage.set(localeKey(guildId), locale);
-      localeCache.set(guildId, locale);
+      return serialize(guildId, async () => {
+        await storage.set(localeKey(guildId), locale);
+        localeCache.set(guildId, locale);
+      });
     },
 
     /**
@@ -140,11 +178,13 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<void>}
      */
     async setConfig(guildId, plugin, values) {
-      const key = configKey(guildId, plugin);
-      const current = /** @type {Record<string, unknown>} */ ((await storage.get(key)) ?? {});
-      const merged = { ...current, ...values };
-      await storage.set(key, merged);
-      configCache.set(key, merged);
+      return serialize(guildId, async () => {
+        const key = configKey(guildId, plugin);
+        const current = /** @type {Record<string, unknown>} */ ((await storage.get(key)) ?? {});
+        const merged = { ...current, ...values };
+        await storage.set(key, merged);
+        configCache.set(key, merged);
+      });
     },
 
     /**

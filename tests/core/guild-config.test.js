@@ -148,3 +148,97 @@ describe('configuration des plugins', () => {
     expect(await guildConfig.getConfig('g1', 'welcome', undefined)).toEqual({});
   });
 });
+
+describe('écritures concurrentes', () => {
+  /**
+   * Un storage dont chaque `set` prend un tour de boucle : sans
+   * sérialisation, deux `enable` lancés ensemble lisent la même liste avant
+   * que l'un des deux n'ait écrit.
+   * @param {number} [delay]
+   * @returns {import('../../src/core/storage/driver.js').StorageDriver}
+   */
+  const slowStorage = (delay = 5) => {
+    /** @type {Map<string, unknown>} */
+    const data = new Map();
+    /** @type {import('../../src/core/storage/driver.js').StorageDriver} */
+    const driver = {
+      async init() {},
+      async close() {},
+      async get(key) {
+        return data.get(key);
+      },
+      async set(key, value) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        data.set(key, value);
+      },
+      async delete(key) {
+        data.delete(key);
+      },
+      async keys(prefix) {
+        return [...data.keys()].filter((key) => key.startsWith(prefix));
+      },
+      raw: () => data,
+    };
+    return driver;
+  };
+
+  it('devrait conserver les deux plugins de deux activations simultanées', async () => {
+    const guildConfig = createGuildConfig({ storage: slowStorage() });
+    await Promise.all([guildConfig.enable('g1', 'alpha'), guildConfig.enable('g1', 'beta')]);
+    expect((await guildConfig.enabledPlugins('g1')).sort()).toEqual(['alpha', 'beta']);
+  });
+
+  it('devrait conserver les deux clés de deux écritures de configuration simultanées', async () => {
+    const guildConfig = createGuildConfig({ storage: slowStorage() });
+    await Promise.all([
+      guildConfig.setConfig('g1', 'alpha', { a: 1 }),
+      guildConfig.setConfig('g1', 'alpha', { b: 2 }),
+    ]);
+    expect(await guildConfig.getConfig('g1', 'alpha', undefined)).toEqual({ a: 1, b: 2 });
+  });
+
+  it('devrait ne pas faire attendre un serveur derrière un autre', async () => {
+    // Deux serveurs distincts ont deux files distinctes : leurs écritures se
+    // recouvrent dans le temps au lieu de s'enchaîner. Seuil à 80 ms (au lieu
+    // de 10 ms) : sérialisé ça prendrait 100 ms contre 50 ms en parallèle, et
+    // 80 ms sépare sans ambiguïté malgré la granularité des timers Windows
+    // (~16 ms).
+    const guildConfig = createGuildConfig({ storage: slowStorage(50) });
+    const started = Date.now();
+    await Promise.all([guildConfig.enable('g1', 'alpha'), guildConfig.enable('g2', 'alpha')]);
+    expect(Date.now() - started).toBeLessThan(80);
+  });
+
+  it('devrait continuer à écrire après un échec', async () => {
+    // La file avale le rejet pour ne pas bloquer les écritures suivantes,
+    // mais l'appelant du `set` fautif reçoit bien son erreur.
+    let calls = 0;
+    /** @type {Map<string, unknown>} */
+    const data = new Map();
+    /** @type {import('../../src/core/storage/driver.js').StorageDriver} */
+    const storage = {
+      async init() {},
+      async close() {},
+      async get(key) {
+        return data.get(key);
+      },
+      async set(key, value) {
+        calls += 1;
+        if (calls === 1) throw new Error('disque plein');
+        data.set(key, value);
+      },
+      async delete(key) {
+        data.delete(key);
+      },
+      async keys(prefix) {
+        return [...data.keys()].filter((key) => key.startsWith(prefix));
+      },
+      raw: () => data,
+    };
+
+    const guildConfig = createGuildConfig({ storage });
+    await expect(guildConfig.enable('g1', 'alpha')).rejects.toThrow('disque plein');
+    await guildConfig.enable('g1', 'beta');
+    expect(await guildConfig.enabledPlugins('g1')).toEqual(['beta']);
+  });
+});
