@@ -1,5 +1,7 @@
 {
   "greeting": "Bonjour du plugin",
   "desc": "Plugin de salutations",
-  "label.greeting": "Salutation"
+  "label.greeting": "Salutation",
+  "label.mode": "Mode (fr)",
+  "option.strict": "Strict (fr)"
 }

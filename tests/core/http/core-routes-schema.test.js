@@ -26,7 +26,7 @@ const call = (path, init) =>
   });
 
 /**
- * @returns {Promise<{ description: string, config: Record<string, unknown>, schema: Record<string, { label: string }> }>}
+ * @returns {Promise<{ description: string, config: Record<string, unknown>, schema: Record<string, { label: string, options?: string[] }> }>}
  */
 const greeter = async () => {
   const response = await call('/api/core/plugins?guild=g1');
@@ -56,6 +56,27 @@ describe('GET /api/core/plugins — libellés traduits', () => {
     const plugin = await greeter();
     expect(plugin.schema.greeting.label).toBe('Greeting');
     expect(plugin.description).toBe('Greeting plugin');
+  });
+
+  it("devrait laisser les options d'un select inchangées alors que son label est traduit", async () => {
+    // Garde exigée par la spec : un helper naïf qui traduirait tout le schéma
+    // (label ET options) romprait `validateConfigValues`, qui compare les
+    // valeurs reçues aux options du manifeste — `not_in_options` sur un
+    // enregistrement pourtant valide, en silence. `option.strict` est à la
+    // fois une option de `mode` et une clé de traduction du plugin : si elle
+    // était traduite, ce test le détecterait.
+    const plugin = await greeter();
+    expect(plugin.schema.mode.options).toEqual(['option.strict', 'doux']);
+    expect(plugin.schema.mode.label).toBe('Mode (fr)');
+
+    await call('/api/core/locale?guild=g1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ locale: 'en' }),
+    });
+    const pluginEn = await greeter();
+    expect(pluginEn.schema.mode.options).toEqual(['option.strict', 'doux']);
+    expect(pluginEn.schema.mode.label).toBe('Mode (en)');
   });
 
   it("devrait laisser le manifeste d'origine intact", async () => {

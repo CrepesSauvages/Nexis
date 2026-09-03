@@ -8,6 +8,12 @@ export const manifest = {
   config: {
     greeting: { type: 'string', label: 'label.greeting', default: 'Bonjour' },
     logs: { type: 'channel', label: 'Salon des logs', required: true },
+    // `label.mode` est traduite, comme `label.greeting` ci-dessus. Une des
+    // options, `option.strict`, est *aussi* une clé de traduction du plugin :
+    // un helper qui traduirait tout le schéma (label ET options) la
+    // changerait alors que `validateConfigValues` doit continuer à recevoir
+    // les valeurs exactes du manifeste — voir tests/core/http/core-routes-schema.test.js.
+    mode: { type: 'select', label: 'label.mode', options: ['option.strict', 'doux'] },
   },
 };
 
