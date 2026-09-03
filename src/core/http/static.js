@@ -1,6 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -112,10 +113,13 @@ export const createStaticHandler = ({ root = WEB_DIST } = {}) => {
     });
 
     const stream = createReadStream(target);
-    // Les en-têtes sont déjà partis : il ne reste qu'à couper la connexion,
-    // sans quoi le client attendrait indéfiniment le corps annoncé.
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
+    // `pipeline` (contrairement à `stream.pipe(res)`) détruit la source dès
+    // que la destination se ferme — un client qui abandonne en cours de
+    // transfert — ou échoue en lecture. `.pipe()` seul ne fait qu'un
+    // `unpipe()` sur un abandon client : le descripteur de fichier reste
+    // ouvert jusqu'au GC, ce qui finit en EMFILE sous charge. On ne l'attend
+    // pas : le handler doit rendre la main dès l'envoi des en-têtes.
+    pipeline(stream, res).catch(() => res.destroy());
     return true;
   };
 };

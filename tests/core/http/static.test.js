@@ -1,9 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServer } from 'node:http';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createServer, request } from 'node:http';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStaticHandler } from '../../../src/core/http/static.js';
+
+// `vi.spyOn` sur le module natif `node:fs` échoue (« Module namespace is not
+// configurable in ESM ») : l'espace de noms d'un module intégré n'est pas
+// redéfinissable. On passe donc par `vi.mock`, qui intercepte l'import avant
+// qu'il n'atteigne le vrai chargeur — `createReadStream` reste fonctionnelle
+// (elle délègue à l'implémentation réelle), seule son instrumentation change.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = /** @type {typeof import('node:fs')} */ (await importOriginal());
+  return { ...actual, createReadStream: vi.fn(actual.createReadStream) };
+});
+const { createReadStream: createReadStreamSpy } = /** @type {any} */ (await import('node:fs'));
 
 /** @type {string} */
 let dir;
@@ -124,6 +135,45 @@ describe('service statique — répertoire construit', () => {
   it('devrait rendre 404 sur un fichier absent', async () => {
     const response = await fetch(`${base}/absent.js`);
     expect(response.status).toBe(404);
+  });
+});
+
+describe('service statique — abandon client', () => {
+  beforeEach(async () => {
+    const root = join(dir, 'dist');
+    await mkdir(root, { recursive: true });
+    // Assez volumineux pour dépasser les tampons de socket : mesuré, sous
+    // 1 Mo le transfert se termine avant que l'abandon ne puisse compter, à
+    // partir de 8 Mo il est systématiquement encore en cours.
+    await writeFile(join(root, 'big.bin'), Buffer.alloc(16 * 1024 * 1024, 'x'));
+    await listen(root);
+  });
+
+  it('devrait détruire le flux de lecture quand le client abandonne en cours de transfert', async () => {
+    createReadStreamSpy.mockClear();
+
+    await new Promise((resolvePromise) => {
+      const req = request(`${base}/big.bin`, (res) => {
+        // Le client mesuré dans le rapport : il n'accuse jamais réception du
+        // corps, puis se déconnecte en cours de transfert.
+        res.destroy();
+        req.destroy();
+        resolvePromise(undefined);
+      });
+      req.on('error', () => {
+        // Une coupure volontaire côté client termine en ECONNRESET ici :
+        // attendu, pas un échec du test.
+      });
+      req.end();
+    });
+
+    // Le pipeline réagit de façon asynchrone à la fermeture de la
+    // destination : laisser tourner la boucle d'événements avant de vérifier.
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(createReadStreamSpy).toHaveBeenCalledTimes(1);
+    const stream = createReadStreamSpy.mock.results[0].value;
+    expect(stream.destroyed).toBe(true);
   });
 });
 
