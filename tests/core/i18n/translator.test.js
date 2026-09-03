@@ -86,3 +86,34 @@ describe('extend', () => {
     expect(t('fr', 'key')).toBe('nouveau');
   });
 });
+
+describe('has', () => {
+  it('devrait reconnaître une clé présente dans la locale demandée', () => {
+    const translator = createTranslator({ fr: { hello: 'Bonjour' }, en: { hello: 'Hello' } });
+    expect(translator.has('en', 'hello')).toBe(true);
+  });
+
+  it('devrait reconnaître une clé absente de la locale mais présente en français', () => {
+    // Même repli que `t()` : une clé traduite seulement en français existe
+    // pour toutes les langues, puisque `t()` la rendra.
+    const translator = createTranslator({ fr: { hello: 'Bonjour' }, en: {} });
+    expect(translator.has('en', 'hello')).toBe(true);
+  });
+
+  it("devrait rejeter une clé qui n'existe nulle part", () => {
+    const translator = createTranslator({ fr: { hello: 'Bonjour' } });
+    expect(translator.has('fr', 'absente')).toBe(false);
+  });
+
+  it('devrait rejeter une clé sur une locale inconnue et absente du français', () => {
+    const translator = createTranslator({ fr: { hello: 'Bonjour' } });
+    expect(translator.has('pl', 'absente')).toBe(false);
+  });
+
+  it('devrait reconnaître une clé ajoutée par extend', () => {
+    const translator = createTranslator({ fr: {} });
+    expect(translator.has('fr', 'plugin.label')).toBe(false);
+    translator.extend({ fr: { 'plugin.label': 'Libellé' } });
+    expect(translator.has('fr', 'plugin.label')).toBe(true);
+  });
+});

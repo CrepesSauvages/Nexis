@@ -22,7 +22,7 @@ const resolve = (locales, locale, key) => locales[locale]?.[key] ?? locales.fr?.
  * `t()` finit par exposer une clé brute `[key]` à un utilisateur réel.
  *
  * @param {Record<string, Record<string, string>>} locales - { fr: {...}, en: {...}, ... }
- * @returns {{ t: (locale: string, key: string, params?: Record<string, string | number>) => string, extend: (newLocales: Record<string, Record<string, string>>) => void }}
+ * @returns {{ t: (locale: string, key: string, params?: Record<string, string | number>) => string, has: (locale: string, key: string) => boolean, extend: (newLocales: Record<string, Record<string, string>>) => void }}
  */
 export const createTranslator = (locales) => ({
   t(locale, key, params) {
@@ -37,6 +37,21 @@ export const createTranslator = (locales) => ({
     return template.replace(/\{(\w+)\}/g, (match, name) =>
       params && name in params ? String(params[name]) : match,
     );
+  },
+
+  /**
+   * Teste l'existence d'une clé, repli français compris — donc exactement
+   * les cas où `t()` rendra un vrai texte et non la sentinelle `[clé]`.
+   *
+   * Existe pour que l'appelant puisse choisir entre une traduction et un
+   * texte brut sans avoir à comparer le retour de `t()` à cette sentinelle.
+   *
+   * @param {string} locale
+   * @param {string} key
+   * @returns {boolean}
+   */
+  has(locale, key) {
+    return resolve(locales, locale, key) !== undefined;
   },
 
   /**
