@@ -106,7 +106,14 @@ describe('registerPluginLocales', () => {
   });
 
   it('devrait utiliser des clés de locale du plugin sans double préfixe', async () => {
-    const pluginDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'plugins', 'utils');
+    const pluginDir = join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      '..',
+      '..',
+      'plugins',
+      'utils',
+    );
     const { loadPluginLocales } = await import('../../../src/core/i18n/plugin-locales.js');
 
     registerPluginLocales('utils', await loadPluginLocales(pluginDir));
