@@ -187,4 +187,42 @@ describe('App', () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it('devrait afficher une bannière quand un tiroir de configuration se ferme sur un état périmé', async () => {
+    // Le plugin a disparu (désactivé ou le bot a quitté le serveur) entre
+    // l'ouverture du tiroir et la soumission : l'écran mentait, la bannière
+    // le signale une fois le tiroir refermé.
+    window.history.replaceState({}, '', '/');
+    vi.spyOn(api, 'me').mockResolvedValue({
+      id: 'u1',
+      username: 'thomas',
+      avatar: null,
+      guilds: [],
+    });
+    vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);
+    vi.spyOn(api, 'locale').mockResolvedValue({ locale: null });
+    vi.spyOn(api, 'resources').mockResolvedValue({ channels: [], roles: [] });
+    vi.spyOn(api, 'plugins').mockResolvedValue([
+      {
+        name: 'moderation',
+        version: '1.0.0',
+        description: null,
+        dependsOn: [],
+        alwaysEnabled: false,
+        enabled: true,
+        schema: { greeting: { type: 'string', label: 'Salutation' } },
+        config: { greeting: 'Bonjour' },
+      },
+    ]);
+    vi.spyOn(api, 'saveConfig').mockRejectedValue(
+      new ApiRequestError(404, { error: 'Plugin introuvable' }),
+    );
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Configurer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(
+      await screen.findByText('Cet état était périmé, la liste a été rechargée.'),
+    ).toBeInTheDocument();
+  });
 });

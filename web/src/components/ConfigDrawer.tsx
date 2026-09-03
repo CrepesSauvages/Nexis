@@ -28,14 +28,35 @@ export const ConfigDrawer = ({
   const [changes, setChanges] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const updateField = (name: string, value: unknown) => {
+    // Un message d'enregistrement périmé ne doit pas rester affiché à côté
+    // d'une modification pas encore soumise.
+    setMessage(null);
+    setChanges((current) => {
+      // Un champ ramené à sa valeur d'origine ne doit pas rester dans les
+      // modifications : ce n'est plus une modification, et le renvoyer
+      // écraserait ce qu'un autre administrateur aurait changé entretemps.
+      if (value === plugin.config[name]) {
+        if (!(name in current)) return current;
+        const next = { ...current };
+        delete next[name];
+        return next;
+      }
+      return { ...current, [name]: value };
+    });
+  };
 
   const save = async () => {
     setBusy(true);
     setErrors({});
     try {
       await api.saveConfig(guildId, plugin.name, changes);
+      // Le tiroir reste ouvert : c'est à l'utilisateur de le fermer une fois
+      // le message d'enregistrement lu.
+      setMessage(t('drawer.saved'));
       onSaved();
-      onClose();
     } catch (error) {
       if (error instanceof ApiRequestError && error.fields) {
         setErrors(Object.fromEntries(error.fields.map(({ key, reason }) => [key, reason])));
@@ -69,13 +90,14 @@ export const ConfigDrawer = ({
           value={name in changes ? changes[name] : plugin.config[name]}
           resources={resources}
           error={errors[name]}
-          onChange={(value) => setChanges((current) => ({ ...current, [name]: value }))}
+          onChange={(value) => updateField(name, value)}
         />
       ))}
 
       <button type="button" className="primary" disabled={busy} onClick={() => void save()}>
         {t('drawer.save')}
       </button>
+      {message ? <p className="small">{message}</p> : null}
     </aside>
   );
 };

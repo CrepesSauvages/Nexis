@@ -25,6 +25,9 @@ export const App = () => {
   const [locale, setLocale] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  // Message affiché quand un tiroir de configuration se ferme sur un état
+  // périmé (le plugin a disparu entre l'affichage et la soumission).
+  const [notice, setNotice] = useState<string | null>(null);
 
   /**
    * Toute erreur d'appel passe par ici. Un 401 signifie que la session a
@@ -82,6 +85,7 @@ export const App = () => {
     setLocale(null);
     setResources({ channels: [], roles: [] });
     setLoadFailed(false);
+    setNotice(null);
 
     const load = async () => {
       try {
@@ -176,12 +180,18 @@ export const App = () => {
         onLogout={() => void logout()}
       />
       {loadFailed ? <p className="error">{t('guild.loadFailed')}</p> : null}
+      {notice ? <p className="error">{notice}</p> : null}
       <main className="content">
         <PluginGrid
           plugins={plugins}
           guildId={guildId}
           onChanged={() => void reloadPlugins()}
-          onConfigure={setConfiguring}
+          onConfigure={(name) => {
+            // Un tiroir qui s'ouvre laisse derrière lui l'état périmé d'un
+            // précédent tiroir : la bannière n'a plus rien à signaler.
+            setNotice(null);
+            setConfiguring(name);
+          }}
           onError={handleError}
         />
       </main>
@@ -195,7 +205,10 @@ export const App = () => {
                 resources={resources}
                 onClose={() => setConfiguring(null)}
                 onSaved={() => void reloadPlugins()}
-                onStale={() => void reloadPlugins()}
+                onStale={() => {
+                  setNotice(t('drawer.stale'));
+                  void reloadPlugins();
+                }}
                 onError={handleError}
               />
             ) : null;

@@ -58,6 +58,30 @@ describe('ConfigDrawer', () => {
     expect(save).toHaveBeenCalledWith('g1', 'moderation', {});
   });
 
+  it("devrait n'envoyer aucune valeur pour un champ modifié puis ramené à l'original", async () => {
+    // Un champ ramené à sa valeur d'origine doit redevenir « non modifié » :
+    // le renvoyer écraserait ce qu'un autre administrateur aurait changé
+    // entretemps, exactement ce que la fusion partielle est censée éviter.
+    const save = vi.spyOn(api, 'saveConfig').mockResolvedValue(undefined);
+    render(<ConfigDrawer {...props} />);
+    const field = screen.getByLabelText('Salutation');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Salut');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Bonjour');
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(save).toHaveBeenCalledWith('g1', 'moderation', {});
+  });
+
+  it('devrait afficher un message de confirmation et laisser le tiroir ouvert après un enregistrement réussi', async () => {
+    const onClose = vi.fn();
+    vi.spyOn(api, 'saveConfig').mockResolvedValue(undefined);
+    render(<ConfigDrawer {...props} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Configuration enregistrée.')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('devrait marquer le champ fautif et lui seul', async () => {
     vi.spyOn(api, 'saveConfig').mockRejectedValue(
       new ApiRequestError(400, {
@@ -90,9 +114,11 @@ describe('ConfigDrawer', () => {
       new ApiRequestError(404, { error: 'Plugin introuvable' }),
     );
     const onStale = vi.fn();
-    render(<ConfigDrawer {...props} onStale={onStale} />);
+    const onClose = vi.fn();
+    render(<ConfigDrawer {...props} onStale={onStale} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(onStale).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('devrait remonter la fermeture', async () => {
