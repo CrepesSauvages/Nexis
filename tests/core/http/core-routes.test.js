@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CoreRoutesTestHarness } from './core-routes-harness.js';
+import { CoreRoutesTestHarness, ID } from './core-routes-harness.js';
 import { createSessions, SESSION_COOKIE } from '../../../src/core/http/session.js';
 
 const harness = new CoreRoutesTestHarness();
 let app;
 /** @type {string} */
 let cookie;
+/** @type {string} */
+let base;
 
 beforeEach(async () => {
   await harness.setupTempDir();
@@ -26,6 +28,12 @@ const post = (base, action, body) =>
     headers: { Cookie: cookie, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+/**
+ * @param {string} path
+ * @returns {Promise<Response>}
+ */
+const call = (path) => fetch(`${base}${path}`, { headers: { Cookie: cookie } });
 
 describe('GET /api/core/guilds', () => {
   it('devrait refuser en 401 sans session', async () => {
@@ -212,5 +220,59 @@ describe('POST /api/core/plugins/disable', () => {
     const response = await post(base, 'disable', { name: 'alpha' });
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ reason: 'has_dependents', deps: ['beta'] });
+  });
+});
+
+describe('GET /api/core/guild-resources', () => {
+  it('devrait lister les salons triés par position', async () => {
+    base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await call('/api/core/guild-resources?guild=g1');
+    expect(response.status).toBe(200);
+    const body = /** @type {{ channels: Array<{ id: string, name: string, type: number }> }} */ (
+      await response.json()
+    );
+    expect(body.channels).toEqual([
+      { id: 'c2', name: 'annonces', type: 0 },
+      { id: ID, name: 'general', type: 0 },
+    ]);
+  });
+
+  it('devrait lister les rôles du plus haut au plus bas', async () => {
+    base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await call('/api/core/guild-resources?guild=g1');
+    const body = /** @type {{ roles: Array<{ id: string, name: string, color: string }> }} */ (
+      await response.json()
+    );
+    expect(body.roles).toEqual([
+      { id: ID, name: 'Staff', color: '#5865f2' },
+      { id: 'r2', name: '@everyone', color: '#000000' },
+    ]);
+  });
+
+  it("devrait rendre 404 si le bot n'est pas présent sur le serveur", async () => {
+    base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await call('/api/core/guild-resources?guild=g2');
+    expect(response.status).toBe(404);
+  });
+
+  it('devrait refuser un membre sans la permission Gérer le serveur', async () => {
+    base = await harness.boot();
+    app = harness.app;
+    cookie = harness.cookie;
+    const response = await call('/api/core/guild-resources?guild=g5');
+    expect(response.status).toBe(403);
+  });
+
+  it('devrait refuser une requête sans session', async () => {
+    base = await harness.boot();
+    app = harness.app;
+    const response = await fetch(`${base}/api/core/guild-resources?guild=g1`);
+    expect(response.status).toBe(401);
   });
 });

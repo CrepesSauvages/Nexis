@@ -104,3 +104,13 @@ export const localizeSchema = (locale, plugin, schema) =>
       { ...entry, label: localizeText(locale, plugin, entry.label) },
     ]),
   );
+
+/**
+ * Position d'un salon dans la liste du serveur. Un `ThreadChannel` n'a pas de
+ * `rawPosition` — le test d'appartenance restreint le type pour TypeScript
+ * autant qu'il évite un `NaN` à l'exécution.
+ *
+ * @param {import('discord.js').GuildBasedChannel} channel
+ * @returns {number}
+ */
+export const positionOf = (channel) => ('rawPosition' in channel ? channel.rawPosition : 0);

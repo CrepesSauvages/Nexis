@@ -7,6 +7,7 @@ import {
   localizeSchema,
   localizeText,
   pluginNameFrom,
+  positionOf,
   sendRefusal,
 } from './core-routes-helpers.js';
 
@@ -76,6 +77,32 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
           config: await guildConfig.getConfig(id, name, manifest.config),
         })),
       );
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/guild-resources',
+    auth: 'guild-admin',
+    handler: ({ guildId }) => {
+      const guild = client.guilds.cache.get(/** @type {string} */ (guildId));
+      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+
+      // Tout est déjà en cache : aucun appel réseau à Discord. Les salons ne
+      // sont pas filtrés par type — `validateConfigValues` accepte n'importe
+      // quel identifiant présent dans `channels.cache`, la liste rendue doit
+      // donc couvrir exactement le même ensemble.
+      const channels = [...guild.channels.cache.values()]
+        // Un fil n'a pas de `rawPosition` : il compte pour 0.
+        .sort((a, b) => positionOf(a) - positionOf(b))
+        .map((channel) => ({ id: channel.id, name: channel.name, type: channel.type }));
+
+      // Hiérarchie Discord : le rôle le plus haut d'abord.
+      const roles = [...guild.roles.cache.values()]
+        .sort((a, b) => b.position - a.position)
+        .map((role) => ({ id: role.id, name: role.name, color: role.hexColor }));
+
+      return { channels, roles };
     },
   },
 

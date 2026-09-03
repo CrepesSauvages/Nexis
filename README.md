@@ -61,15 +61,16 @@ devient alors `Secure`.
 
 ### API d'administration
 
-| Méthode | Chemin                                 | Rôle                                                       |
-| ------- | -------------------------------------- | ---------------------------------------------------------- |
-| `GET`   | `/api/core/guilds`                     | Serveurs que vous pouvez gérer.                            |
-| `GET`   | `/api/core/plugins?guild=<id>`         | Plugins du serveur : manifeste, activation, configuration. |
-| `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                 |
-| `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                 |
-| `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.              |
-| `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.           |
-| `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                |
+| Méthode | Chemin                                 | Rôle                                                        |
+| ------- | -------------------------------------- | ----------------------------------------------------------- |
+| `GET`   | `/api/core/guilds`                     | Serveurs que vous pouvez gérer.                             |
+| `GET`   | `/api/core/plugins?guild=<id>`         | Plugins du serveur : manifeste, activation, configuration.  |
+| `GET`   | `/api/core/guild-resources?guild=<id>` | Salons et rôles du serveur, pour alimenter les formulaires. |
+| `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                  |
+| `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                  |
+| `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.               |
+| `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.            |
+| `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                 |
 
 Tout sauf `/api/core/guilds` exige la permission « Gérer le serveur » sur le
 serveur ciblé, revérifiée auprès de Discord à chaque requête.

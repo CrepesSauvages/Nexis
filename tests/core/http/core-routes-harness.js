@@ -29,8 +29,18 @@ export class FakeClient extends EventEmitter {
     const makeGuild = (id, memberProfile = member) => ({
       id,
       members: { fetch: vi.fn().mockResolvedValue(memberProfile) },
-      channels: { cache: new Map([[ID, {}]]) },
-      roles: { cache: new Map([[ID, {}]]) },
+      channels: {
+        cache: new Map([
+          [ID, { id: ID, name: 'general', type: 0, rawPosition: 1 }],
+          ['c2', { id: 'c2', name: 'annonces', type: 0, rawPosition: 0 }],
+        ]),
+      },
+      roles: {
+        cache: new Map([
+          [ID, { id: ID, name: 'Staff', hexColor: '#5865f2', position: 5 }],
+          ['r2', { id: 'r2', name: '@everyone', hexColor: '#000000', position: 0 }],
+        ]),
+      },
     });
     this.guilds = {
       cache: new Map([
