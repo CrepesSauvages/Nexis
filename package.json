@@ -1,6 +1,6 @@
 {
   "name": "nexis",
-  "version": "0.3.49",
+  "version": "0.3.50",
   "description": "Nexis a bot discord, fully customisable in Js",
   "keywords": [
     "discord",
@@ -32,7 +32,6 @@
       "prettier --write"
     ],
     "web/src/**/*.{ts,tsx}": [
-      "eslint --fix",
       "prettier --write"
     ],
     "*.{json,md}": [
@@ -53,8 +52,7 @@
     "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
     "release-it": "^21.0.2",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.69.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "dependencies": {
