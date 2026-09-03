@@ -104,4 +104,16 @@ describe('registerPluginLocales', () => {
     registerPluginLocales('demo-plugin-test-c', { fr: { only_fr: 'Uniquement en français' } });
     expect(translator.t('en', 'demo-plugin-test-c.only_fr')).toBe('Uniquement en français');
   });
+
+  it('devrait utiliser des clés de locale du plugin sans double préfixe', async () => {
+    const pluginDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'plugins', 'utils');
+    const { loadPluginLocales } = await import('../../../src/core/i18n/plugin-locales.js');
+
+    registerPluginLocales('utils', await loadPluginLocales(pluginDir));
+
+    expect(translator.t('fr', 'utils.userinfo.command.fields.id')).toBe('ID');
+    expect(translator.t('en', 'utils.userinfo.command.description')).toBe(
+      'Displays information about a user',
+    );
+  });
 });
