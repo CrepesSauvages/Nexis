@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiRequestError } from './api/client';
 import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
 import { LoginScreen } from './components/LoginScreen';
+import { PluginGrid } from './components/PluginGrid';
 import { TopBar } from './components/TopBar';
 import { t } from './strings';
 
@@ -132,6 +133,15 @@ export const App = () => {
     setPhase('anonymous');
   };
 
+  const reloadPlugins = async () => {
+    if (!guildId) return;
+    try {
+      setPlugins(await api.plugins(guildId));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   if (phase === 'loading') return <div className="centered">{t('app.loading')}</div>;
 
   if (phase === 'error') {
@@ -166,7 +176,15 @@ export const App = () => {
         onLogout={() => void logout()}
       />
       {loadFailed ? <p className="error">{t('guild.loadFailed')}</p> : null}
-      <main className="content">{plugins.length}</main>
+      <main className="content">
+        <PluginGrid
+          plugins={plugins}
+          guildId={guildId}
+          onChanged={() => void reloadPlugins()}
+          onConfigure={() => undefined}
+          onError={handleError}
+        />
+      </main>
     </>
   );
 };

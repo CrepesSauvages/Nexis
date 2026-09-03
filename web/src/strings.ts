@@ -30,6 +30,16 @@ const fr = {
   'locale.it': 'Italiano',
   'locale.nl': 'Nederlands',
   'locale.pl': 'Polski',
+  'plugin.alwaysEnabled': 'Toujours actif',
+  'plugin.configure': 'Configurer',
+  'plugin.noDescription': 'Aucune description.',
+  'plugin.enable': 'Activer {name}',
+  'plugin.disable': 'Désactiver {name}',
+  'refusal.not_found': 'Ce plugin a disparu.',
+  'refusal.always_enabled': 'Ce plugin est interne et reste toujours actif.',
+  'refusal.already_enabled': 'Ce plugin était déjà activé.',
+  'refusal.missing_deps': "Activez d'abord : {deps}",
+  'refusal.has_dependents': 'Ces plugins en dépendent : {deps}',
 } as const;
 
 export type StringKey = keyof typeof fr;

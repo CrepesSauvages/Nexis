@@ -159,10 +159,10 @@ describe('App', () => {
     );
 
     render(<App />);
-    expect(await screen.findByText('1')).toBeInTheDocument();
+    expect(await screen.findByText('welcome')).toBeInTheDocument();
 
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Serveur' }), 'g2');
-    expect(screen.queryByText('1')).not.toBeInTheDocument();
+    expect(screen.queryByText('welcome')).not.toBeInTheDocument();
   });
 
   it('devrait afficher un message quand le chargement du serveur échoue', async () => {
