@@ -33,12 +33,21 @@ export class FakeClient extends EventEmitter {
         cache: new Map([
           [ID, { id: ID, name: 'general', type: 0, rawPosition: 1 }],
           ['c2', { id: 'c2', name: 'annonces', type: 0, rawPosition: 0 }],
+          // Un fil (ThreadChannel) n'a pas de `rawPosition` : `positionOf` le
+          // compte pour 0, à égalité avec `c2`. Sans ce troisième salon, la
+          // branche `false` du test d'appartenance de `positionOf` n'est
+          // jamais exercée.
+          ['c3', { id: 'c3', name: 'fil-support', type: 11 }],
         ]),
       },
       roles: {
         cache: new Map([
-          [ID, { id: ID, name: 'Staff', hexColor: '#5865f2', position: 5 }],
+          // Inséré dans l'ordre inverse de l'attendu (`r2` avant `ID`) : si
+          // l'ordre d'insertion reproduisait l'ordre attendu, supprimer le
+          // `.sort()` de `/api/core/guild-resources` laisserait le test
+          // passer quand même. Ici, non.
           ['r2', { id: 'r2', name: '@everyone', hexColor: '#000000', position: 0 }],
+          [ID, { id: ID, name: 'Staff', hexColor: '#5865f2', position: 5 }],
         ]),
       },
     });
