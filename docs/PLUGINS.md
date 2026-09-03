@@ -33,6 +33,17 @@ Chaque entrée exige un `label` — il sera affiché dans le dashboard. `require
 
 Un administrateur de serveur modifie ces valeurs via l'API du dashboard. Les valeurs sont validées contre le `type` déclaré, et pour `channel`, `role` et `user`, l'objet référencé doit exister dans ce serveur. Un champ `required: true` sans `default` est donc satisfaisable.
 
+Le `label` d'un champ et la `description` du plugin peuvent être des clés de
+traduction plutôt que du texte. Si `<nom-du-plugin>.<texte>` existe dans les
+fichiers de `i18n/`, l'API du dashboard rend la traduction dans la langue du
+serveur ; sinon elle rend le texte tel quel. Les `options` d'un champ `select`
+ne sont jamais traduites : ce sont les valeurs acceptées à l'enregistrement.
+
+Un champ `required: true` ne peut pas être enregistré vide : l'API refuse la
+requête avec le motif `missing_required`. Cela n'empêche pas un plugin activé
+et jamais configuré de lire `undefined` — prévoir un `default` reste la seule
+garantie.
+
 ## setup(ctx)
 
 Appelée une fois au démarrage. Le contexte est la seule surface d'API du core.

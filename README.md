@@ -80,6 +80,17 @@ modifiés. Une clé absente du manifeste fait échouer la requête entière en `
 plutôt que de s'écrire sans jamais être lue, et un identifiant de salon, de rôle
 ou de membre est refusé s'il n'existe pas dans ce serveur.
 
+### Interface web
+
+Le dashboard sert les fichiers construits de l'interface depuis `web/dist/`
+quand aucune route de l'API ne correspond, et seulement en lecture : un `POST`
+sur un chemin inconnu reste un 404. Les fichiers hachés de `web/dist/assets/`
+sont servis comme immuables, `index.html` avec `Cache-Control: no-store`.
+
+Si `web/dist/` est absent, la racine rend une page expliquant la commande à
+lancer. C'est le cas d'une installation de production : `npm ci --omit=dev`
+n'exécute pas le script `prepare` qui construit l'interface.
+
 ## Internationalisation (i18n)
 
 Nexis traduit ses propres commandes (`/nexis`) dans 8 langues : français, anglais, espagnol, allemand, portugais, italien, néerlandais, polonais.
