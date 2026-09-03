@@ -1,4 +1,15 @@
-export const manifest = { name: 'greeter', version: '1.0.0', description: 'Plugin de test i18n' };
+export const manifest = {
+  name: 'greeter',
+  version: '1.0.0',
+  // `desc` et `label.greeting` sont des clés de traduction ; `Salon des logs`
+  // n'en est pas une, et doit donc ressortir tel quel. Les deux cas sont
+  // nécessaires : sans le second, un helper qui traduirait tout passerait.
+  description: 'desc',
+  config: {
+    greeting: { type: 'string', label: 'label.greeting', default: 'Bonjour' },
+    logs: { type: 'channel', label: 'Salon des logs', required: true },
+  },
+};
 
 /**
  * @param {import('../../../../src/core/context.js').PluginContext} ctx

@@ -2,7 +2,13 @@ import { HttpError } from '../errors.js';
 import { sendJson } from './request.js';
 import { validateConfigValues } from '../config-schema.js';
 import { SUPPORTED_LOCALES } from '../i18n/index.js';
-import { canManageGuild, pluginNameFrom, sendRefusal } from './core-routes-helpers.js';
+import {
+  canManageGuild,
+  localizeSchema,
+  localizeText,
+  pluginNameFrom,
+  sendRefusal,
+} from './core-routes-helpers.js';
 
 /**
  * Les endpoints d'administration du dashboard.
@@ -51,6 +57,7 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
     handler: async ({ guildId }) => {
       const id = /** @type {string} */ (guildId);
       const enabled = await guildConfig.enabledPlugins(id);
+      const locale = (await guildConfig.getLocale(id)) ?? 'fr';
 
       // Tout en un seul appel : une interface a besoin de l'ensemble pour
       // dessiner ses formulaires, et un endpoint de détail par plugin serait
@@ -59,11 +66,13 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
         plugins.map(async ({ name, manifest }) => ({
           name,
           version: manifest.version,
-          description: manifest.description ?? null,
+          description: manifest.description
+            ? localizeText(locale, name, manifest.description)
+            : null,
           dependsOn: manifest.dependsOn ?? [],
           alwaysEnabled: alwaysEnabled.includes(name),
           enabled: alwaysEnabled.includes(name) || enabled.includes(name),
-          schema: manifest.config ?? {},
+          schema: localizeSchema(locale, name, manifest.config),
           config: await guildConfig.getConfig(id, name, manifest.config),
         })),
       );

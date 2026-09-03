@@ -1,3 +1,5 @@
 {
-  "greeting": "Bonjour du plugin"
+  "greeting": "Bonjour du plugin",
+  "desc": "Plugin de salutations",
+  "label.greeting": "Salutation"
 }

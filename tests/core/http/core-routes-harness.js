@@ -9,6 +9,7 @@ import { SESSION_COOKIE, createSessions } from '../../../src/core/http/session.j
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, '..', '..', 'fixtures', 'plugins');
+export const i18nFixtures = join(here, '..', '..', 'fixtures', 'plugins-with-i18n');
 
 export const ID = '123456789012345678';
 
@@ -61,9 +62,10 @@ export class CoreRoutesTestHarness {
 
   /**
    * Démarre le serveur de test et retourne l'URL de base.
+   * @param {{ pluginsDir?: string }} [options]
    * @returns {Promise<string>}
    */
-  async boot() {
+  async boot({ pluginsDir = fixtures } = {}) {
     this.app = await bootstrap({
       env: {
         DISCORD_TOKEN: 'tok',
@@ -71,7 +73,7 @@ export class CoreRoutesTestHarness {
         LOG_LEVEL: 'error',
         STORAGE_DRIVER: 'json',
         STORAGE_PATH: join(this.dir, 'store.json'),
-        PLUGINS_DIR: fixtures,
+        PLUGINS_DIR: pluginsDir,
         DISCORD_CLIENT_SECRET: 'secret',
         DASHBOARD_PORT: '0',
       },

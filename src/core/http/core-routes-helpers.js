@@ -66,3 +66,41 @@ export const pluginNameFrom = (body) => {
   }
   return name;
 };
+
+/**
+ * Traduit un texte de manifeste s'il correspond à une clé de traduction du
+ * plugin, sinon le rend tel quel.
+ *
+ * Les traductions des plugins sont déjà chargées et préfixées par
+ * `registerPluginLocales` au démarrage : rien à charger ici.
+ *
+ * @param {string} locale
+ * @param {string} plugin
+ * @param {string} text
+ * @returns {string}
+ */
+export const localizeText = (locale, plugin, text) => {
+  const key = `${plugin}.${text}`;
+  return translator.has(locale, key) ? translator.t(locale, key) : text;
+};
+
+/**
+ * Copie un schéma de configuration en traduisant chaque `label`.
+ *
+ * Une copie, jamais une mutation : `manifest.config` est partagé par tous les
+ * serveurs. Les `options` d'un `select` ne sont pas traduites — ce sont les
+ * valeurs acceptées par la validation, les traduire ferait échouer
+ * l'enregistrement.
+ *
+ * @param {string} locale
+ * @param {string} plugin
+ * @param {Record<string, import('../manifest.js').ConfigEntry> | undefined} schema
+ * @returns {Record<string, import('../manifest.js').ConfigEntry>}
+ */
+export const localizeSchema = (locale, plugin, schema) =>
+  Object.fromEntries(
+    Object.entries(schema ?? {}).map(([key, entry]) => [
+      key,
+      { ...entry, label: localizeText(locale, plugin, entry.label) },
+    ]),
+  );
