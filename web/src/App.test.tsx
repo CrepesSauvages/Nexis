@@ -124,4 +124,67 @@ describe('App', () => {
     expect(window.location.search).toBe('?guild=g2');
     expect(window.location.pathname).toBe('/');
   });
+
+  it('devrait effacer les données du serveur précédent en changeant de serveur', async () => {
+    window.history.replaceState({}, '', '/');
+    vi.spyOn(api, 'me').mockResolvedValue({
+      id: 'u1',
+      username: 'thomas',
+      avatar: null,
+      guilds: [],
+    });
+    vi.spyOn(api, 'guilds').mockResolvedValue([
+      { id: 'g1', name: 'Serveur un', icon: null },
+      { id: 'g2', name: 'Serveur deux', icon: null },
+    ]);
+    vi.spyOn(api, 'locale').mockResolvedValue({ locale: null });
+    vi.spyOn(api, 'resources').mockResolvedValue({ channels: [], roles: [] });
+    vi.spyOn(api, 'plugins').mockImplementation((guildId) =>
+      guildId === 'g1'
+        ? Promise.resolve([
+            {
+              name: 'welcome',
+              version: '1.0.0',
+              description: null,
+              dependsOn: [],
+              alwaysEnabled: false,
+              enabled: true,
+              schema: {},
+              config: {},
+            },
+          ])
+        : // Le second serveur ne finit jamais de charger : le test vérifie que
+          // les données du premier ne restent pas affichées pendant ce temps.
+          new Promise(() => {}),
+    );
+
+    render(<App />);
+    expect(await screen.findByText('1')).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Serveur' }), 'g2');
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+  });
+
+  it('devrait afficher un message quand le chargement du serveur échoue', async () => {
+    window.history.replaceState({}, '', '/');
+    vi.spyOn(api, 'me').mockResolvedValue({
+      id: 'u1',
+      username: 'thomas',
+      avatar: null,
+      guilds: [],
+    });
+    vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);
+    vi.spyOn(api, 'locale').mockResolvedValue({ locale: null });
+    vi.spyOn(api, 'resources').mockResolvedValue({ channels: [], roles: [] });
+    vi.spyOn(api, 'plugins').mockRejectedValue(
+      new ApiRequestError(500, { error: 'Erreur interne' }),
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByText(
+        "Les données de ce serveur n'ont pas pu être chargées. Rechargez la page pour réessayer.",
+      ),
+    ).toBeInTheDocument();
+  });
 });

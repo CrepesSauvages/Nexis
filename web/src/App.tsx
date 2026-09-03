@@ -23,6 +23,7 @@ export const App = () => {
   // le triplet d'appels ci-dessous ne fait que le déclencher en parallèle.
   const [, setResources] = useState<GuildResources>({ channels: [], roles: [] });
   const [locale, setLocale] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   /**
    * Toute erreur d'appel passe par ici. Un 401 signifie que la session a
@@ -73,6 +74,14 @@ export const App = () => {
     // n'est nécessaire côté serveur, et recharger conserve le serveur.
     window.history.replaceState({}, '', `/?guild=${encodeURIComponent(guildId)}`);
 
+    // Les données d'un serveur ne doivent jamais rester affichées sous le nom
+    // d'un autre : on efface tout avant de charger, pendant que la requête
+    // est en vol et si elle échoue.
+    setPlugins([]);
+    setLocale(null);
+    setResources({ channels: [], roles: [] });
+    setLoadFailed(false);
+
     const load = async () => {
       try {
         const [list, saved, guildResources] = await Promise.all([
@@ -85,7 +94,11 @@ export const App = () => {
         setLocale(saved.locale);
         setResources(guildResources);
       } catch (error) {
-        if (!cancelled) handleError(error);
+        if (cancelled) return;
+        // Un 401 route déjà vers l'écran de connexion : pas besoin d'en plus
+        // signaler l'échec de ce chargement, qui ne se reproduira jamais tel
+        // quel une fois reconnecté.
+        if (!handleError(error)) setLoadFailed(true);
       }
     };
     void load();
@@ -152,6 +165,7 @@ export const App = () => {
         onLocaleChange={(next) => void changeLocale(next)}
         onLogout={() => void logout()}
       />
+      {loadFailed ? <p className="error">{t('guild.loadFailed')}</p> : null}
       <main className="content">{plugins.length}</main>
     </>
   );

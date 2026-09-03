@@ -16,6 +16,8 @@ const fr = {
     'Il vous faut la permission « Gérer le serveur » sur un serveur où Nexis est présent.',
   'app.error.title': 'Impossible de joindre le tableau de bord',
   'app.error.body': 'Vérifiez votre connexion, puis rechargez la page.',
+  'guild.loadFailed':
+    "Les données de ce serveur n'ont pas pu être chargées. Rechargez la page pour réessayer.",
   'topbar.guild': 'Serveur',
   'topbar.locale': 'Langue du serveur',
   'topbar.logout': 'Déconnexion',

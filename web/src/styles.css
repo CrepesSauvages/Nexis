@@ -102,6 +102,14 @@ button {
   padding: 16px;
 }
 
+.error {
+  margin: 0;
+  padding: 10px 16px;
+  background: rgba(242, 63, 67, 0.12);
+  color: var(--danger);
+  border-bottom: 1px solid var(--border);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
