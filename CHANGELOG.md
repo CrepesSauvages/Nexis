@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.4.2](https://github.com/CrepesSauvages/Nexis/compare/v0.4.0...v0.4.2) (2026-09-04)
+
 # [0.4.0](https://github.com/CrepesSauvages/Nexis/compare/v0.3.0...v0.4.0) (2026-09-04)
 
 ### Bug Fixes
