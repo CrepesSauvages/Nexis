@@ -1,31 +1,14 @@
 import { useState } from 'react';
 import { api, ApiRequestError } from '../api/client';
+import { apiErrorMessage } from '../api/errors';
 import type { Plugin } from '../api/types';
 import { t } from '../strings';
-import type { StringKey } from '../strings';
 
-/** Les cinq motifs de refus que `plugin-admin` peut rendre. */
-const REFUSALS = new Set([
-  'not_found',
-  'always_enabled',
-  'already_enabled',
-  'missing_deps',
-  'has_dependents',
-]);
-
-/**
- * Traduit une erreur d'activation en un texte à nous. Le champ `error` de
- * l'API n'est affiché qu'en dernier recours : c'est `reason` qui est fait
- * pour être aiguillé.
- */
-const refusalMessage = (error: unknown): string => {
-  if (!(error instanceof ApiRequestError)) return t('error.generic');
-  if (error.reason && REFUSALS.has(error.reason)) {
-    return t(`refusal.${error.reason}` as StringKey, { deps: (error.deps ?? []).join(', ') });
-  }
-  if (error.errorId) return t('error.withId', { errorId: error.errorId });
-  return t('error.generic');
-};
+/** Motifs de refus après lesquels l'état affiché était périmé : la liste
+ * doit être rechargée, pas seulement le message affiché. `not_found` veut
+ * dire que le plugin a disparu, `already_enabled` que l'interrupteur
+ * mentait déjà avant le clic. */
+const REFUSALS_NEEDING_RELOAD = new Set(['not_found', 'already_enabled']);
 
 interface PluginCardProps {
   plugin: Plugin;
@@ -54,7 +37,10 @@ export const PluginCard = ({
       onChanged();
     } catch (error) {
       onError(error);
-      setMessage(refusalMessage(error));
+      setMessage(apiErrorMessage(error));
+      if (error instanceof ApiRequestError && REFUSALS_NEEDING_RELOAD.has(error.reason ?? '')) {
+        onChanged();
+      }
     } finally {
       setBusy(false);
     }

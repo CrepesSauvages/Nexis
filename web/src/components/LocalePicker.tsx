@@ -19,7 +19,12 @@ export const LocalePicker = ({ locale, onChange }: LocalePickerProps) => (
       value={locale ?? ''}
       onChange={(event) => onChange(event.target.value)}
     >
-      <option value="">{t('locale.unset')}</option>
+      {/* L'API n'a pas d'opération pour effacer une langue enregistrée : ce
+          choix ne fait qu'annoncer l'état courant, le sélectionner reviendrait
+          silencieusement à la langue déjà en vigueur. */}
+      <option value="" disabled>
+        {t('locale.unset')}
+      </option>
       {LOCALES.map((code) => (
         <option key={code} value={code}>
           {t(`locale.${code}` as StringKey)}

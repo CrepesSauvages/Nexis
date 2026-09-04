@@ -19,7 +19,11 @@ export const SelectField = ({ id, value, options, onChange }: SelectFieldProps) 
     value={value}
     onChange={(event) => onChange(event.target.value)}
   >
-    <option value="">{t('field.none')}</option>
+    {/* L'API n'a pas d'opération pour effacer un champ : ce choix ne fait
+        qu'annoncer l'absence de valeur, le sélectionner se ferait refuser. */}
+    <option value="" disabled>
+      {t('field.none')}
+    </option>
     {options.map((option) => (
       <option key={option} value={option}>
         {option}

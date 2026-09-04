@@ -68,6 +68,17 @@ describe('Field', () => {
     expect(onChange).toHaveBeenLastCalledWith('r1');
   });
 
+  it('devrait afficher une pastille de la couleur du rôle choisi', () => {
+    renderField({ type: 'role', label: 'Rôle modérateur' }, 'r1');
+    const swatch = document.querySelector('.role-swatch');
+    expect(swatch).toHaveStyle({ backgroundColor: '#5865f2' });
+  });
+
+  it("ne devrait afficher aucune pastille tant qu'aucun rôle n'est choisi", () => {
+    renderField({ type: 'role', label: 'Rôle modérateur' }, '');
+    expect(document.querySelector('.role-swatch')).not.toBeInTheDocument();
+  });
+
   it('devrait laisser saisir un identifiant de membre', () => {
     // Un serveur peut compter des centaines de milliers de membres : l'API ne
     // les expose pas, la saisie est validée côté serveur.

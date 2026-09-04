@@ -12,11 +12,12 @@ export const NumberField = ({ id, value, onChange }: NumberFieldProps) => (
     value={value}
     onChange={(event) => {
       // `valueAsNumber` plutôt que `value` : la validation du bot refuse une
-      // chaîne sur un champ `number`. Un champ vidé rend `NaN`, qui se
-      // sérialiserait en `null` et se ferait refuser en `wrong_type` : on
-      // n'émet alors rien, le champ garde sa valeur en vigueur.
+      // chaîne sur un champ `number`. Un champ vidé rend `NaN`, et une
+      // saisie comme `1e400` rend `Infinity` : les deux se sérialiseraient
+      // en `null` et se feraient refuser en `wrong_type`. On n'émet alors
+      // rien, le champ garde sa valeur en vigueur.
       const next = event.target.valueAsNumber;
-      if (!Number.isNaN(next)) onChange(next);
+      if (Number.isFinite(next)) onChange(next);
     }}
   />
 );

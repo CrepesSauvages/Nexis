@@ -105,4 +105,17 @@ describe('PluginCard', () => {
     render(<PluginCard {...props} plugin={plugin} />);
     expect(screen.queryByRole('button', { name: 'Configurer' })).not.toBeInTheDocument();
   });
+
+  it('devrait recharger la liste sur un 409 already_enabled', async () => {
+    // L'interrupteur affichait un état périmé : la liste doit être rechargée,
+    // pas seulement le message affiché.
+    vi.spyOn(api, 'enable').mockRejectedValue(
+      new ApiRequestError(409, { error: 'Déjà activé', reason: 'already_enabled' }),
+    );
+    const onChanged = vi.fn();
+    render(<PluginCard {...props} onChanged={onChanged} plugin={plugin} />);
+    await userEvent.click(screen.getByRole('switch', { name: 'Activer moderation' }));
+    expect(await screen.findByText('Ce plugin était déjà activé.')).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+  });
 });

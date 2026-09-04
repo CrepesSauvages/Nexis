@@ -37,19 +37,36 @@ export const ReferenceField = ({ id, type, value, resources, onChange }: Referen
       ? resources.channels.map(({ id: value, name }) => ({ value, name, color: null }))
       : resources.roles.map(({ id: value, name, color }) => ({ value, name, color }));
 
+  // Une pastille dans le contenu d'une <option> ne s'affiche de façon
+  // fiable dans aucun navigateur : elle est rendue à côté du select plutôt
+  // que dedans, pour le rôle actuellement choisi.
+  const selectedColor =
+    type === 'role' ? entries.find((entry) => entry.value === value)?.color : null;
+
   return (
-    <select
-      id={id}
-      className="field-input"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">{t('field.none')}</option>
-      {entries.map((entry) => (
-        <option key={entry.value} value={entry.value}>
-          {entry.name}
+    <span className="reference-field">
+      <select
+        id={id}
+        className="field-input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="" disabled>
+          {t('field.none')}
         </option>
-      ))}
-    </select>
+        {entries.map((entry) => (
+          <option key={entry.value} value={entry.value}>
+            {entry.name}
+          </option>
+        ))}
+      </select>
+      {selectedColor ? (
+        <span
+          className="role-swatch"
+          style={{ backgroundColor: selectedColor }}
+          aria-hidden="true"
+        />
+      ) : null}
+    </span>
   );
 };

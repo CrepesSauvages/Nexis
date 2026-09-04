@@ -230,6 +230,28 @@ button {
   margin-bottom: 16px;
 }
 
+.reference-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reference-field .field-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Pastille de la couleur du rôle choisi, à côté du select : aucun
+   navigateur ne rend fidèlement une couleur dans le contenu d'une
+   <option>. */
+.role-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 @media (max-width: 700px) {
   .grid {
     grid-template-columns: 1fr;
