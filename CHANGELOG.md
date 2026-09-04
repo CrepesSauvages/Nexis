@@ -1,5 +1,63 @@
 # Changelog
 
+# [0.4.0](https://github.com/CrepesSauvages/Nexis/compare/v0.3.0...v0.4.0) (2026-09-04)
+
+### Bug Fixes
+
+* ajouter GET /api/core/locale, tolérer des permissions malformées, et tester le refus 403 bout en bout ([b6b32e5](https://github.com/CrepesSauvages/Nexis/commit/b6b32e57517a4b3410f36ade904482f56fd9cf3b))
+* corriger le chemin du plugin utils dans le test de locales ([815e261](https://github.com/CrepesSauvages/Nexis/commit/815e26108143bdbc2120bf849728f6af392638b5))
+* détruire le flux de lecture du service statique à l'abandon client ([c040282](https://github.com/CrepesSauvages/Nexis/commit/c040282a5434d97aabbbe3a11bda675fc8ebd57f))
+* durcir les en-têtes de la redirection OAuth ([db56139](https://github.com/CrepesSauvages/Nexis/commit/db56139757b611f88d6a6cb88f16159047080d62))
+* effacer les donnees du serveur precedent au changement ([c7af566](https://github.com/CrepesSauvages/Nexis/commit/c7af566653930ddb02b99d9d165831119d5f40b9))
+* eviter que l'installation de production echoue sur la construction du front ([4cd59f3](https://github.com/CrepesSauvages/Nexis/commit/4cd59f3f881f8c0e87196004e890e863057b6414))
+* exiger Content-Type application/json sur les requêtes mutatives (CSRF) ([c5f3c5e](https://github.com/CrepesSauvages/Nexis/commit/c5f3c5ef44699b74297b2f9609ad532230423e8a))
+* faire porter husky par le garde-fou de prepare ([502fcc4](https://github.com/CrepesSauvages/Nexis/commit/502fcc4e06c40a3221480782e5851f8b2a684514))
+* fiabiliser l'installation de production du bot ([423522f](https://github.com/CrepesSauvages/Nexis/commit/423522fc2e0715148f10eb50abe6f23427d314fd))
+* garder les valeurs brutes de cookie malformées au lieu de lever une erreur ([fd34c34](https://github.com/CrepesSauvages/Nexis/commit/fd34c3423bcf41db4a3808886925ae4562970677))
+* isoler l'état du tiroir de configuration par plugin ([1510e68](https://github.com/CrepesSauvages/Nexis/commit/1510e6861b7ffa10deb617a01f21dec8f068c2ad))
+* proteger les champs restaures et informer des etats du tiroir ([f54a89e](https://github.com/CrepesSauvages/Nexis/commit/f54a89ea89b9d0a93a81da0a2c57c7394bc6562b))
+* recharger la liste sur les refus périmés du plugin ([b894c89](https://github.com/CrepesSauvages/Nexis/commit/b894c8946add3db37b09c13e558b64c4795ae268))
+* refuser par défaut un niveau d'autorisation non reconnu ([28eb4d4](https://github.com/CrepesSauvages/Nexis/commit/28eb4d4a861515140db523bce9ef8add73a227e7))
+* rejeter les clés héritées du prototype dans la validation de configuration ([0862b41](https://github.com/CrepesSauvages/Nexis/commit/0862b41c196a4a84d77ea57121afad8debfccc13))
+* réparer et compléter la construction de l'image Docker ([a5ec3b3](https://github.com/CrepesSauvages/Nexis/commit/a5ec3b38071efcc748630355edc636bfd9a76f96))
+* retirer le cas instable du test de prepare.js et corriger check-types ([9fb5931](https://github.com/CrepesSauvages/Nexis/commit/9fb59319d412ef8135b8dff413cc3116f9eb476d))
+* revenir sur typescript 7 racine et retirer le lint du front ([8deb3f7](https://github.com/CrepesSauvages/Nexis/commit/8deb3f745baa6a84d486dee6e25d5f15ce6c3996))
+* sécuriser le dashboard HTTP — activation par serveur, plugins en échec, incidents 5xx ([ceb4e08](https://github.com/CrepesSauvages/Nexis/commit/ceb4e0842a61c7c663fe14880d5a17d0fbb002e4))
+* séparer l'erreur en ligne de la bannière et corriger le test de l'interrupteur ([f357740](https://github.com/CrepesSauvages/Nexis/commit/f3577403bb8a831739af6a4350c3e90681303ead))
+* sérialiser les écritures de configuration d'un même serveur ([962059d](https://github.com/CrepesSauvages/Nexis/commit/962059dc81910e955949ea2bb4e905b656a74823))
+* traiter les trois points reportés par la revue du socle HTTP ([547cdd5](https://github.com/CrepesSauvages/Nexis/commit/547cdd502b231ea5ea93a4a0a6439c40dccf55ea))
+* typer strictement les refus d'administration et éviter une resynchronisation inutile ([f2676fb](https://github.com/CrepesSauvages/Nexis/commit/f2676fb21957cf5b7cbe36c35177d2dd3faa5b18))
+
+### Features
+
+* activer et désactiver un plugin depuis l'API du dashboard ([34efb39](https://github.com/CrepesSauvages/Nexis/commit/34efb390330060ae963e0f14e97943017d2fa8fa))
+* ajouter des commandes utilitaires pour afficher les informations du serveur et de l'utilisateur ([cbba0a9](https://github.com/CrepesSauvages/Nexis/commit/cbba0a9eb9e866b4925197c71a15c893cba821b3))
+* ajouter l'écran de connexion et le flux de session ([cf75890](https://github.com/CrepesSauvages/Nexis/commit/cf75890df010bff8eff936c8317ab85cfe1026a1))
+* ajouter la barre superieure et le choix du serveur ([31b19ce](https://github.com/CrepesSauvages/Nexis/commit/31b19ce451312ea0e5eaf0497154debf19461a5d))
+* ajouter la grille des plugins et leur activation ([8f99d9c](https://github.com/CrepesSauvages/Nexis/commit/8f99d9c67a885e7743d2d89ba536b2bbcaf07f93))
+* ajouter le client API du dashboard ([283cc8a](https://github.com/CrepesSauvages/Nexis/commit/283cc8a0a4d60e9745ad25964906637ab27c8b11))
+* ajouter le client OAuth2 Discord du dashboard ([02287d2](https://github.com/CrepesSauvages/Nexis/commit/02287d26bef43b46c02666e81f1bd0286ea53e70))
+* ajouter le tiroir de configuration ([1fdd3a2](https://github.com/CrepesSauvages/Nexis/commit/1fdd3a2466be2f0e0d851844b7b9f4e0f19c6473))
+* ajouter le workspace web et sa chaine de compilation ([7e3a969](https://github.com/CrepesSauvages/Nexis/commit/7e3a969182e0963f07e6970e4c039a4bd0cfc4dd))
+* ajouter les champs generes depuis le schema ([b8ba116](https://github.com/CrepesSauvages/Nexis/commit/b8ba116cb5332e292e783c03f7441f4256d9df57))
+* ajouter les primitives HTTP (cookies, corps JSON, réponses) ([230f16e](https://github.com/CrepesSauvages/Nexis/commit/230f16ee4d3f9be8c8da71625e63a17f364872cb))
+* ajouter translator.has pour tester l'existence d'une clé ([7afd928](https://github.com/CrepesSauvages/Nexis/commit/7afd928c904cf86c1174e5be09712f287eddf4b4))
+* brancher le service de fichiers statiques en repli du routeur ([3402a7c](https://github.com/CrepesSauvages/Nexis/commit/3402a7c0d2d9c010df7b7c7d0afbcd85651e9932))
+* démarrer le dashboard avec le bot et le fermer proprement ([ab815c9](https://github.com/CrepesSauvages/Nexis/commit/ab815c91822d7d60f5e0ebd1c5318001d28c29d7))
+* exposer la liste des serveurs et des plugins par HTTP ([8bd7cf5](https://github.com/CrepesSauvages/Nexis/commit/8bd7cf5c89a86c39f477920e6093b063c1e5e115))
+* exposer les endpoints de login, callback, logout et /api/me ([9e7fe24](https://github.com/CrepesSauvages/Nexis/commit/9e7fe249f26cd88d012f3bc8a4b7a7a77408aec4))
+* exposer les salons et rôles du serveur pour les formulaires ([1ba3ebd](https://github.com/CrepesSauvages/Nexis/commit/1ba3ebd0e1ae602c0baad1314918192a53cd75d6))
+* extraire les règles d'activation des plugins dans un module partagé ([e01f97f](https://github.com/CrepesSauvages/Nexis/commit/e01f97f7020c1210634911498a9b1840015dccf8))
+* lire et écrire la configuration et la langue par HTTP ([16a4cc5](https://github.com/CrepesSauvages/Nexis/commit/16a4cc5429959316153032743bf9db256b90751d))
+* lire la configuration du dashboard depuis l'environnement ([0f4e678](https://github.com/CrepesSauvages/Nexis/commit/0f4e6788bc0634f5af2336454fa35c0c68c1e386))
+* persister les sessions du dashboard dans le storage ([3acca8f](https://github.com/CrepesSauvages/Nexis/commit/3acca8fc8ca2a9ba89fcef2d297a706d5d19e467))
+* refuser d'enregistrer une configuration laissant un champ obligatoire vide ([7bb0d38](https://github.com/CrepesSauvages/Nexis/commit/7bb0d38e751e18b7ad2348dfa1d7bd3d89f45dd7))
+* résoudre les quatre niveaux d'autorisation du dashboard ([22d2693](https://github.com/CrepesSauvages/Nexis/commit/22d2693b4e875d6d80407f122ae3c58c06f09e49))
+* router les requêtes HTTP vers les routes de plugins ([b4d8cf3](https://github.com/CrepesSauvages/Nexis/commit/b4d8cf30b0bb16dec16b8c26bb573612156860fd))
+* servir les fichiers construits de l'interface web ([2f50b21](https://github.com/CrepesSauvages/Nexis/commit/2f50b2122993c0b9e11072853057e187da7cce8c))
+* traduire les libellés de configuration dans la langue du serveur ([ba9b386](https://github.com/CrepesSauvages/Nexis/commit/ba9b386f179adb64989750bc87e442582c282f51))
+* valider les valeurs de configuration contre le manifeste ([4292fe8](https://github.com/CrepesSauvages/Nexis/commit/4292fe8c6caf05bb6e64008859b30ca123c9bfb1))
+
 # [0.3.0](https://github.com/CrepesSauvages/Nexis/compare/v0.2.0...v0.3.0) (2026-08-30)
 
 ### Bug Fixes
