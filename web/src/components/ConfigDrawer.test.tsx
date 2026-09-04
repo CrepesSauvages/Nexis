@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfigDrawer } from './ConfigDrawer';
 import { api, ApiRequestError } from '../api/client';
@@ -126,5 +126,36 @@ describe('ConfigDrawer', () => {
     render(<ConfigDrawer {...props} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("devrait afficher l'identifiant d'incident quand l'enregistrement échoue en 500", async () => {
+    // Une 500 ne marque aucun champ précis : sans message, l'utilisateur ne
+    // peut pas distinguer un échec d'un enregistrement silencieux.
+    vi.spyOn(api, 'saveConfig').mockRejectedValue(
+      new ApiRequestError(500, { error: 'Erreur interne', errorId: 'a1b2c3' }),
+    );
+    render(<ConfigDrawer {...props} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText(/a1b2c3/)).toBeInTheDocument();
+  });
+
+  it("ne devrait plus renvoyer les champs d'un enregistrement précédent", async () => {
+    // Garder les champs déjà envoyés les renverrait à un deuxième
+    // enregistrement, l'écrasement concurrent que la fusion partielle est
+    // censée éviter.
+    const save = vi.spyOn(api, 'saveConfig').mockResolvedValue(undefined);
+    render(<ConfigDrawer {...props} />);
+
+    await userEvent.clear(screen.getByLabelText('Salutation'));
+    await userEvent.type(screen.getByLabelText('Salutation'), 'Salut');
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(save).toHaveBeenNthCalledWith(1, 'g1', 'moderation', { greeting: 'Salut' });
+
+    // `userEvent.clear`/`type` sur un input `number` produit des artefacts
+    // de saisie peu fiables en jsdom (« 5 » puis « 9 » donne « 59 ») :
+    // `fireEvent.change` fixe la valeur directement.
+    fireEvent.change(screen.getByLabelText('Quota'), { target: { value: '9' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(save).toHaveBeenNthCalledWith(2, 'g1', 'moderation', { quota: 9 });
   });
 });

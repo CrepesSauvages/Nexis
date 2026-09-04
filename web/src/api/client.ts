@@ -22,7 +22,9 @@ export class ApiRequestError extends Error implements ApiError {
     this.error = message;
     this.reason = shape.reason;
     this.deps = shape.deps;
-    this.fields = shape.fields;
+    // Un corps malformé ne doit pas faire planter `.map` chez un appelant
+    // qui suppose `fields` bien formé dès lors qu'il est présent.
+    this.fields = Array.isArray(shape.fields) ? shape.fields : undefined;
     this.errorId = shape.errorId;
   }
 }

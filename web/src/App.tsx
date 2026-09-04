@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiRequestError } from './api/client';
 import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
 import { ConfigDrawer } from './components/ConfigDrawer';
@@ -28,6 +28,14 @@ export const App = () => {
   // Message affiché quand un tiroir de configuration se ferme sur un état
   // périmé (le plugin a disparu entre l'affichage et la soumission).
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Dernier serveur choisi, lu après un `await` : `reloadPlugins` et
+  // `changeLocale` n'ont pas d'effet dont le nettoyage pourrait les annuler
+  // (contrairement aux deux `useEffect` ci-dessous), donc si le serveur a
+  // changé pendant leur appel réseau, leurs résultats ne doivent pas
+  // s'appliquer à l'état affiché.
+  const guildIdRef = useRef(guildId);
+  guildIdRef.current = guildId;
 
   /**
    * Toute erreur d'appel passe par ici. Un 401 signifie que la session a
@@ -114,13 +122,18 @@ export const App = () => {
 
   const changeLocale = async (next: string) => {
     if (!guildId || next === '') return;
+    const requestedGuildId = guildId;
     try {
       await api.setLocale(guildId, next);
+      if (guildIdRef.current !== requestedGuildId) return;
       setLocale(next);
       // Les libellés du schéma sont traduits par l'API dans la langue du
       // serveur : changer de langue périme la liste des plugins.
-      setPlugins(await api.plugins(guildId));
+      const list = await api.plugins(guildId);
+      if (guildIdRef.current !== requestedGuildId) return;
+      setPlugins(list);
     } catch (error) {
+      if (guildIdRef.current !== requestedGuildId) return;
       handleError(error);
     }
   };
@@ -139,9 +152,13 @@ export const App = () => {
 
   const reloadPlugins = async () => {
     if (!guildId) return;
+    const requestedGuildId = guildId;
     try {
-      setPlugins(await api.plugins(guildId));
+      const list = await api.plugins(guildId);
+      if (guildIdRef.current !== requestedGuildId) return;
+      setPlugins(list);
     } catch (error) {
+      if (guildIdRef.current !== requestedGuildId) return;
       handleError(error);
     }
   };
@@ -200,6 +217,10 @@ export const App = () => {
             const plugin = plugins.find((entry) => entry.name === configuring);
             return plugin ? (
               <ConfigDrawer
+                // Une instance par plugin : sans cela, ouvrir un second
+                // plugin réutiliserait l'instance du premier et lui
+                // transmettrait ses modifications en attente.
+                key={plugin.name}
                 plugin={plugin}
                 guildId={guildId}
                 resources={resources}

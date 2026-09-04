@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, ApiRequestError } from '../api/client';
+import { apiErrorMessage } from '../api/errors';
 import type { GuildResources, Plugin } from '../api/types';
 import { Field } from './fields/Field';
 import { t } from '../strings';
@@ -51,14 +52,20 @@ export const ConfigDrawer = ({
   const save = async () => {
     setBusy(true);
     setErrors({});
+    setMessage(null);
     try {
       await api.saveConfig(guildId, plugin.name, changes);
       // Le tiroir reste ouvert : c'est à l'utilisateur de le fermer une fois
       // le message d'enregistrement lu.
       setMessage(t('drawer.saved'));
+      // Un deuxième enregistrement ne doit renvoyer que ce qu'on modifie à
+      // partir de maintenant : garder les champs de ce premier envoi les y
+      // renverrait à nouveau, l'exact risque d'écrasement concurrent que la
+      // fusion partielle est censée éviter.
+      setChanges({});
       onSaved();
     } catch (error) {
-      if (error instanceof ApiRequestError && error.fields) {
+      if (error instanceof ApiRequestError && error.status === 400 && Array.isArray(error.fields)) {
         setErrors(Object.fromEntries(error.fields.map(({ key, reason }) => [key, reason])));
       } else if (error instanceof ApiRequestError && error.status === 404) {
         // Le plugin a disparu ou le bot a quitté le serveur : l'écran est
@@ -66,7 +73,11 @@ export const ConfigDrawer = ({
         onStale();
         onClose();
       } else {
+        // Tout le reste (5xx, 400 sans détail par champ…) : un échec qui ne
+        // se marque sur aucun champ précis ne doit pas rester silencieux,
+        // affiché là où le message de succès l'aurait été.
         onError(error);
+        setMessage(apiErrorMessage(error));
       }
     } finally {
       setBusy(false);
