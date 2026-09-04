@@ -87,7 +87,7 @@ export const createStaticHandler = ({ root = WEB_DIST } = {}) => {
     if (!info?.isFile()) {
       // Front non construit : `prepare` ignore délibérément sa construction sur
       // une installation sans devDependencies (`npm ci --omit=dev`), voir
-      // `scripts/prepare-web.js`.
+      // `scripts/prepare.js`.
       // On l'explique sur la page d'accueil plutôt que de laisser le routeur
       // rendre un 404 JSON incompréhensible pour un humain.
       if (pathname === '/') {
