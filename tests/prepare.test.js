@@ -14,7 +14,7 @@ const SKIP_MESSAGE = 'Installation de production détectée';
  * posées (vides si absentes), pour ne jamais dépendre de celles que `npm
  * test` pose déjà pour ce process.
  * @param {{ omit?: string, nodeEnv?: string, production?: string }} env
- * @param {number} timeout
+ * @param {number} [timeout]
  * @returns {import('node:child_process').SpawnSyncReturns<string>}
  */
 const runPrepare = ({ omit = '', nodeEnv = '', production = '' }, timeout) =>
@@ -29,6 +29,16 @@ const runPrepare = ({ omit = '', nodeEnv = '', production = '' }, timeout) =>
     encoding: 'utf8',
     timeout,
   });
+
+// Le troisième cas (aucune des trois variables posée) n'est délibérément pas
+// testé ici : il ferait tourner husky puis `npm run build:web` (tsc + vite)
+// pour de vrai. Sous Windows, un timeout sur `spawnSync` tue le processus
+// `node` parent mais peut laisser survivre le petit-fils `tsc`/`vite` lancé
+// via `shell: true`, qui continue alors d'écrire dans `web/dist` pendant que
+// d'autres tests tournent — source de flakiness et de processus orphelins
+// constatée en pratique, pour un test qui ne prouvait de toute façon que
+// l'absence du message de sortie rapide. Ce chemin non-production est déjà
+// exercé pour de vrai par chaque `npm run build:web`.
 
 describe('scripts/prepare.js', () => {
   it('devrait ignorer hooks et construction quand npm_config_omit contient dev', () => {
@@ -45,15 +55,4 @@ describe('scripts/prepare.js', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(SKIP_MESSAGE);
   });
-
-  it('ne devrait pas prendre la sortie rapide hors de ces cas', () => {
-    // Lancer réellement husky puis `npm run build:web` est lent (tsc +
-    // vite) et dépend de l'état de la copie de travail : on ne fait pas
-    // tourner l'installation complète ici. Le message de sortie rapide
-    // est émis en tout premier, avant tout spawn — un timeout court
-    // suffit donc à vérifier qu'il n'apparaît pas, sans attendre la fin
-    // de la construction.
-    const result = runPrepare({}, 5000);
-    expect(result.stdout ?? '').not.toContain(SKIP_MESSAGE);
-  }, 10000);
 });
