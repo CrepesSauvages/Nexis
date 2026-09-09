@@ -69,11 +69,13 @@ export const ErrorDrawer = ({ onClose, onError }: ErrorDrawerProps) => {
             {typeof entry.context?.plugin === 'string' ? (
               <p className="small">{t('errorDrawer.plugin', { plugin: entry.context.plugin })}</p>
             ) : null}
-            {typeof entry.context?.errorId === 'string' ? (
-              <p className="small">
-                {t('errorDrawer.errorId', { errorId: entry.context.errorId })}
-              </p>
-            ) : null}
+            {/* `entry.id` — jamais `context.errorId` : logger.js réutilise déjà
+                celui-ci comme `entry.id` quand un appelant l'a fourni, sinon en
+                mint un (newErrorId()). `context.errorId` peut donc être absent
+                sans que l'entrée n'ait pas d'identifiant — l'afficher aurait
+                laissé cette ligne vide pour toute entrée journalisée sans ce
+                champ de contexte. */}
+            <p className="small">{t('errorDrawer.errorId', { errorId: entry.id })}</p>
             {typeof entry.context?.stack === 'string' ? (
               <details>
                 <summary>{t('errorDrawer.stack')}</summary>

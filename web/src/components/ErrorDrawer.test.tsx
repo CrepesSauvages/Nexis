@@ -12,6 +12,18 @@ const entryWithStack: ErrorLogEntry = {
   context: { plugin: 'moderation', errorId: 'e1', stack: 'Error: boum\n at x' },
 };
 
+// `context.errorId` n'est posé que par les appelants qui en mintent un pour
+// l'afficher ailleurs (le dispatcher, pour un utilisateur Discord) —
+// `logger.js` (ligne 56) réutilise alors cette valeur comme `entry.id`,
+// mais ne l'écrit pas forcément dans `context`. Un plugin qui échoue à son
+// setup, par exemple, journalise sans jamais fournir `errorId`.
+const entryWithoutContextErrorId: ErrorLogEntry = {
+  id: 'e2',
+  timestamp: '2026-01-01T00:00:00.000Z',
+  message: 'setup en échec',
+  context: { plugin: 'moderation', reason: 'boum' },
+};
+
 const props = {
   onClose: vi.fn(),
   onError: vi.fn(),
@@ -28,6 +40,13 @@ describe('ErrorDrawer', () => {
     expect(await screen.findByText('boum')).toBeInTheDocument();
     expect(screen.getByText('Plugin : moderation')).toBeInTheDocument();
     expect(screen.getByText('Identifiant : e1')).toBeInTheDocument();
+  });
+
+  it("devrait afficher l'identifiant de l'entrée même quand context.errorId est absent", async () => {
+    vi.spyOn(api, 'errors').mockResolvedValue({ entries: [entryWithoutContextErrorId] });
+    render(<ErrorDrawer {...props} />);
+    expect(await screen.findByText('setup en échec')).toBeInTheDocument();
+    expect(screen.getByText('Identifiant : e2')).toBeInTheDocument();
   });
 
   it('devrait afficher un message quand le journal est vide', async () => {
