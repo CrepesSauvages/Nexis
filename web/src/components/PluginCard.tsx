@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, ApiRequestError } from '../api/client';
 import { apiErrorMessage } from '../api/errors';
 import type { Plugin } from '../api/types';
-import { t } from '../strings';
+import { useT } from '../i18n';
 
 /** Motifs de refus après lesquels l'état affiché était périmé : la liste
  * doit être rechargée, pas seulement le message affiché. `not_found` veut
@@ -25,6 +25,7 @@ export const PluginCard = ({
   onConfigure,
   onError,
 }: PluginCardProps) => {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -37,7 +38,7 @@ export const PluginCard = ({
       onChanged();
     } catch (error) {
       onError(error);
-      setMessage(apiErrorMessage(error));
+      setMessage(apiErrorMessage(error, t));
       if (error instanceof ApiRequestError && REFUSALS_NEEDING_RELOAD.has(error.reason ?? '')) {
         onChanged();
       }

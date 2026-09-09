@@ -1,4 +1,4 @@
-import { t } from '../../strings';
+import { useT } from '../../i18n';
 
 interface SelectFieldProps {
   id: string;
@@ -12,22 +12,25 @@ interface SelectFieldProps {
  * validation du bot accepte, pas des libellés. On ne les traduit pas non plus,
  * pour la même raison.
  */
-export const SelectField = ({ id, value, options, onChange }: SelectFieldProps) => (
-  <select
-    id={id}
-    className="field-input"
-    value={value}
-    onChange={(event) => onChange(event.target.value)}
-  >
-    {/* L'API n'a pas d'opération pour effacer un champ : ce choix ne fait
-        qu'annoncer l'absence de valeur, le sélectionner se ferait refuser. */}
-    <option value="" disabled>
-      {t('field.none')}
-    </option>
-    {options.map((option) => (
-      <option key={option} value={option}>
-        {option}
+export const SelectField = ({ id, value, options, onChange }: SelectFieldProps) => {
+  const t = useT();
+  return (
+    <select
+      id={id}
+      className="field-input"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {/* L'API n'a pas d'opération pour effacer un champ : ce choix ne fait
+          qu'annoncer l'absence de valeur, le sélectionner se ferait refuser. */}
+      <option value="" disabled>
+        {t('field.none')}
       </option>
-    ))}
-  </select>
-);
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+};

@@ -3,7 +3,7 @@ import { api, ApiRequestError } from '../api/client';
 import { apiErrorMessage } from '../api/errors';
 import type { GuildResources, Plugin } from '../api/types';
 import { Field } from './fields/Field';
-import { t } from '../strings';
+import { useT } from '../i18n';
 
 interface ConfigDrawerProps {
   plugin: Plugin;
@@ -24,6 +24,7 @@ export const ConfigDrawer = ({
   onStale,
   onError,
 }: ConfigDrawerProps) => {
+  const t = useT();
   // Seules les modifications sont retenues : l'écriture est une fusion
   // partielle, un champ non mentionné garde sa valeur.
   const [changes, setChanges] = useState<Record<string, unknown>>({});
@@ -77,7 +78,7 @@ export const ConfigDrawer = ({
         // se marque sur aucun champ précis ne doit pas rester silencieux,
         // affiché là où le message de succès l'aurait été.
         onError(error);
-        setMessage(apiErrorMessage(error));
+        setMessage(apiErrorMessage(error, t));
       }
     } finally {
       setBusy(false);

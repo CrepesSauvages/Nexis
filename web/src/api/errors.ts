@@ -1,6 +1,5 @@
 import { ApiRequestError } from './client';
-import { t } from '../strings';
-import type { StringKey } from '../strings';
+import type { StringKey, TFunction } from '../i18n';
 
 /** Les cinq motifs de refus que `plugin-admin` peut rendre. */
 const REFUSALS = new Set([
@@ -16,9 +15,10 @@ const REFUSALS = new Set([
  * endroits qui affichent un échec au dernier moment. Le champ `error` de
  * l'API n'est affiché qu'en dernier recours : c'est `reason` qui est fait
  * pour être aiguillé, sinon un identifiant d'incident permet de retrouver
- * la trace côté serveur.
+ * la trace côté serveur. Ce module n'est pas un composant : `t` lui est
+ * passé par l'appelant plutôt qu'importé, puisqu'il n'y a ici aucun hook.
  */
-export const apiErrorMessage = (error: unknown): string => {
+export const apiErrorMessage = (error: unknown, t: TFunction): string => {
   if (!(error instanceof ApiRequestError)) return t('error.generic');
   if (error.reason && REFUSALS.has(error.reason)) {
     return t(`refusal.${error.reason}` as StringKey, { deps: (error.deps ?? []).join(', ') });

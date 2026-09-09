@@ -1,9 +1,9 @@
 /**
- * Tous les textes de l'interface, en français. Le bot parle huit langues,
- * l'interface une seule : ajouter les sept autres sera un remplissage de ce
- * même objet, pas une refonte.
+ * Tous les textes de l'interface, en français : la référence pour les sept
+ * autres langues. `StringKey` est fermé sur cet objet — une clé manquante
+ * ailleurs est donc une erreur de compilation, jamais un repli silencieux.
  */
-const fr = {
+export const fr = {
   'app.title': 'Nexis',
   'app.loading': 'Chargement…',
   'login.title': 'Administration Nexis',
@@ -20,6 +20,9 @@ const fr = {
     "Les données de ce serveur n'ont pas pu être chargées. Rechargez la page pour réessayer.",
   'topbar.guild': 'Serveur',
   'topbar.locale': 'Langue du serveur',
+  // Distincte de `topbar.locale` : celle-ci choisit la langue lue par
+  // l'administrateur, pas celle parlée par le bot sur le serveur.
+  'topbar.interfaceLocale': "Langue de l'interface",
   'topbar.logout': 'Déconnexion',
   'locale.unset': 'Par défaut (français)',
   'locale.fr': 'Français',
@@ -56,10 +59,3 @@ const fr = {
 } as const;
 
 export type StringKey = keyof typeof fr;
-
-/**
- * Résout une clé et substitue ses paramètres. Une clé inconnue est impossible :
- * `StringKey` est fermé sur l'objet ci-dessus.
- */
-export const t = (key: StringKey, params: Record<string, string> = {}): string =>
-  fr[key].replace(/\{(\w+)\}/g, (match, name: string) => params[name] ?? match);

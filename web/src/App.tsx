@@ -5,7 +5,7 @@ import { ConfigDrawer } from './components/ConfigDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { PluginGrid } from './components/PluginGrid';
 import { TopBar } from './components/TopBar';
-import { t } from './strings';
+import { useT } from './i18n';
 
 type Phase = 'loading' | 'anonymous' | 'ready' | 'error';
 
@@ -16,6 +16,7 @@ const guildFromQuery = (guilds: Guild[]): string | null => {
 };
 
 export const App = () => {
+  const t = useT();
   const [phase, setPhase] = useState<Phase>('loading');
   const [user, setUser] = useState<SessionUser | null>(null);
   const [guilds, setGuilds] = useState<Guild[]>([]);

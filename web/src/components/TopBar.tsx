@@ -1,7 +1,8 @@
 import type { Guild, SessionUser } from '../api/types';
 import { GuildPicker } from './GuildPicker';
 import { LocalePicker } from './LocalePicker';
-import { t } from '../strings';
+import { InterfaceLocalePicker } from './InterfaceLocalePicker';
+import { useT } from '../i18n';
 
 interface TopBarProps {
   user: SessionUser;
@@ -21,28 +22,37 @@ export const TopBar = ({
   onGuildChange,
   onLocaleChange,
   onLogout,
-}: TopBarProps) => (
-  <header className="topbar">
-    <strong>{t('app.title')}</strong>
-    <GuildPicker guilds={guilds} guildId={guildId} onChange={onGuildChange} />
-    <LocalePicker locale={locale} onChange={onLocaleChange} />
-    <span className="topbar-user">
-      {user.avatar ? (
-        <img
-          className="avatar"
-          src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=32`}
-          alt=""
-          // Un bot auto-hébergé sans accès sortant n'atteint pas le CDN de
-          // Discord : l'image disparaît et les initiales prennent le relais.
-          onError={(event) => {
-            event.currentTarget.style.display = 'none';
-          }}
-        />
-      ) : null}
-      {user.username}
-    </span>
-    <button type="button" className="ghost" onClick={onLogout}>
-      {t('topbar.logout')}
-    </button>
-  </header>
-);
+}: TopBarProps) => {
+  const t = useT();
+  return (
+    <header className="topbar">
+      <strong>{t('app.title')}</strong>
+      <GuildPicker guilds={guilds} guildId={guildId} onChange={onGuildChange} />
+      <LocalePicker locale={locale} onChange={onLocaleChange} />
+      {/* Groupe de droite : la langue de lecture de l'administrateur, puis
+          son identité — à l'opposé des contrôles côté serveur ci-dessus, pour
+          qu'aucune des deux langues ne se confonde avec l'autre. */}
+      <div className="topbar-right">
+        <InterfaceLocalePicker />
+        <span className="topbar-user">
+          {user.avatar ? (
+            <img
+              className="avatar"
+              src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=32`}
+              alt=""
+              // Un bot auto-hébergé sans accès sortant n'atteint pas le CDN de
+              // Discord : l'image disparaît et les initiales prennent le relais.
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
+          {user.username}
+        </span>
+        <button type="button" className="ghost" onClick={onLogout}>
+          {t('topbar.logout')}
+        </button>
+      </div>
+    </header>
+  );
+};

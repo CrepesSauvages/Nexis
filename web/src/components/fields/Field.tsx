@@ -1,6 +1,6 @@
 import type { ConfigEntry, GuildResources } from '../../api/types';
-import { t } from '../../strings';
-import type { StringKey } from '../../strings';
+import { useT } from '../../i18n';
+import type { StringKey } from '../../i18n';
 import { BooleanField } from './BooleanField';
 import { NumberField } from './NumberField';
 import { ReferenceField } from './ReferenceField';
@@ -30,6 +30,7 @@ interface FieldProps {
  * langue du serveur : rien n'est retraduit ici.
  */
 export const Field = ({ name, entry, value, resources, error, onChange }: FieldProps) => {
+  const t = useT();
   const id = `field-${name}`;
   const unknown = !['string', 'number', 'boolean', 'select', 'channel', 'role', 'user'].includes(
     entry.type,

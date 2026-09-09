@@ -1,5 +1,5 @@
 import type { GuildResources } from '../../api/types';
-import { t } from '../../strings';
+import { useT } from '../../i18n';
 
 interface ReferenceFieldProps {
   id: string;
@@ -16,6 +16,7 @@ interface ReferenceFieldProps {
  * l'enregistrement.
  */
 export const ReferenceField = ({ id, type, value, resources, onChange }: ReferenceFieldProps) => {
+  const t = useT();
   if (type === 'user') {
     return (
       <>

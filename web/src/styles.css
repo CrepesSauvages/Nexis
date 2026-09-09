@@ -68,8 +68,16 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
-.topbar-user {
+.topbar-right {
+  /* Pousse tout le groupe de droite (langue d'interface, identité,
+     déconnexion) contre le bord opposé aux contrôles du serveur. */
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-user {
   display: flex;
   align-items: center;
   gap: 8px;
