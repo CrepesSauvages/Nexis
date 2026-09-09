@@ -20,6 +20,7 @@ export const de: Record<StringKey, string> = {
   'topbar.locale': 'Serversprache',
   'topbar.interfaceLocale': 'Sprache der Oberfläche',
   'topbar.logout': 'Abmelden',
+  'topbar.errors': 'Fehlerprotokoll',
   'locale.unset': 'Standard (Französisch)',
   'locale.fr': 'Français',
   'locale.en': 'English',
@@ -52,4 +53,10 @@ export const de: Record<StringKey, string> = {
   'drawer.close': 'Schließen',
   'drawer.saved': 'Konfiguration gespeichert.',
   'drawer.stale': 'Dieser Zustand war veraltet; die Liste wurde neu geladen.',
+  'errorDrawer.title': 'Fehlerprotokoll',
+  'errorDrawer.empty': 'Keine Fehler protokolliert.',
+  'errorDrawer.plugin': 'Plugin: {plugin}',
+  'errorDrawer.errorId': 'ID: {errorId}',
+  'errorDrawer.stack': 'Vollständiger Stacktrace',
+  'errorDrawer.purge': 'Protokoll löschen',
 };

@@ -25,7 +25,10 @@ const fakeOAuth = () => ({
     .mockResolvedValue([{ id: 'g1', name: 'Serveur', icon: null, permissions: '8' }]),
 });
 
-const start = async () => {
+/**
+ * @param {{ ownerId?: string }} [options]
+ */
+const start = async ({ ownerId } = {}) => {
   const oauth = fakeOAuth();
   const sessions = createSessions({ storage });
   const router = createRouter({
@@ -36,13 +39,14 @@ const start = async () => {
         ),
       sessions,
       secure: false,
+      ownerId,
     }),
     sessions,
     client: /** @type {import('discord.js').Client} */ (
       /** @type {unknown} */ ({ guilds: { cache: new Map() } })
     ),
     guildConfig: createGuildConfig({ storage }),
-    ownerId: undefined,
+    ownerId,
     logger: /** @type {import('../../../src/core/logger.js').Logger} */ (
       /** @type {unknown} */ ({
         debug: vi.fn(),
@@ -179,7 +183,36 @@ describe('GET /api/me', () => {
       username: 'thomas',
       avatar: 'a1',
       guilds: [{ id: 'g1', name: 'Serveur', icon: null, permissions: '8' }],
+      owner: false,
     });
+  });
+
+  it('devrait indiquer owner: true pour le propriétaire du bot', async () => {
+    const { base, sessions } = await start({ ownerId: 'u1' });
+    const id = await sessions.create({
+      userId: 'u1',
+      username: 'thomas',
+      avatar: null,
+      guilds: [],
+    });
+    const response = await fetch(`${base}/api/me`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect((await response.json()).owner).toBe(true);
+  });
+
+  it("devrait indiquer owner: false pour un utilisateur qui n'est pas le propriétaire", async () => {
+    const { base, sessions } = await start({ ownerId: 'quelquun-dautre' });
+    const id = await sessions.create({
+      userId: 'u1',
+      username: 'thomas',
+      avatar: null,
+      guilds: [],
+    });
+    const response = await fetch(`${base}/api/me`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${id}` },
+    });
+    expect((await response.json()).owner).toBe(false);
   });
 });
 

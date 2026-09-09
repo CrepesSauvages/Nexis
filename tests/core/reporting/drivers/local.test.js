@@ -148,4 +148,48 @@ describe('createLocalReporter', () => {
     await expect(reporter.report(entry(2))).resolves.toBeUndefined();
     expect(calls).toBe(2);
   });
+
+  it('devrait vider le buffer', async () => {
+    const reporter = createLocalReporter({ storage });
+    await reporter.report(entry(1));
+    await reporter.report(entry(2));
+    await reporter.clear();
+    expect(await reporter.getRecent()).toEqual([]);
+  });
+
+  it('devrait ne laisser aucune entrée réapparaître quand clear() est concurrent à un report() en cours (race condition)', async () => {
+    // Même principe que le test de chevauchement de report() ci-dessus,
+    // appliqué à clear() : sans passer par la même `queue`, le set() différé
+    // du report() en cours écraserait le [] posé par clear(), et l'entrée
+    // rapportée réapparaîtrait après une purge censée l'avoir supprimée.
+    /** @type {Record<string, unknown>} */
+    const store = {};
+    let callIndex = 0;
+    /** @type {import('../../../../src/core/storage/driver.js').StorageDriver} */
+    const racyStorage = {
+      async init() {},
+      async get(key) {
+        const i = callIndex++;
+        const value = store[key];
+        if (i === 0) await new Promise((resolve) => setTimeout(resolve, 20));
+        return value;
+      },
+      async set(key, value) {
+        store[key] = value;
+      },
+      async delete(key) {
+        delete store[key];
+      },
+      async keys(prefix) {
+        return Object.keys(store).filter((key) => key.startsWith(prefix));
+      },
+      async close() {},
+      raw: () => store,
+    };
+
+    const reporter = createLocalReporter({ storage: racyStorage });
+    await Promise.all([reporter.report(entry(1)), reporter.clear()]);
+
+    expect(await reporter.getRecent()).toEqual([]);
+  });
 });

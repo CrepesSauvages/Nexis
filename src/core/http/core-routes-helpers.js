@@ -114,3 +114,24 @@ export const localizeSchema = (locale, plugin, schema) =>
  * @returns {number}
  */
 export const positionOf = (channel) => ('rawPosition' in channel ? channel.rawPosition : 0);
+
+/** Défaut et plafond de `?limit=` pour GET /api/core/errors. */
+export const DEFAULT_ERROR_LOG_LIMIT = 50;
+export const MAX_ERROR_LOG_LIMIT = 200;
+
+/**
+ * Interprète `?limit=` pour GET /api/core/errors. Le buffer local va jusqu'à
+ * 500 entrées avec leur stack : les renvoyer toutes serait une réponse
+ * absurde par défaut, d'où un plafond distinct de la limite du buffer.
+ * Une valeur absente, non numérique ou négative retombe sur le défaut :
+ * ce paramètre de confort ne doit jamais faire échouer une simple
+ * consultation.
+ *
+ * @param {string | undefined} raw
+ * @returns {number}
+ */
+export const parseErrorLogLimit = (raw) => {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_ERROR_LOG_LIMIT;
+  return Math.min(Math.trunc(value), MAX_ERROR_LOG_LIMIT);
+};

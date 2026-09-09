@@ -20,6 +20,7 @@ export const es: Record<StringKey, string> = {
   'topbar.locale': 'Idioma del servidor',
   'topbar.interfaceLocale': 'Idioma de la interfaz',
   'topbar.logout': 'Cerrar sesión',
+  'topbar.errors': 'Registro de errores',
   'locale.unset': 'Predeterminado (francés)',
   'locale.fr': 'Français',
   'locale.en': 'English',
@@ -52,4 +53,10 @@ export const es: Record<StringKey, string> = {
   'drawer.close': 'Cerrar',
   'drawer.saved': 'Configuración guardada.',
   'drawer.stale': 'Este estado estaba obsoleto; la lista se ha recargado.',
+  'errorDrawer.title': 'Registro de errores',
+  'errorDrawer.empty': 'No hay errores registrados.',
+  'errorDrawer.plugin': 'Plugin: {plugin}',
+  'errorDrawer.errorId': 'ID: {errorId}',
+  'errorDrawer.stack': 'Traza completa',
+  'errorDrawer.purge': 'Purgar el registro',
 };

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TopBar } from './TopBar';
 import type { Guild, SessionUser } from '../api/types';
 
-const user: SessionUser = { id: 'u1', username: 'thomas', avatar: null, guilds: [] };
+const user: SessionUser = { id: 'u1', username: 'thomas', avatar: null, owner: false, guilds: [] };
 const guilds: Guild[] = [
   { id: 'g1', name: 'Serveur un', icon: null },
   { id: 'g2', name: 'Serveur deux', icon: null },
@@ -18,6 +18,7 @@ const props = {
   onGuildChange: vi.fn(),
   onLocaleChange: vi.fn(),
   onLogout: vi.fn(),
+  onOpenErrors: vi.fn(),
 };
 
 describe('TopBar', () => {
@@ -38,5 +39,17 @@ describe('TopBar', () => {
     render(<TopBar {...props} onLogout={onLogout} />);
     await userEvent.click(screen.getByRole('button', { name: 'Déconnexion' }));
     expect(onLogout).toHaveBeenCalled();
+  });
+
+  it("devrait n'afficher aucun bouton de journal d'erreurs pour un non-propriétaire", () => {
+    render(<TopBar {...props} user={{ ...user, owner: false }} />);
+    expect(screen.queryByRole('button', { name: "Journal d'erreurs" })).not.toBeInTheDocument();
+  });
+
+  it("devrait afficher le bouton du journal d'erreurs pour le propriétaire", async () => {
+    const onOpenErrors = vi.fn();
+    render(<TopBar {...props} user={{ ...user, owner: true }} onOpenErrors={onOpenErrors} />);
+    await userEvent.click(screen.getByRole('button', { name: "Journal d'erreurs" }));
+    expect(onOpenErrors).toHaveBeenCalled();
   });
 });

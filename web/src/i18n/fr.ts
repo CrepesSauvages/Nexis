@@ -24,6 +24,8 @@ export const fr = {
   // l'administrateur, pas celle parlée par le bot sur le serveur.
   'topbar.interfaceLocale': "Langue de l'interface",
   'topbar.logout': 'Déconnexion',
+  // Réservé au propriétaire du bot : TopBar ne l'affiche que si `user.owner`.
+  'topbar.errors': "Journal d'erreurs",
   'locale.unset': 'Par défaut (français)',
   'locale.fr': 'Français',
   'locale.en': 'English',
@@ -56,6 +58,12 @@ export const fr = {
   'drawer.close': 'Fermer',
   'drawer.saved': 'Configuration enregistrée.',
   'drawer.stale': 'Cet état était périmé, la liste a été rechargée.',
+  'errorDrawer.title': "Journal d'erreurs",
+  'errorDrawer.empty': 'Aucune erreur enregistrée.',
+  'errorDrawer.plugin': 'Plugin : {plugin}',
+  'errorDrawer.errorId': 'Identifiant : {errorId}',
+  'errorDrawer.stack': 'Trace complète',
+  'errorDrawer.purge': 'Purger le journal',
 } as const;
 
 export type StringKey = keyof typeof fr;

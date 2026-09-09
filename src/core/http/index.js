@@ -24,6 +24,7 @@ import { createStaticHandler } from './static.js';
  * @param {import('../logger.js').Logger} options.logger
  * @param {import('../loader.js').LoadedPlugin[]} options.plugins - plugins actifs
  * @param {{ syncGuild: (guildId: string) => Promise<void> }} options.commandSync
+ * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
  * @param {typeof fetch} [options.fetchImpl]
  * @returns {Promise<ReturnType<typeof createHttpServer> | undefined>}
  */
@@ -37,6 +38,7 @@ export const startDashboard = async ({
   logger,
   plugins,
   commandSync,
+  errorReporting,
   fetchImpl,
 }) => {
   const { enabled, clientSecret, host, port, baseUrl } = config.dashboard;
@@ -60,8 +62,13 @@ export const startDashboard = async ({
       // (routes.js) — un plugin ne peut tout simplement pas déclarer un
       // chemin qui collide avec /auth/* ou /api/me.
       routes: [
-        ...createAuthRoutes({ oauth, sessions, secure: baseUrl.startsWith('https://') }),
-        ...createCoreRoutes({ plugins, guildConfig, admin, client, alwaysEnabled }),
+        ...createAuthRoutes({
+          oauth,
+          sessions,
+          secure: baseUrl.startsWith('https://'),
+          ownerId: config.ownerId,
+        }),
+        ...createCoreRoutes({ plugins, guildConfig, admin, client, alwaysEnabled, errorReporting }),
         // Le registre type son handler en `Function` générique (routes.js) ;
         // le routeur attend la signature précise (params, io) => unknown.
         // Les deux décrivent le même contrat en pratique — un plugin qui

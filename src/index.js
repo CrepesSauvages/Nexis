@@ -224,6 +224,10 @@ export const bootstrap = async ({
     logger,
     plugins: active,
     commandSync,
+    // Même paire que celle donnée au contexte des plugins ci-dessus (ligne
+    // 140) : le dashboard n'a pas besoin de reportAll(), seulement de lire
+    // et de vider le journal local.
+    errorReporting: { getRecent: errorReporting.getRecent, clear: errorReporting.clear },
     fetchImpl,
   });
 

@@ -1,4 +1,12 @@
-import type { ApiError, FieldError, Guild, GuildResources, Plugin, SessionUser } from './types';
+import type {
+  ApiError,
+  ErrorLogEntry,
+  FieldError,
+  Guild,
+  GuildResources,
+  Plugin,
+  SessionUser,
+} from './types';
 
 /**
  * Une réponse non-2xx, portée par une vraie Error pour rester attrapable et
@@ -101,5 +109,14 @@ export const api = {
 
   logout: async () => {
     await request('POST', '/auth/logout');
+  },
+
+  errors: (limit?: number) =>
+    request('GET', `/api/core/errors${limit ? `?limit=${limit}` : ''}`) as Promise<{
+      entries: ErrorLogEntry[];
+    }>,
+
+  purgeErrors: async () => {
+    await request('DELETE', '/api/core/errors');
   },
 };

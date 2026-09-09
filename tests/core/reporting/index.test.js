@@ -101,6 +101,13 @@ describe('createErrorReporting', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('local'));
   });
 
+  it('devrait vider le journal via clear()', async () => {
+    const reporting = createErrorReporting({ storage });
+    await reporting.reportAll(entry());
+    await reporting.clear();
+    expect(await reporting.getRecent()).toEqual([]);
+  });
+
   it('devrait transmettre limit au reporter local', async () => {
     const reporting = createErrorReporting({ storage, limit: 1 });
     await reporting.reportAll(entry({ id: 'a' }));

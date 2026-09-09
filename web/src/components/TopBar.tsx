@@ -12,6 +12,7 @@ interface TopBarProps {
   onGuildChange: (guildId: string) => void;
   onLocaleChange: (locale: string) => void;
   onLogout: () => void;
+  onOpenErrors: () => void;
 }
 
 export const TopBar = ({
@@ -22,6 +23,7 @@ export const TopBar = ({
   onGuildChange,
   onLocaleChange,
   onLogout,
+  onOpenErrors,
 }: TopBarProps) => {
   const t = useT();
   return (
@@ -49,6 +51,15 @@ export const TopBar = ({
           ) : null}
           {user.username}
         </span>
+        {/* Réservé au propriétaire du bot : `user.owner` reflète OWNER_ID,
+            revérifié côté serveur par `resolveAuth` (auth.js) sur chaque
+            appel aux endpoints `owner` — ce bouton n'est qu'un raccourci
+            visuel, jamais la seule protection. */}
+        {user.owner ? (
+          <button type="button" className="ghost" onClick={onOpenErrors}>
+            {t('topbar.errors')}
+          </button>
+        ) : null}
         <button type="button" className="ghost" onClick={onLogout}>
           {t('topbar.logout')}
         </button>

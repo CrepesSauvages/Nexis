@@ -6,6 +6,7 @@ import {
   canManageGuild,
   localizeSchema,
   localizeText,
+  parseErrorLogLimit,
   pluginNameFrom,
   positionOf,
   sendRefusal,
@@ -26,9 +27,17 @@ import {
  * @param {ReturnType<typeof import('../plugin-admin.js').createPluginAdmin>} options.admin
  * @param {import('discord.js').Client} options.client
  * @param {string[]} options.alwaysEnabled
+ * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
  * @returns {import('./router.js').HttpRoute[]}
  */
-export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEnabled }) => [
+export const createCoreRoutes = ({
+  plugins,
+  guildConfig,
+  admin,
+  client,
+  alwaysEnabled,
+  errorReporting,
+}) => [
   {
     method: 'GET',
     path: '/api/core/guilds',
@@ -198,6 +207,40 @@ export const createCoreRoutes = ({ plugins, guildConfig, admin, client, alwaysEn
       }
       await guildConfig.setLocale(/** @type {string} */ (guildId), locale);
       return { ok: true, locale };
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/errors',
+    // Comme /api/core/guilds, sans serveur ciblé : réservé au propriétaire
+    // du bot, pas à un administrateur de serveur.
+    auth: 'owner',
+    handler: async ({ query }) => {
+      const entries = await errorReporting.getRecent(parseErrorLogLimit(query.limit));
+      // `level` (toujours 'error') n'apporte rien à l'interface : on ne
+      // renvoie que ce que le brief décrit.
+      return {
+        entries: entries.map(({ id, timestamp, message, context }) => ({
+          id,
+          timestamp,
+          message,
+          context,
+        })),
+      };
+    },
+  },
+
+  {
+    method: 'DELETE',
+    path: '/api/core/errors',
+    auth: 'owner',
+    handler: async () => {
+      // Passe par la file de reporting/drivers/local.js : un clear() qui
+      // écrirait directement pourrait s'entrelacer avec un report() en vol
+      // et laisser réapparaître une entrée qu'on croyait purgée.
+      await errorReporting.clear();
+      return { ok: true };
     },
   },
 ];

@@ -20,6 +20,7 @@ export const nl: Record<StringKey, string> = {
   'topbar.locale': 'Servertaal',
   'topbar.interfaceLocale': 'Taal van de interface',
   'topbar.logout': 'Uitloggen',
+  'topbar.errors': 'Foutenlogboek',
   'locale.unset': 'Standaard (Frans)',
   'locale.fr': 'Français',
   'locale.en': 'English',
@@ -52,4 +53,10 @@ export const nl: Record<StringKey, string> = {
   'drawer.close': 'Sluiten',
   'drawer.saved': 'Configuratie opgeslagen.',
   'drawer.stale': 'Deze weergave was verouderd; de lijst is opnieuw geladen.',
+  'errorDrawer.title': 'Foutenlogboek',
+  'errorDrawer.empty': 'Geen fouten geregistreerd.',
+  'errorDrawer.plugin': 'Plugin: {plugin}',
+  'errorDrawer.errorId': 'ID: {errorId}',
+  'errorDrawer.stack': 'Volledige stacktrace',
+  'errorDrawer.purge': 'Logboek wissen',
 };

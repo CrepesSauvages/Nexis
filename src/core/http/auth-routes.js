@@ -21,9 +21,10 @@ const STATE_TTL_SECONDS = 600;
  * @param {ReturnType<typeof import('./oauth.js').createOAuth>} options.oauth
  * @param {ReturnType<typeof import('./session.js').createSessions>} options.sessions
  * @param {boolean} options.secure
+ * @param {string | undefined} [options.ownerId] - permet à `/api/me` d'indiquer si la session courante est celle du propriétaire, sans dupliquer la comparaison faite par resolveAuth (auth.js)
  * @returns {import('./router.js').HttpRoute[]}
  */
-export const createAuthRoutes = ({ oauth, sessions, secure }) => [
+export const createAuthRoutes = ({ oauth, sessions, secure, ownerId }) => [
   {
     method: 'GET',
     path: '/auth/login',
@@ -91,6 +92,9 @@ export const createAuthRoutes = ({ oauth, sessions, secure }) => [
         username: session.username,
         avatar: session.avatar,
         guilds: session.guilds,
+        // Dit à l'interface si le bouton réservé au niveau `owner` (journal
+        // d'erreurs) doit apparaître, sans lui faire deviner ownerId.
+        owner: Boolean(ownerId) && session.userId === ownerId,
       };
     },
   },

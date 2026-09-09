@@ -10,6 +10,9 @@ export interface SessionUser {
   username: string;
   avatar: string | null;
   guilds: SessionGuild[];
+  // Vrai seulement pour le propriétaire du bot (OWNER_ID) : conditionne
+  // l'affichage du bouton vers le journal d'erreurs dans TopBar.
+  owner: boolean;
 }
 
 export interface Guild {
@@ -57,6 +60,13 @@ export interface GuildResources {
 export interface FieldError {
   key: string;
   reason: string;
+}
+
+export interface ErrorLogEntry {
+  id: string;
+  timestamp: string;
+  message: string;
+  context?: Record<string, unknown>;
 }
 
 export interface ApiError {

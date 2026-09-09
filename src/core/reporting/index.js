@@ -36,5 +36,9 @@ export const createErrorReporting = ({ storage, sentryDsn, limit }) => {
     },
 
     getRecent: local.getRecent,
+
+    // Le dashboard purge le journal local uniquement : Sentry garde son
+    // propre historique côté service, sans équivalent « vider » ici.
+    clear: local.clear,
   };
 };

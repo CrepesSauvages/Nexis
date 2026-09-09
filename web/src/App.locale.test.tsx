@@ -16,7 +16,13 @@ afterEach(() => {
 
 const setUpReadyApp = () => {
   window.history.replaceState({}, '', '/');
-  vi.spyOn(api, 'me').mockResolvedValue({ id: 'u1', username: 'thomas', avatar: null, guilds: [] });
+  vi.spyOn(api, 'me').mockResolvedValue({
+    id: 'u1',
+    username: 'thomas',
+    avatar: null,
+    owner: false,
+    guilds: [],
+  });
   vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);
   vi.spyOn(api, 'locale').mockResolvedValue({ locale: null });
   vi.spyOn(api, 'plugins').mockResolvedValue([]);

@@ -238,6 +238,21 @@ button {
   margin-bottom: 16px;
 }
 
+/* Une entrée du journal d'erreurs (ErrorDrawer), séparée de la suivante par
+   une ligne plutôt qu'un fond plein : le tiroir peut en afficher jusqu'à
+   200 d'un coup. */
+.error-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.error-entry pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .reference-field {
   display: flex;
   align-items: center;

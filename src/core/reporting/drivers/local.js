@@ -38,6 +38,19 @@ export const createLocalReporter = ({ storage, limit = DEFAULT_LIMIT }) => {
     },
 
     /**
+     * Vide le buffer. Passe par la même `queue` que report() : sans elle, un
+     * set([]) posé ici pourrait être écrasé par le set() différé d'un
+     * report() déjà en vol, faisant réapparaître une entrée après la purge
+     * (voir le commentaire de `queue` ci-dessus).
+     * @returns {Promise<void>}
+     */
+    clear() {
+      const attempt = queue.then(() => storage.set(KEY, []));
+      queue = attempt.catch(() => undefined);
+      return attempt;
+    },
+
+    /**
      * @param {number} [count]
      * @returns {Promise<import('../driver.js').ReportEntry[]>}
      */

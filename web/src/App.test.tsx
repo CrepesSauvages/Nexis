@@ -24,6 +24,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([]);
@@ -40,6 +41,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockRejectedValue(
@@ -70,6 +72,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([
@@ -90,6 +93,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);
@@ -107,6 +111,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([
@@ -131,6 +136,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([
@@ -171,6 +177,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);
@@ -197,6 +204,7 @@ describe('App', () => {
       id: 'u1',
       username: 'thomas',
       avatar: null,
+      owner: false,
       guilds: [],
     });
     vi.spyOn(api, 'guilds').mockResolvedValue([{ id: 'g1', name: 'Serveur un', icon: null }]);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiRequestError } from './api/client';
 import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
 import { ConfigDrawer } from './components/ConfigDrawer';
+import { ErrorDrawer } from './components/ErrorDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { PluginGrid } from './components/PluginGrid';
 import { TopBar } from './components/TopBar';
@@ -25,6 +26,12 @@ export const App = () => {
   const [resources, setResources] = useState<GuildResources>({ channels: [], roles: [] });
   const [locale, setLocale] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
+  const [errorLogOpen, setErrorLogOpen] = useState(false);
+  // Une instance fraîche à chaque ouverture (même mécanisme que `key={plugin.name}`
+  // sur ConfigDrawer ci-dessous) : sans elle, rouvrir le tiroir réutiliserait
+  // une instance dont l'état (message de purge, entrées) daterait de la
+  // précédente ouverture.
+  const [errorLogInstance, setErrorLogInstance] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   // Message affiché quand un tiroir de configuration se ferme sur un état
   // périmé (le plugin a disparu entre l'affichage et la soumission).
@@ -196,6 +203,10 @@ export const App = () => {
         onGuildChange={setGuildId}
         onLocaleChange={(next) => void changeLocale(next)}
         onLogout={() => void logout()}
+        onOpenErrors={() => {
+          setErrorLogInstance((n) => n + 1);
+          setErrorLogOpen(true);
+        }}
       />
       {loadFailed ? <p className="error">{t('guild.loadFailed')}</p> : null}
       {notice ? <p className="error">{notice}</p> : null}
@@ -236,6 +247,13 @@ export const App = () => {
             ) : null;
           })()
         : null}
+      {errorLogOpen ? (
+        <ErrorDrawer
+          key={errorLogInstance}
+          onClose={() => setErrorLogOpen(false)}
+          onError={handleError}
+        />
+      ) : null}
     </>
   );
 };

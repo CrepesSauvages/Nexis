@@ -81,10 +81,10 @@ export class CoreRoutesTestHarness {
 
   /**
    * Démarre le serveur de test et retourne l'URL de base.
-   * @param {{ pluginsDir?: string }} [options]
+   * @param {{ pluginsDir?: string, ownerId?: string }} [options]
    * @returns {Promise<string>}
    */
-  async boot({ pluginsDir = fixtures } = {}) {
+  async boot({ pluginsDir = fixtures, ownerId } = {}) {
     this.app = await bootstrap({
       env: {
         DISCORD_TOKEN: 'tok',
@@ -95,6 +95,9 @@ export class CoreRoutesTestHarness {
         PLUGINS_DIR: pluginsDir,
         DISCORD_CLIENT_SECRET: 'secret',
         DASHBOARD_PORT: '0',
+        // Absent par défaut : la session de test (`u1`) ne doit pas devenir
+        // « propriétaire » pour les tests qui ne le demandent pas.
+        ...(ownerId ? { OWNER_ID: ownerId } : {}),
       },
       clientFactory: () =>
         /** @type {import('discord.js').Client} */ (/** @type {unknown} */ (new FakeClient())),

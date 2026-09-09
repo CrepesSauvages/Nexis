@@ -18,6 +18,7 @@ export const en: Record<StringKey, string> = {
   'topbar.locale': 'Server language',
   'topbar.interfaceLocale': 'Interface language',
   'topbar.logout': 'Log out',
+  'topbar.errors': 'Error log',
   'locale.unset': 'Default (French)',
   'locale.fr': 'Français',
   'locale.en': 'English',
@@ -50,4 +51,10 @@ export const en: Record<StringKey, string> = {
   'drawer.close': 'Close',
   'drawer.saved': 'Configuration saved.',
   'drawer.stale': 'This view was out of date; the list has been reloaded.',
+  'errorDrawer.title': 'Error log',
+  'errorDrawer.empty': 'No errors recorded.',
+  'errorDrawer.plugin': 'Plugin: {plugin}',
+  'errorDrawer.errorId': 'ID: {errorId}',
+  'errorDrawer.stack': 'Full trace',
+  'errorDrawer.purge': 'Purge log',
 };
