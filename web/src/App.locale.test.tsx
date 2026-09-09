@@ -24,7 +24,7 @@ const setUpReadyApp = () => {
 };
 
 describe('App — distinction entre langue de l’interface et langue du serveur', () => {
-  it("ne devrait appeler aucune API en changeant la langue de l'interface", async () => {
+  it("devrait n'appeler aucune API en changeant la langue de l'interface", async () => {
     setUpReadyApp();
     const setLocale = vi.spyOn(api, 'setLocale');
 

@@ -44,7 +44,7 @@ describe('detectLocale', () => {
     expect(detectLocale()).toBe('de');
   });
 
-  it('ne devrait pas planter si localStorage lève, et retomber sur le navigateur', () => {
+  it('devrait ne pas planter si localStorage lève, et retomber sur le navigateur', () => {
     // Navigation privée sur certains navigateurs (Safari notamment) : lire
     // `localStorage` peut lever une exception plutôt que rendre `null`.
     setBrowserLanguage('pl-PL');
