@@ -135,6 +135,20 @@ construction de l'interface dans ce mode — `vite`, nécessaire pour la
 construire, est une devDependency du workspace `web` qui n'y est pas
 installée. La construire manuellement se fait avec `npm run build:web`.
 
+#### Ce que l'interface permet
+
+La grille de plugins couvre l'activation et la configuration. Deux tiroirs
+s'ouvrent depuis la barre du haut :
+
+- **Permissions** — les rôles autorisés, commande par commande. Une commande
+  réservée au propriétaire du bot s'y affiche sans rien à cocher : ses
+  permissions ne se délèguent pas à un serveur.
+- **Journal** — les changements d'administration du serveur, en lecture seule.
+  Pas de purge, contrairement au journal d'erreurs : un journal qu'on peut
+  vider depuis l'interface qu'il surveille ne prouve plus grand-chose.
+
+Le **journal d'erreurs** reste réservé au propriétaire du bot (`OWNER_ID`).
+
 #### Développer l'interface
 
 L'interface vit dans le workspace npm `web/`. `npm install` à la racine

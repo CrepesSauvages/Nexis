@@ -253,6 +253,28 @@ button {
   color: var(--muted);
 }
 
+/* Une commande dans le tiroir des permissions. Même séparation que les
+   entrées du journal : la liste peut être longue, et un fond plein par
+   commande ferait une colonne de blocs illisible. */
+.perms-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.perms-entry pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Un rôle cochable : la case et son nom sur la même ligne, la liste en
+   colonne — un serveur peut avoir plusieurs dizaines de rôles. */
+.perms-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
 .reference-field {
   display: flex;
   align-items: center;

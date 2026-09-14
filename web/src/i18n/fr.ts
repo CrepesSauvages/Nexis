@@ -64,6 +64,27 @@ export const fr = {
   'errorDrawer.errorId': 'Identifiant : {errorId}',
   'errorDrawer.stack': 'Trace complète',
   'errorDrawer.purge': 'Purger le journal',
+  'topbar.permissions': 'Permissions',
+  'topbar.audit': 'Journal',
+  'permsDrawer.title': 'Permissions par rôle',
+  'permsDrawer.empty': 'Aucune commande déclarée sur ce serveur.',
+  'permsDrawer.intro':
+    'La liste de rôles remplace le niveau déclaré par le plugin. Ceux qui peuvent « Gérer le serveur » gardent toujours accès.',
+  'permsDrawer.declared.guild-admin': 'Par défaut : gestion du serveur',
+  'permsDrawer.declared.owner': 'Réservé au propriétaire du bot',
+  'permsDrawer.declared.none': 'Par défaut : tout le monde',
+  'permsDrawer.ownerLocked': 'Ces permissions ne se délèguent pas à un serveur.',
+  'permsDrawer.state.default': 'Niveau déclaré',
+  'permsDrawer.state.adminsOnly': 'Administrateurs uniquement',
+  'permsDrawer.state.roles': '{count} rôle(s) autorisé(s)',
+  'permsDrawer.noRoles': 'Ce serveur n’a aucun rôle à autoriser.',
+  'permsDrawer.save': 'Enregistrer',
+  'permsDrawer.reset': 'Rendre au niveau déclaré',
+  'permsDrawer.saved': 'Permissions enregistrées.',
+  'auditDrawer.title': 'Journal des changements',
+  'auditDrawer.empty': 'Aucun changement enregistré sur ce serveur.',
+  'auditDrawer.actor': 'Par {actor}',
+  'auditDrawer.details': 'Détail',
 } as const;
 
 export type StringKey = keyof typeof fr;

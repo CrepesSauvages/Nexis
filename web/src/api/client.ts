@@ -1,5 +1,7 @@
 import type {
   ApiError,
+  AuditEntry,
+  CommandPermission,
   ErrorLogEntry,
   FieldError,
   Guild,
@@ -106,6 +108,25 @@ export const api = {
   saveConfig: async (guild: string, name: string, values: Record<string, unknown>) => {
     await request('PATCH', `/api/core/config?${guildQuery(guild)}`, { name, values });
   },
+
+  permissions: (guild: string) =>
+    request('GET', `/api/core/permissions?${guildQuery(guild)}`) as Promise<{
+      commands: CommandPermission[];
+    }>,
+
+  /**
+   * `roles: null` rend la commande à son niveau déclaré ; un tableau, même
+   * vide, remplace la liste entière.
+   */
+  setPermissions: async (guild: string, command: string, roles: string[] | null) => {
+    await request('PUT', `/api/core/permissions?${guildQuery(guild)}`, { command, roles });
+  },
+
+  audit: (guild: string, limit?: number) =>
+    request(
+      'GET',
+      `/api/core/audit?${guildQuery(guild)}${limit ? `&limit=${limit}` : ''}`,
+    ) as Promise<{ entries: AuditEntry[] }>,
 
   logout: async () => {
     await request('POST', '/auth/logout');

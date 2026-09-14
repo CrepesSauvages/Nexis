@@ -3,6 +3,8 @@ import { api, ApiRequestError } from './api/client';
 import type { Guild, GuildResources, Plugin, SessionUser } from './api/types';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { ErrorDrawer } from './components/ErrorDrawer';
+import { PermissionsDrawer } from './components/PermissionsDrawer';
+import { AuditDrawer } from './components/AuditDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { PluginGrid } from './components/PluginGrid';
 import { TopBar } from './components/TopBar';
@@ -32,6 +34,13 @@ export const App = () => {
   // une instance dont l'état (message de purge, entrées) daterait de la
   // précédente ouverture.
   const [errorLogInstance, setErrorLogInstance] = useState(0);
+  // Même mécanisme pour les deux tiroirs de serveur : une instance fraîche à
+  // chaque ouverture, pour qu'aucune modification en attente ni message ne
+  // survive à une fermeture — ni à un changement de serveur.
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionsInstance, setPermissionsInstance] = useState(0);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditInstance, setAuditInstance] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   // Message affiché quand un tiroir de configuration se ferme sur un état
   // périmé (le plugin a disparu entre l'affichage et la soumission).
@@ -102,6 +111,11 @@ export const App = () => {
     setResources({ channels: [], roles: [] });
     setLoadFailed(false);
     setNotice(null);
+    // Les deux tiroirs ci-dessous montrent des données propres au serveur :
+    // les laisser ouverts afficherait celles du précédent sous le nom du
+    // nouveau, le temps d'un rechargement.
+    setPermissionsOpen(false);
+    setAuditOpen(false);
 
     const load = async () => {
       try {
@@ -207,6 +221,14 @@ export const App = () => {
           setErrorLogInstance((n) => n + 1);
           setErrorLogOpen(true);
         }}
+        onOpenPermissions={() => {
+          setPermissionsInstance((n) => n + 1);
+          setPermissionsOpen(true);
+        }}
+        onOpenAudit={() => {
+          setAuditInstance((n) => n + 1);
+          setAuditOpen(true);
+        }}
       />
       {loadFailed ? <p className="error">{t('guild.loadFailed')}</p> : null}
       {notice ? <p className="error">{notice}</p> : null}
@@ -251,6 +273,23 @@ export const App = () => {
         <ErrorDrawer
           key={errorLogInstance}
           onClose={() => setErrorLogOpen(false)}
+          onError={handleError}
+        />
+      ) : null}
+      {permissionsOpen ? (
+        <PermissionsDrawer
+          key={permissionsInstance}
+          guildId={guildId}
+          roles={resources.roles}
+          onClose={() => setPermissionsOpen(false)}
+          onError={handleError}
+        />
+      ) : null}
+      {auditOpen ? (
+        <AuditDrawer
+          key={auditInstance}
+          guildId={guildId}
+          onClose={() => setAuditOpen(false)}
           onError={handleError}
         />
       ) : null}
