@@ -93,6 +93,10 @@ placer un reverse proxy qui termine le TLS devant lui et renseigner
 `DASHBOARD_BASE_URL` avec l'URL publique en `https` — le cookie de session
 devient alors `Secure`.
 
+Les sessions vivent dans le storage configuré et survivent donc aux
+redémarrages. Les périmées sont supprimées à la relecture, et balayées toutes
+les heures pour celles que personne ne relira jamais.
+
 ### API d'administration
 
 | Méthode | Chemin                                 | Rôle                                                        |

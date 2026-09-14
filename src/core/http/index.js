@@ -7,6 +7,10 @@ import { createCoreRoutes } from './core-routes.js';
 import { createRouter } from './router.js';
 import { createHttpServer } from './server.js';
 import { createStaticHandler } from './static.js';
+import { errorMessage } from '../errors.js';
+
+/** Intervalle du balayage des sessions périmées. */
+const SESSION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * Assemble et démarre le dashboard, ou renonce proprement.
@@ -109,5 +113,31 @@ export const startDashboard = async ({
 
   if (!(await server.listen())) return undefined;
   logger.info('Dashboard démarré', { host, port: server.port() });
-  return server;
+
+  const purge = async () => {
+    try {
+      const removed = await sessions.purgeExpired();
+      if (removed > 0) httpLogger.debug('Sessions périmées supprimées', { removed });
+    } catch (error) {
+      // Un balayage raté n'est pas un incident : la prochaine heure
+      // réessaiera, et `get()` continue de nettoyer ce qu'il relit.
+      httpLogger.warn(`Balayage des sessions impossible : ${errorMessage(error)}`);
+    }
+  };
+
+  // Une première passe immédiate : un bot redémarré plus souvent que
+  // l'intervalle ne balaierait jamais autrement.
+  void purge();
+  const purgeTimer = setInterval(() => void purge(), SESSION_PURGE_INTERVAL_MS);
+  // À lui seul, ce minuteur ne doit pas maintenir le process en vie.
+  purgeTimer.unref?.();
+
+  return {
+    ...server,
+    /** Arrête le balayage avant de fermer le serveur. */
+    async close() {
+      clearInterval(purgeTimer);
+      await server.close();
+    },
+  };
 };

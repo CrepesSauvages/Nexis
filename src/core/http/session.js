@@ -85,5 +85,33 @@ export const createSessions = ({ storage, now = Date.now, ttlMs = SESSION_TTL_MS
       if (!id) return;
       await storage.delete(key(id));
     },
+
+    /**
+     * Supprime les sessions périmées.
+     *
+     * Le nettoyage de `get()` est paresseux : il ne touche que ce qu'on
+     * relit. Une session dont personne ne revient — le cas courant, un
+     * administrateur ferme son onglet et ne rouvre pas avant l'expiration —
+     * resterait donc en storage pour toujours. Ce balayage est ce qui rend
+     * cette paresse acceptable.
+     *
+     * @returns {Promise<number>} nombre de sessions supprimées
+     */
+    async purgeExpired() {
+      const current = now();
+      let removed = 0;
+
+      for (const sessionKey of await storage.keys('core:session:')) {
+        const stored = /** @type {StoredSession | undefined} */ (await storage.get(sessionKey));
+        // Une clé sans contenu lisible n'est pas « périmée » : la laisser
+        // plutôt que d'inventer une raison de la supprimer.
+        if (stored && stored.expiresAt <= current) {
+          await storage.delete(sessionKey);
+          removed += 1;
+        }
+      }
+
+      return removed;
+    },
   };
 };

@@ -297,3 +297,61 @@ describe('permissions de commande par serveur', () => {
     expect(await config.getCommandRoles('g1', 'purge')).toEqual(['ailleurs']);
   });
 });
+
+describe('cache borné', () => {
+  it('devrait oublier le serveur le plus anciennement utilisé', async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 2 });
+    await config.setLocale('g1', 'de');
+    await config.setLocale('g2', 'es');
+    await config.setLocale('g3', 'it');
+
+    // g1 est sorti du cache : la lecture repasse par le storage, que l'on
+    // modifie dans son dos pour le prouver.
+    await storage.set('core:guild:g1:locale', 'pl');
+    expect(await config.getLocale('g1')).toBe('pl');
+    // g3, le plus récent, répond toujours depuis le cache.
+    await storage.set('core:guild:g3:locale', 'nl');
+    expect(await config.getLocale('g3')).toBe('it');
+  });
+
+  it('devrait garder en cache un serveur relu récemment', async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 2 });
+    await config.setLocale('g1', 'de');
+    await config.setLocale('g2', 'es');
+    // Relire g1 le remet en tête : c'est g2 qui doit sortir.
+    await config.getLocale('g1');
+    await config.setLocale('g3', 'it');
+
+    await storage.set('core:guild:g1:locale', 'pl');
+    await storage.set('core:guild:g2:locale', 'nl');
+    expect(await config.getLocale('g1')).toBe('de');
+    expect(await config.getLocale('g2')).toBe('nl');
+  });
+
+  it("devrait oublier d'un bloc tout ce qu'il retenait d'un serveur", async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 1 });
+    await config.enable('g1', 'welcome');
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setConfig('g1', 'welcome', { greeting: 'Salut' });
+
+    // Un second serveur évince le premier, entièrement.
+    await config.setLocale('g2', 'de');
+    await storage.set('core:guild:g1:enabled', ['autre']);
+    await storage.set('core:guild:g1:permissions', { purge: ['r9'] });
+    await storage.set('core:guild:g1:config:welcome', { greeting: 'Hello' });
+
+    expect(await config.enabledPlugins('g1')).toEqual(['autre']);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r9']);
+    expect(await config.getConfig('g1', 'welcome', undefined)).toEqual({ greeting: 'Hello' });
+  });
+
+  it('ne devrait pas relire le storage pour une absence de locale déjà connue', async () => {
+    const config = createGuildConfig({ storage });
+    expect(await config.getLocale('g1')).toBeUndefined();
+
+    // La réponse « aucun override » est une réponse : la relire du storage
+    // à chaque interaction serait du travail pour rien.
+    await storage.set('core:guild:g1:locale', 'pl');
+    expect(await config.getLocale('g1')).toBeUndefined();
+  });
+});
