@@ -8,6 +8,7 @@ import { createGuildConfig } from '../../src/core/guild-config.js';
 import { createContext } from '../../src/core/context.js';
 import { createLogger } from '../../src/core/logger.js';
 import { DependencyError } from '../../src/core/errors.js';
+import { registerPluginLocales, translator } from '../../src/core/i18n/index.js';
 
 const noop = () => {};
 /** @type {string} */
@@ -225,5 +226,32 @@ describe('accès privilégié', () => {
       errorReporting: { getRecent },
     });
     expect(ctx.core?.errorReporting?.getRecent).toBe(getRecent);
+  });
+});
+
+describe('ctx.localizations', () => {
+  /** Un contexte dont `t` est le vrai traducteur, comme au démarrage. */
+  const build = () => makeContext(makePlugin('demo'), { t: translator.t });
+
+  it('devrait rendre la carte attendue par discord.js pour une clé du core', () => {
+    const ctx = build();
+    // Le français n'y figure jamais : c'est le texte de base du builder.
+    expect(ctx.localizations('nexis.command.description')).toMatchObject({
+      'en-US': expect.any(String),
+      de: expect.any(String),
+    });
+  });
+
+  it("devrait rendre une carte vide pour une clé qui n'existe pas", () => {
+    expect(build().localizations('rien.de.tel')).toEqual({});
+  });
+
+  it('devrait suivre les mêmes clés que ctx.t', () => {
+    const ctx = build();
+    registerPluginLocales('demo', { en: { greeting: 'Hi' } });
+
+    // Préfixe du plugin compris, des deux côtés : une seule convention.
+    expect(ctx.t('en', 'demo.greeting')).toBe('Hi');
+    expect(ctx.localizations('demo.greeting')).toEqual({ 'en-US': 'Hi' });
   });
 });

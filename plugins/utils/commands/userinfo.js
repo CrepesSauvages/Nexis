@@ -1,5 +1,4 @@
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
-import { localizationsFor } from '../../../src/core/i18n/index.js';
 
 /**
  * Un fichier de `commands/` exporte une fabrique prenant le contexte.
@@ -18,14 +17,14 @@ export default (ctx) => ({
   data: new SlashCommandBuilder()
     .setName('userinfo')
     .setDescription("Affiche les informations de l'utilisateur")
-    .setDescriptionLocalizations(localizationsFor('utils.userinfo.command.description'))
+    .setDescriptionLocalizations(ctx.localizations('utils.userinfo.command.description'))
     .addUserOption((option) =>
       option
         .setName('user')
-        .setNameLocalizations(localizationsFor('utils.userinfo.command.userOption.name'))
+        .setNameLocalizations(ctx.localizations('utils.userinfo.command.userOption.name'))
         .setDescription("L'utilisateur dont vous voulez voir les informations")
         .setDescriptionLocalizations(
-          localizationsFor('utils.userinfo.command.userOption.description'),
+          ctx.localizations('utils.userinfo.command.userOption.description'),
         )
         .setRequired(false),
     ),

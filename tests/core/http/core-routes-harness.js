@@ -33,9 +33,9 @@ export class FakeClient extends EventEmitter {
         cache: new Map([
           [ID, { id: ID, name: 'general', type: 0, rawPosition: 1 }],
           ['c2', { id: 'c2', name: 'annonces', type: 0, rawPosition: 0 }],
-          // Un fil (ThreadChannel) n'a pas de `rawPosition` : `positionOf` le
+          // Un fil (ThreadChannel) n'a pas de `rawPosition` : `guild-access` le
           // compte pour 0, à égalité avec `c2`. Sans ce troisième salon, la
-          // branche `false` du test d'appartenance de `positionOf` n'est
+          // branche `false` du test d'appartenance de la position n'est
           // jamais exercée.
           ['c3', { id: 'c3', name: 'fil-support', type: 11 }],
         ]),

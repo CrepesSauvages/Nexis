@@ -62,6 +62,28 @@ export interface FieldError {
   reason: string;
 }
 
+/**
+ * Une commande déclarée, vue du dashboard. `declared` est le niveau du
+ * plugin ; `roles` la liste qu'un administrateur a définie sur ce serveur,
+ * ou `null` quand il n'en a défini aucune — une liste vide, elle, réserve
+ * la commande aux administrateurs.
+ */
+export interface CommandPermission {
+  name: string;
+  plugin: string;
+  declared: 'guild-admin' | 'owner' | null;
+  roles: string[] | null;
+}
+
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+  details?: Record<string, unknown>;
+}
+
 export interface ErrorLogEntry {
   id: string;
   timestamp: string;

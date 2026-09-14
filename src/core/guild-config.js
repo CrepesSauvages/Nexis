@@ -1,19 +1,69 @@
 /**
+ * Serveurs gardés en cache. Au-delà, le plus anciennement utilisé est
+ * oublié : sans borne, la mémoire croîtrait avec le nombre de serveurs vus
+ * depuis le démarrage, sans jamais rien rendre.
+ */
+const DEFAULT_MAX_CACHED_GUILDS = 500;
+
+/**
  * Plugins activés et configuration, par serveur.
  *
  * Un cache mémoire évite un aller-retour storage à chaque event —
  * le dispatcher consulte cette structure sur chaque message reçu.
  * Toute écriture invalide l'entrée concernée.
  *
- * @param {{ storage: import('./storage/driver.js').StorageDriver }} options
+ * @param {{ storage: import('./storage/driver.js').StorageDriver, maxCachedGuilds?: number, onWrite?: (guildId: string) => void | Promise<void> }} options
  */
-export const createGuildConfig = ({ storage }) => {
-  /** @type {Map<string, string[]>} */
-  const enabledCache = new Map();
-  /** @type {Map<string, Record<string, unknown>>} */
-  const configCache = new Map();
-  /** @type {Map<string, string>} */
-  const localeCache = new Map();
+export const createGuildConfig = ({
+  storage,
+  maxCachedGuilds = DEFAULT_MAX_CACHED_GUILDS,
+  onWrite = undefined,
+}) => {
+  /**
+   * Tout ce qu'on retient d'un serveur, en un seul objet : un serveur
+   * oublié l'est alors entièrement, et `invalidate` se résume à une
+   * suppression. `locale` vaut `null` quand on a lu le storage et qu'il
+   * n'y a pas d'override — distinct de `undefined`, qui veut dire « pas
+   * encore lu ».
+   *
+   * @typedef {object} GuildCache
+   * @property {string[]} [enabled]
+   * @property {string | null} [locale]
+   * @property {Record<string, string[]>} [permissions]
+   * @property {Map<string, Record<string, unknown>>} configs
+   */
+
+  /** @type {Map<string, GuildCache>} */
+  const cache = new Map();
+
+  /**
+   * L'entrée de ce serveur, créée au besoin et remise en fin de Map :
+   * l'ordre d'insertion d'une Map fait office d'ordre d'usage, ce qui
+   * suffit à borner le cache sans structure supplémentaire.
+   *
+   * Oublier un serveur ne coûte qu'une relecture : toute écriture passe
+   * par le storage avant de toucher au cache, jamais l'inverse.
+   *
+   * @param {string} guildId
+   * @returns {GuildCache}
+   */
+  const entryOf = (guildId) => {
+    const existing = cache.get(guildId);
+    if (existing) {
+      cache.delete(guildId);
+      cache.set(guildId, existing);
+      return existing;
+    }
+
+    /** @type {GuildCache} */
+    const fresh = { configs: new Map() };
+    cache.set(guildId, fresh);
+    if (cache.size > maxCachedGuilds) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    return fresh;
+  };
 
   // Une file par serveur. `enable`, `disable` et `setConfig` font un cycle
   // lecture → attente → écriture : sans sérialisation, deux appels simultanés
@@ -47,23 +97,63 @@ export const createGuildConfig = ({ storage }) => {
     return attempt;
   };
 
+  /**
+   * Signale une écriture à l'appelant, s'il l'a demandé. Le point unique
+   * par lequel passent toutes les mutations : un chemin d'écriture ne peut
+   * pas oublier de prévenir.
+   *
+   * Ni l'attente ni l'échec ne remontent : prévenir les autres process est
+   * un effet de bord de l'écriture, pas une condition de sa réussite.
+   *
+   * @param {string} guildId
+   * @returns {void}
+   */
+  const announce = (guildId) => {
+    if (!onWrite) return;
+    try {
+      void Promise.resolve(onWrite(guildId)).catch(() => undefined);
+    } catch {
+      // Un `onWrite` qui lève de façon synchrone ne doit pas faire échouer
+      // une écriture déjà persistée.
+    }
+  };
+
   /** @param {string} guildId */
   const enabledKey = (guildId) => `core:guild:${guildId}:enabled`;
   /** @param {string} guildId @param {string} plugin */
   const configKey = (guildId, plugin) => `core:guild:${guildId}:config:${plugin}`;
   /** @param {string} guildId */
   const localeKey = (guildId) => `core:guild:${guildId}:locale`;
+  /** @param {string} guildId */
+  const permissionsKey = (guildId) => `core:guild:${guildId}:permissions`;
+
+  /**
+   * @param {string} guildId
+   * @returns {Promise<Record<string, string[]>>}
+   */
+  const readPermissions = async (guildId) => {
+    const cached = entryOf(guildId).permissions;
+    if (cached) return cached;
+    const stored = /** @type {Record<string, string[]> | undefined} */ (
+      await storage.get(permissionsKey(guildId))
+    );
+    const table = stored ?? {};
+    // L'entrée est re-résolue après l'attente : elle a pu être évincée
+    // entre-temps, et écrire dans l'ancienne ne servirait à rien.
+    entryOf(guildId).permissions = table;
+    return table;
+  };
 
   /**
    * @param {string} guildId
    * @returns {Promise<string[]>}
    */
   const readEnabled = async (guildId) => {
-    const cached = enabledCache.get(guildId);
+    const cached = entryOf(guildId).enabled;
     if (cached) return cached;
     const stored = /** @type {string[] | undefined} */ (await storage.get(enabledKey(guildId)));
     const list = stored ?? [];
-    enabledCache.set(guildId, list);
+    entryOf(guildId).enabled = list;
     return list;
   };
 
@@ -74,7 +164,8 @@ export const createGuildConfig = ({ storage }) => {
    */
   const writeEnabled = async (guildId, list) => {
     await storage.set(enabledKey(guildId), list);
-    enabledCache.set(guildId, list);
+    entryOf(guildId).enabled = list;
+    announce(guildId);
   };
 
   return {
@@ -129,10 +220,15 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<string | undefined>}
      */
     async getLocale(guildId) {
-      const cached = localeCache.get(guildId);
-      if (cached) return cached;
+      const cached = entryOf(guildId).locale;
+      // `null` est une réponse connue — « pas d'override » — et mérite
+      // d'être retenue autant qu'une langue : sans cela, la majorité des
+      // serveurs, qui n'en fixent aucune, relirait le storage à chaque
+      // interaction.
+      if (cached !== undefined) return cached ?? undefined;
+
       const stored = /** @type {string | undefined} */ (await storage.get(localeKey(guildId)));
-      if (stored) localeCache.set(guildId, stored);
+      entryOf(guildId).locale = stored ?? null;
       return stored;
     },
 
@@ -144,7 +240,8 @@ export const createGuildConfig = ({ storage }) => {
     async setLocale(guildId, locale) {
       return serialize(guildId, async () => {
         await storage.set(localeKey(guildId), locale);
-        localeCache.set(guildId, locale);
+        entryOf(guildId).locale = locale;
+        announce(guildId);
       });
     },
 
@@ -156,11 +253,12 @@ export const createGuildConfig = ({ storage }) => {
      * @returns {Promise<Record<string, unknown>>}
      */
     async getConfig(guildId, plugin, schema) {
-      const key = configKey(guildId, plugin);
-      let stored = configCache.get(key);
+      let stored = entryOf(guildId).configs.get(plugin);
       if (!stored) {
-        stored = /** @type {Record<string, unknown>} */ ((await storage.get(key)) ?? {});
-        configCache.set(key, stored);
+        stored = /** @type {Record<string, unknown>} */ (
+          (await storage.get(configKey(guildId, plugin))) ?? {}
+        );
+        entryOf(guildId).configs.set(plugin, stored);
       }
 
       /** @type {Record<string, unknown>} */
@@ -183,7 +281,54 @@ export const createGuildConfig = ({ storage }) => {
         const current = /** @type {Record<string, unknown>} */ ((await storage.get(key)) ?? {});
         const merged = { ...current, ...values };
         await storage.set(key, merged);
-        configCache.set(key, merged);
+        entryOf(guildId).configs.set(plugin, merged);
+        announce(guildId);
+      });
+    },
+
+    /**
+     * Rôles autorisés à utiliser une commande sur ce serveur, ou `undefined`
+     * si aucun administrateur n'a rien défini pour elle — auquel cas c'est
+     * le niveau déclaré par le plugin qui décide, seul.
+     *
+     * @param {string} guildId
+     * @param {string} command
+     * @returns {Promise<string[] | undefined>}
+     */
+    async getCommandRoles(guildId, command) {
+      const roles = (await readPermissions(guildId))[command];
+      return roles ? [...roles] : undefined;
+    },
+
+    /**
+     * Toutes les surcharges du serveur, pour les afficher d'un bloc.
+     * @param {string} guildId
+     * @returns {Promise<Record<string, string[]>>}
+     */
+    async allCommandRoles(guildId) {
+      return structuredClone(await readPermissions(guildId));
+    },
+
+    /**
+     * Définit — ou retire, avec `undefined` — la surcharge d'une commande.
+     * @param {string} guildId
+     * @param {string} command
+     * @param {string[] | undefined} roles
+     * @returns {Promise<void>}
+     */
+    async setCommandRoles(guildId, command, roles) {
+      return serialize(guildId, async () => {
+        const key = permissionsKey(guildId);
+        const current = /** @type {Record<string, string[]>} */ ((await storage.get(key)) ?? {});
+        const next = { ...current };
+        if (roles === undefined) {
+          delete next[command];
+        } else {
+          next[command] = [...roles];
+        }
+        await storage.set(key, next);
+        entryOf(guildId).permissions = next;
+        announce(guildId);
       });
     },
 
@@ -192,11 +337,7 @@ export const createGuildConfig = ({ storage }) => {
      * @param {string} guildId
      */
     invalidate(guildId) {
-      enabledCache.delete(guildId);
-      localeCache.delete(guildId);
-      for (const key of configCache.keys()) {
-        if (key.startsWith(`core:guild:${guildId}:`)) configCache.delete(key);
-      }
+      cache.delete(guildId);
     },
   };
 };

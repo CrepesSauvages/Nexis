@@ -13,6 +13,8 @@ interface TopBarProps {
   onLocaleChange: (locale: string) => void;
   onLogout: () => void;
   onOpenErrors: () => void;
+  onOpenPermissions: () => void;
+  onOpenAudit: () => void;
 }
 
 export const TopBar = ({
@@ -24,6 +26,8 @@ export const TopBar = ({
   onLocaleChange,
   onLogout,
   onOpenErrors,
+  onOpenPermissions,
+  onOpenAudit,
 }: TopBarProps) => {
   const t = useT();
   return (
@@ -51,6 +55,15 @@ export const TopBar = ({
           ) : null}
           {user.username}
         </span>
+        {/* Ces deux-là ne sont pas réservés au propriétaire : leurs endpoints
+            demandent « Gérer le serveur » sur le serveur affiché, et quiconque
+            voit ce tableau de bord l'a déjà par construction. */}
+        <button type="button" className="ghost" onClick={onOpenPermissions}>
+          {t('topbar.permissions')}
+        </button>
+        <button type="button" className="ghost" onClick={onOpenAudit}>
+          {t('topbar.audit')}
+        </button>
         {/* Réservé au propriétaire du bot : `user.owner` reflète OWNER_ID,
             revérifié côté serveur par `resolveAuth` (auth.js) sur chaque
             appel aux endpoints `owner` — ce bouton n'est qu'un raccourci

@@ -242,3 +242,173 @@ describe('écritures concurrentes', () => {
     expect(await guildConfig.enabledPlugins('g1')).toEqual(['beta']);
   });
 });
+
+describe('permissions de commande par serveur', () => {
+  it("devrait rendre undefined quand aucune surcharge n'est définie", async () => {
+    const config = createGuildConfig({ storage });
+    expect(await config.getCommandRoles('g1', 'purge')).toBeUndefined();
+  });
+
+  it('devrait enregistrer puis relire les rôles autorisés', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1', 'r2']);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r1', 'r2']);
+  });
+
+  it('devrait distinguer une liste vide d’une absence de surcharge', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', []);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual([]);
+  });
+
+  it('devrait retirer la surcharge avec undefined', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setCommandRoles('g1', 'purge', undefined);
+    expect(await config.getCommandRoles('g1', 'purge')).toBeUndefined();
+  });
+
+  it('devrait garder les serveurs indépendants', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    expect(await config.getCommandRoles('g2', 'purge')).toBeUndefined();
+  });
+
+  it('devrait lister toutes les surcharges du serveur', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setCommandRoles('g1', 'lock', []);
+    expect(await config.allCommandRoles('g1')).toEqual({ purge: ['r1'], lock: [] });
+  });
+
+  it('ne devrait pas laisser muter la liste rendue', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    const roles = /** @type {string[]} */ (await config.getCommandRoles('g1', 'purge'));
+    roles.push('intrus');
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r1']);
+  });
+
+  it('devrait relire le storage après invalidate', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await storage.set('core:guild:g1:permissions', { purge: ['ailleurs'] });
+    config.invalidate('g1');
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['ailleurs']);
+  });
+});
+
+describe('cache borné', () => {
+  it('devrait oublier le serveur le plus anciennement utilisé', async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 2 });
+    await config.setLocale('g1', 'de');
+    await config.setLocale('g2', 'es');
+    await config.setLocale('g3', 'it');
+
+    // g1 est sorti du cache : la lecture repasse par le storage, que l'on
+    // modifie dans son dos pour le prouver.
+    await storage.set('core:guild:g1:locale', 'pl');
+    expect(await config.getLocale('g1')).toBe('pl');
+    // g3, le plus récent, répond toujours depuis le cache.
+    await storage.set('core:guild:g3:locale', 'nl');
+    expect(await config.getLocale('g3')).toBe('it');
+  });
+
+  it('devrait garder en cache un serveur relu récemment', async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 2 });
+    await config.setLocale('g1', 'de');
+    await config.setLocale('g2', 'es');
+    // Relire g1 le remet en tête : c'est g2 qui doit sortir.
+    await config.getLocale('g1');
+    await config.setLocale('g3', 'it');
+
+    await storage.set('core:guild:g1:locale', 'pl');
+    await storage.set('core:guild:g2:locale', 'nl');
+    expect(await config.getLocale('g1')).toBe('de');
+    expect(await config.getLocale('g2')).toBe('nl');
+  });
+
+  it("devrait oublier d'un bloc tout ce qu'il retenait d'un serveur", async () => {
+    const config = createGuildConfig({ storage, maxCachedGuilds: 1 });
+    await config.enable('g1', 'welcome');
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setConfig('g1', 'welcome', { greeting: 'Salut' });
+
+    // Un second serveur évince le premier, entièrement.
+    await config.setLocale('g2', 'de');
+    await storage.set('core:guild:g1:enabled', ['autre']);
+    await storage.set('core:guild:g1:permissions', { purge: ['r9'] });
+    await storage.set('core:guild:g1:config:welcome', { greeting: 'Hello' });
+
+    expect(await config.enabledPlugins('g1')).toEqual(['autre']);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r9']);
+    expect(await config.getConfig('g1', 'welcome', undefined)).toEqual({ greeting: 'Hello' });
+  });
+
+  it('ne devrait pas relire le storage pour une absence de locale déjà connue', async () => {
+    const config = createGuildConfig({ storage });
+    expect(await config.getLocale('g1')).toBeUndefined();
+
+    // La réponse « aucun override » est une réponse : la relire du storage
+    // à chaque interaction serait du travail pour rien.
+    await storage.set('core:guild:g1:locale', 'pl');
+    expect(await config.getLocale('g1')).toBeUndefined();
+  });
+});
+
+describe('signalement des écritures', () => {
+  /** @returns {{ config: ReturnType<typeof createGuildConfig>, written: string[] }} */
+  const withHook = () => {
+    /** @type {string[]} */
+    const written = [];
+    const config = createGuildConfig({
+      storage,
+      onWrite: (guildId) => {
+        written.push(guildId);
+      },
+    });
+    return { config, written };
+  };
+
+  it('devrait signaler une activation', async () => {
+    const { config, written } = withHook();
+    await config.enable('g1', 'welcome');
+    expect(written).toEqual(['g1']);
+  });
+
+  it('devrait signaler une écriture de configuration', async () => {
+    const { config, written } = withHook();
+    await config.setConfig('g1', 'welcome', { greeting: 'Salut' });
+    expect(written).toEqual(['g1']);
+  });
+
+  it('devrait signaler un changement de langue et de permissions', async () => {
+    const { config, written } = withHook();
+    await config.setLocale('g1', 'de');
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    expect(written).toEqual(['g1', 'g1']);
+  });
+
+  it("ne devrait rien signaler quand l'écriture est un no-op", async () => {
+    const { config, written } = withHook();
+    await config.enable('g1', 'welcome');
+    // Déjà activé : `enable` rend la main sans écrire.
+    await config.enable('g1', 'welcome');
+    await config.disable('g1', 'absent');
+    expect(written).toEqual(['g1']);
+  });
+
+  it('ne devrait pas faire échouer une écriture si le signal lève', async () => {
+    const config = createGuildConfig({
+      storage,
+      onWrite: () => {
+        throw new Error('bus HS');
+      },
+    });
+
+    // Prévenir les autres process est un effet de bord de l'écriture, pas
+    // une condition de sa réussite.
+    await expect(config.enable('g1', 'welcome')).resolves.toBeUndefined();
+    expect(await config.enabledPlugins('g1')).toEqual(['welcome']);
+  });
+});

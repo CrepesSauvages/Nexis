@@ -33,6 +33,8 @@ const makeCtx = () => ({
    * @param {string} key
    */
   t: (_locale, key) => `[${key}]`,
+  /** @param {string} key */
+  localizations: (key) => ({ 'en-US': `[${key}]` }),
   resolveLocale: async () => 'fr',
 });
 
@@ -84,11 +86,45 @@ describe('plugin moderation — setup()', () => {
     expect(ids.sort()).toEqual(['cancel', 'lock-confirm', 'purge-confirm']);
   });
 
-  it('devrait exiger guild-admin sur chaque component', () => {
+  /**
+   * @param {ReturnType<typeof makeCtx>} ctx
+   * @param {string} customId
+   */
+  const component = (ctx, customId) =>
+    ctx.registerComponent.mock.calls.map((call) => call[0]).find((c) => c.customId === customId);
+
+  it('devrait exiger guild-admin sur les deux confirmations', () => {
+    const ctx = makeCtx();
+    setup(asCtx(ctx));
+    for (const customId of ['purge-confirm', 'lock-confirm']) {
+      expect(component(ctx, customId).permissions).toBe('guild-admin');
+    }
+  });
+
+  it('devrait rattacher chaque confirmation aux permissions de sa commande', () => {
+    // Ouvrir /purge à un rôle de modération doit ouvrir son bouton avec
+    // elle, sans quoi la commande reste inutilisable à mi-chemin.
+    const ctx = makeCtx();
+    setup(asCtx(ctx));
+    expect(component(ctx, 'purge-confirm').permissionsFrom).toBe('purge');
+    expect(component(ctx, 'lock-confirm').permissionsFrom).toBe('lock');
+  });
+
+  it("devrait réserver l'annulation à qui l'a déclenchée, sans niveau déclaré", () => {
+    // `cancel` est partagé par les deux commandes : le rattacher à l'une
+    // serait arbitraire. Annuler n'est pas un acte de modération.
+    const ctx = makeCtx();
+    setup(asCtx(ctx));
+    expect(component(ctx, 'cancel').permissions).toBeUndefined();
+    expect(component(ctx, 'cancel').restrictToInvoker).toBe(true);
+  });
+
+  it('devrait restreindre chaque component à son invocateur et le faire expirer', () => {
     const ctx = makeCtx();
     setup(asCtx(ctx));
     for (const call of ctx.registerComponent.mock.calls) {
-      expect(call[0].permissions).toBe('guild-admin');
+      expect(call[0].restrictToInvoker).toBe(true);
+      expect(call[0].expiresAfter).toBe(120);
     }
   });
 

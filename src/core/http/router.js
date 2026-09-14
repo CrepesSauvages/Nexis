@@ -76,6 +76,7 @@ const isJsonContentType = (header) =>
  * @param {HttpRoute[]} options.routes
  * @param {ReturnType<typeof import('./session.js').createSessions>} options.sessions
  * @param {import('discord.js').Client} options.client
+ * @param {ReturnType<typeof import('../guild-access.js').createGuildAccess>} options.access
  * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
  * @param {string[]} [options.alwaysEnabled]
  * @param {string | undefined} options.ownerId
@@ -87,6 +88,7 @@ export const createRouter = ({
   routes,
   sessions,
   client,
+  access,
   guildConfig,
   alwaysEnabled = [],
   ownerId,
@@ -121,7 +123,7 @@ export const createRouter = ({
       const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
       const session = await sessions.get(sessionId);
       const guildId = url.searchParams.get('guild') ?? undefined;
-      await resolveAuth({ level: route.auth, session, client, guildId, ownerId });
+      await resolveAuth({ level: route.auth, session, client, access, guildId, ownerId });
 
       // Même règle d'activation que pour les commandes, events et jobs
       // (dispatcher.js) : un plugin désactivé sur ce serveur perd sa

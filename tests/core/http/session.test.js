@@ -82,3 +82,43 @@ describe('createSessions', () => {
     await expect(createSessions({ storage }).destroy(undefined)).resolves.toBeUndefined();
   });
 });
+
+describe('purgeExpired', () => {
+  it('devrait supprimer une session périmée', async () => {
+    let clock = 1_000;
+    const sessions = createSessions({ storage, now: () => clock, ttlMs: 100 });
+    const id = await sessions.create(data);
+
+    clock += 200;
+    expect(await sessions.purgeExpired()).toBe(1);
+    expect(await storage.get(`core:session:${id}`)).toBeUndefined();
+  });
+
+  it('devrait épargner une session encore valide', async () => {
+    let clock = 1_000;
+    const sessions = createSessions({ storage, now: () => clock, ttlMs: 10_000 });
+    const id = await sessions.create(data);
+
+    clock += 200;
+    expect(await sessions.purgeExpired()).toBe(0);
+    expect(await sessions.get(id)).toBeDefined();
+  });
+
+  it('devrait ne toucher qu’aux sessions', async () => {
+    const sessions = createSessions({ storage, now: () => 1_000, ttlMs: 1 });
+    await sessions.create(data);
+    await storage.set('core:guild:g1:enabled', ['welcome']);
+
+    await sessions.purgeExpired();
+    expect(await storage.get('core:guild:g1:enabled')).toEqual(['welcome']);
+  });
+
+  it('devrait laisser une clé dont le contenu est illisible', async () => {
+    const sessions = createSessions({ storage, now: () => 1_000 });
+    // Ni périmée ni valide : rien ne justifie de la supprimer.
+    await storage.set('core:session:cassée', null);
+
+    expect(await sessions.purgeExpired()).toBe(0);
+    expect(await storage.keys('core:session:')).toHaveLength(1);
+  });
+});

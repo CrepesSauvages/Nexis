@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRegistries } from '../../../src/core/registry/index.js';
+import { USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU } from '../../../src/core/registry/commands.js';
 import { PluginError } from '../../../src/core/errors.js';
 
 const noop = () => {};
@@ -53,6 +54,127 @@ describe('registre de commandes', () => {
       /** @type {unknown} */ ({ data: { name: 'x' } })
     );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
+  it('devrait accepter une commande slash et un menu contextuel de même nom', () => {
+    const { commands } = createRegistries();
+    commands.add('mod', command('Signaler'));
+    commands.add('mod', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop });
+    expect(commands.all()).toHaveLength(2);
+  });
+
+  it('devrait retrouver un menu contextuel par son type', () => {
+    const { commands } = createRegistries();
+    commands.add('mod', { data: { name: 'Signaler', type: MESSAGE_CONTEXT_MENU }, execute: noop });
+    expect(commands.get('Signaler', MESSAGE_CONTEXT_MENU)).toMatchObject({ plugin: 'mod' });
+    // Les deux autres espaces de noms restent vides.
+    expect(commands.get('Signaler')).toBeUndefined();
+    expect(commands.get('Signaler', USER_CONTEXT_MENU)).toBeUndefined();
+  });
+
+  it('devrait refuser deux menus contextuels de même nom et même type', () => {
+    const { commands } = createRegistries();
+    commands.add('a', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop });
+    expect(() =>
+      commands.add('b', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter un type de commande inconnu', () => {
+    const { commands } = createRegistries();
+    expect(() => commands.add('a', { data: { name: 'x', type: 42 }, execute: noop })).toThrow(
+      PluginError,
+    );
+  });
+
+  it("devrait rejeter une autocomplétion qui n'est pas une fonction", () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ data: { name: 'x' }, execute: noop, autocomplete: 'non' })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
+  it('devrait rejeter un temps de recharge nul ou négatif', () => {
+    const { commands } = createRegistries();
+    expect(() =>
+      commands.add('a', { data: { name: 'x' }, execute: noop, cooldown: { seconds: 0 } }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une portée de recharge inconnue', () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({
+        data: { name: 'x' },
+        execute: noop,
+        cooldown: { seconds: 5, scope: 'serveur' },
+      })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(/[Pp]ortée/);
+  });
+
+  it('devrait accepter les trois portées de recharge', () => {
+    const { commands } = createRegistries();
+    for (const scope of /** @type {const} */ (['user', 'guild', 'channel'])) {
+      commands.add(scope, {
+        data: { name: `cmd-${scope}` },
+        execute: noop,
+        cooldown: { seconds: 5, scope },
+      });
+    }
+    expect(commands.all()).toHaveLength(3);
+  });
+
+  it('devrait rejeter un defer qui ne vaut ni booléen ni "ephemeral"', () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ data: { name: 'x' }, execute: noop, defer: 'plus tard' })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une autocomplétion déclarée sur un menu contextuel', () => {
+    const { commands } = createRegistries();
+    expect(() =>
+      commands.add('a', {
+        data: { name: 'Signaler', type: USER_CONTEXT_MENU },
+        execute: noop,
+        autocomplete: () => [],
+      }),
+    ).toThrow(/autocomplétion/);
+  });
+});
+
+describe('registre de components — propriété et expiration', () => {
+  /** @param {object} extra */
+  const button = (extra) => ({ customId: 'confirm', type: 'button', handler: noop, ...extra });
+
+  it('devrait accepter restrictToInvoker et expiresAfter', () => {
+    const { components } = createRegistries();
+    components.add(
+      'shop',
+      /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+        button({ restrictToInvoker: true, expiresAfter: 60 })
+      ),
+    );
+    expect(components.all()[0]).toMatchObject({ restrictToInvoker: true, expiresAfter: 60 });
+  });
+
+  it("devrait rejeter un restrictToInvoker qui n'est pas un booléen", () => {
+    const { components } = createRegistries();
+    const invalid = /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+      /** @type {unknown} */ (button({ restrictToInvoker: 'oui' }))
+    );
+    expect(() => components.add('shop', invalid)).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une expiration nulle ou négative', () => {
+    const { components } = createRegistries();
+    const invalid = /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+      /** @type {unknown} */ (button({ expiresAfter: 0 }))
+    );
+    expect(() => components.add('shop', invalid)).toThrow(PluginError);
   });
 });
 

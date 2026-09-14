@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Lecture seule : aucune étape ne pousse quoi que ce soit.
+permissions:
+  contents: read
+
+# Un push qui en remplace un autre annule la série précédente sur la même
+# branche ; `main` fait exception, son historique mérite un résultat par
+# commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Une version qui échoue ne doit pas masquer le résultat de l'autre.
+      fail-fast: false
+      matrix:
+        # 22 est le minimum déclaré par `engines`, 24 la version courante.
+        # Le driver sqlite s'appuie sur `node:sqlite` : cette matrice est
+        # ce qui prouve qu'il tient sur les deux.
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `npm ci` déclenche `prepare` (scripts/prepare.js), qui construit
+      # déjà l'interface — mais au mieux, sans faire échouer l'installation.
+      # D'où l'étape `build:web` explicite plus bas : elle, est bloquante.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Types
+        run: npm run check-types
+
+      - name: Tests
+        run: npm test
+
+      - name: Construction de l'interface web
+        run: npm run build:web

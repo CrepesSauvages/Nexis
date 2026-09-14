@@ -1,5 +1,4 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { localizationsFor } from '../../../src/core/i18n/index.js';
 
 /**
  * Un fichier de `commands/` exporte une fabrique prenant le contexte.
@@ -18,12 +17,11 @@ export default (ctx) => ({
   data: new SlashCommandBuilder()
     .setName('ping')
     .setDescription('pong')
-    .setDescriptionLocalizations(localizationsFor('example.ping.command.description')),
+    .setDescriptionLocalizations(ctx.localizations('example.ping.command.description')),
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   async execute(interaction) {
     if (!interaction.inCachedGuild()) return;
-    const { greeting } = await ctx.config(interaction.guildId ?? '');
     const locale = await ctx.resolveLocale(interaction);
 
     const latency = Date.now() - interaction.createdTimestamp;

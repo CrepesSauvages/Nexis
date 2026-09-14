@@ -30,6 +30,8 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 | `PLUGINS_DIR`           | `./plugins`             | Répertoire scanné au démarrage.                                                                                             |
 | `SENTRY_DSN`            | —                       | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
 | `ERROR_LOG_LIMIT`       | `500`                   | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
+| `AUDIT_LOG_LIMIT`       | `200`                   | Nombre de changements conservés **par serveur** (`/nexis audit`).                                                           |
+| `SCHEDULER_TIMEZONE`    | fuseau du système       | Fuseau IANA dans lequel lire les expressions cron des tâches, ex. `Europe/Paris`.                                           |
 | `DISCORD_CLIENT_SECRET` | —                       | Optionnel. Sa présence active le dashboard. Sans lui, aucun port n'est ouvert.                                              |
 | `DASHBOARD_HOST`        | `127.0.0.1`             | Adresse d'écoute du dashboard.                                                                                              |
 | `DASHBOARD_PORT`        | `3000`                  | Port d'écoute du dashboard.                                                                                                 |
@@ -43,6 +45,38 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 2. Renseignez `SENTRY_DSN` dans votre environnement.
 
 Sans ces deux étapes, le bot fonctionne normalement — seul le buffer local (`/nexis errors`) reste actif.
+
+### Ce qui échappe à tout try/catch
+
+Les deux erreurs qu'aucun `catch` n'attrape passent malgré tout par le logger,
+donc par le reporting :
+
+- une **promesse rejetée sans traitement** est journalisée, et le bot continue —
+  une promesse oubliée dans un plugin ne doit pas emporter les autres ;
+- une **exception non interceptée** est journalisée puis fatale : la pile est
+  interrompue au milieu de son travail, l'état du process n'est plus connu.
+
+`SIGINT` et `SIGTERM` déclenchent un arrêt propre — scheduler, dashboard,
+client Discord, storage — borné à 5 secondes : passé ce délai le process sort
+quand même, ce qu'attend tout superviseur (systemd, Docker).
+
+## Journal des changements
+
+Toute écriture d'administration est enregistrée par serveur : activation et
+désactivation de plugin, écriture de configuration, changement de langue,
+règles de permission. Chaque entrée porte son auteur, son horodatage, un code
+d'action stable (`plugin.enable`, `config.update`, `perms.allow`…) et sa cible.
+
+Consultation : `/nexis audit` sur Discord, ou `GET /api/core/audit?guild=<id>`
+— les deux exigent « Gérer le serveur », comme le reste de l'administration.
+
+D'une écriture de configuration, seules les **clés** touchées sont retenues,
+jamais leurs valeurs : un journal n'a pas à devenir une seconde copie de la
+configuration, dont il hériterait la durée de vie sans en hériter les
+précautions.
+
+Le buffer est circulaire — `AUDIT_LOG_LIMIT` entrées par serveur, 200 par
+défaut — et vit dans le storage configuré, donc survit aux redémarrages.
 
 ## Dashboard
 
@@ -59,6 +93,10 @@ placer un reverse proxy qui termine le TLS devant lui et renseigner
 `DASHBOARD_BASE_URL` avec l'URL publique en `https` — le cookie de session
 devient alors `Secure`.
 
+Les sessions vivent dans le storage configuré et survivent donc aux
+redémarrages. Les périmées sont supprimées à la relecture, et balayées toutes
+les heures pour celles que personne ne relira jamais.
+
 ### API d'administration
 
 | Méthode | Chemin                                 | Rôle                                                        |
@@ -69,11 +107,19 @@ devient alors `Secure`.
 | `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                  |
 | `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                  |
 | `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.               |
+| `GET`   | `/api/core/audit?guild=<id>`           | Changements d'administration, les plus récents d'abord.     |
+| `GET`   | `/api/core/permissions?guild=<id>`     | Commandes, niveau déclaré et rôles autorisés.               |
+| `PUT`   | `/api/core/permissions?guild=<id>`     | Corps `{ "command": "...", "roles": ["<id>"] }`.            |
 | `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.            |
 | `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                 |
 
 Tout sauf `/api/core/guilds` exige la permission « Gérer le serveur » sur le
 serveur ciblé, revérifiée auprès de Discord à chaque requête.
+
+Sur `/api/core/permissions`, `roles` remplace la liste entière : un tableau
+vide réserve la commande aux administrateurs, `null` la rend à son niveau
+déclaré. Les commandes réservées au propriétaire du bot sont refusées en `403`
+— leurs permissions ne se délèguent pas à un serveur.
 
 L'écriture de configuration est une fusion partielle : n'envoyez que les champs
 modifiés. Une clé absente du manifeste fait échouer la requête entière en `400`
@@ -93,6 +139,20 @@ s'exécute bien avec `npm ci --omit=dev`, mais il ignore délibérément la
 construction de l'interface dans ce mode — `vite`, nécessaire pour la
 construire, est une devDependency du workspace `web` qui n'y est pas
 installée. La construire manuellement se fait avec `npm run build:web`.
+
+#### Ce que l'interface permet
+
+La grille de plugins couvre l'activation et la configuration. Deux tiroirs
+s'ouvrent depuis la barre du haut :
+
+- **Permissions** — les rôles autorisés, commande par commande. Une commande
+  réservée au propriétaire du bot s'y affiche sans rien à cocher : ses
+  permissions ne se délèguent pas à un serveur.
+- **Journal** — les changements d'administration du serveur, en lecture seule.
+  Pas de purge, contrairement au journal d'erreurs : un journal qu'on peut
+  vider depuis l'interface qu'il surveille ne prouve plus grand-chose.
+
+Le **journal d'erreurs** reste réservé au propriétaire du bot (`OWNER_ID`).
 
 #### Développer l'interface
 
@@ -117,7 +177,7 @@ Nexis traduit ses propres commandes (`/nexis`) dans 8 langues : français, angla
 
 - **Résolution automatique** : chaque utilisateur voit le bot dans sa propre langue Discord (`interaction.locale`), sans configuration.
 - **Override par serveur** : `/nexis locale <langue>` force une langue pour tout le monde sur ce serveur, prioritaire sur la langue individuelle de chacun.
-- **Pour les auteurs de plugins** : `ctx.t(locale, key, params?)` et `ctx.resolveLocale(interaction)` sont disponibles sur tout `ctx`, pas seulement le plugin interne. Voir `plugins/example/commands/hello.js` pour un exemple d'usage, y compris le pluriel (`Intl.PluralRules`, aucune règle à écrire à la main).
+- **Pour les auteurs de plugins** : `ctx.t(locale, key, params?)`, `ctx.localizations(key)` et `ctx.resolveLocale(interaction)` sont disponibles sur tout `ctx`, pas seulement le plugin interne. `ctx.localizations` rend la carte attendue par `setNameLocalizations` / `setDescriptionLocalizations` de discord.js, avec les mêmes clés que `ctx.t` — c'est ainsi qu'un nom ou une description de commande se traduit, sans jamais importer quoi que ce soit de `src/core/`. Voir `plugins/example/commands/hello.js` pour un exemple d'usage, y compris le pluriel (`Intl.PluralRules`, aucune règle à écrire à la main).
 - Les fichiers de traduction du core vivent dans `src/core/i18n/locales/*.json` — une clé absente dans une langue retombe automatiquement sur le français.
 - **Traductions d'un plugin** : un dossier `i18n/<langue>.json` à la racine du plugin (au même niveau que `commands/`/`events/`/`jobs/`) est chargé automatiquement au démarrage, avant `setup()`. Les clés y sont écrites sans préfixe (ex. `"greeting": "Bonjour"`) — Nexis les préfixe lui-même avec le nom du plugin pour éviter toute collision, et elles deviennent utilisables via `ctx.t(locale, '<nom-du-plugin>.greeting')`. Seul `fr.json` est nécessaire ; les langues absentes retombent sur le français du plugin. Voir `plugins/example/i18n/` pour un exemple complet.
 
@@ -131,10 +191,45 @@ Voir **[docs/PLUGINS.md](docs/PLUGINS.md)**, et `plugins/example/` pour un plugi
 | ------------------------- | --------------------------------------------------- |
 | `npm run dev`             | Démarre avec rechargement au changement de fichier. |
 | `npm start`               | Démarre en production.                              |
+| `npm run start:sharded`   | Démarre réparti sur plusieurs shards.               |
 | `npm test`                | Lance la suite Vitest.                              |
 | `npm run lint`            | ESLint avec correction automatique.                 |
+| `npm run lint:check`      | ESLint sans rien modifier — ce que lance la CI.     |
+| `npm run check-types`     | Vérifie les types JSDoc avec `tsc --noEmit`.        |
 | `npm run format`          | Prettier.                                           |
 | `npm run deploy-commands` | Publie les commandes globales vers Discord.         |
+
+## Sharding
+
+Discord impose de répartir un bot sur plusieurs shards au-delà de 2 500
+serveurs, et le rend souhaitable bien avant : un seul process finit par passer
+son temps à traiter la passerelle.
+
+```bash
+npm run start:sharded
+```
+
+Chaque shard est un process à part exécutant `src/index.js` sur une tranche des
+serveurs. Le nombre de shards est demandé à Discord (`auto`) sauf si
+`TOTAL_SHARDS` le fixe.
+
+Trois conséquences, tenues par le core et non par le déploiement :
+
+- **Le storage doit être partageable entre process.** `json` et `sqlite` ne le
+  sont pas — chaque shard en tiendrait sa propre copie et écraserait celle des
+  autres. Le démarrage est refusé, avant de lancer le moindre shard, avec
+  n'importe quel autre driver que `postgres` ou `mongo`.
+- **Le dashboard ne tourne que sur le shard 0**, sans quoi les autres se
+  heurteraient au port déjà pris. Il n'est pas limité à la tranche de ce
+  shard : il interroge les autres quand un serveur n'est pas le sien
+  (`src/core/guild-access.js`).
+- **Une écriture de configuration est annoncée à tous les shards**, dont les
+  caches sont indépendants. Sans ce signal, une modification faite depuis le
+  dashboard laisserait le shard qui sert réellement ce serveur travailler sur
+  les valeurs d'avant.
+
+Les tâches planifiées n'ont rien de particulier à faire : chaque shard itère
+ses propres serveurs, donc chaque serveur est traité exactement une fois.
 
 ## Docker
 

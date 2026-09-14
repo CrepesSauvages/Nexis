@@ -322,4 +322,202 @@ describe('attachComponentDispatcher', () => {
       'This component is no longer available. The message may be too old.',
     );
   });
+
+  describe('permissions héritées d’une commande', () => {
+    it('devrait suivre la surcharge de la commande déclarée par permissionsFrom', async () => {
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        permissions: 'guild-admin',
+        permissionsFrom: 'acheter',
+        handler,
+      });
+      await guildConfig.enable('g1', 'shop');
+      await guildConfig.setCommandRoles('g1', 'acheter', ['mods']);
+      attach();
+
+      client.emit(
+        'interactionCreate',
+        makeInteraction({
+          memberPermissions: { has: () => false },
+          member: { roles: ['mods'] },
+        }),
+      );
+      await flush();
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("devrait s'en tenir au niveau déclaré sans permissionsFrom", async () => {
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        permissions: 'guild-admin',
+        handler,
+      });
+      await guildConfig.enable('g1', 'shop');
+      // La surcharge existe, mais ce composant ne s'y rattache pas.
+      await guildConfig.setCommandRoles('g1', 'acheter', ['mods']);
+      attach();
+
+      const interaction = makeInteraction({
+        memberPermissions: { has: () => false },
+        member: { roles: ['mods'] },
+      });
+      client.emit('interactionCreate', interaction);
+      await flush();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('propriété et expiration', () => {
+    const NOW = 1_000_000;
+
+    /**
+     * Le message qui porte le composant. `interactionMetadata` est ce que
+     * Discord attache à un message né d'une interaction : c'est de là que
+     * vient l'invocateur, sans qu'aucun état n'ait à être conservé.
+     * @param {object} [overrides]
+     */
+    const message = (overrides = {}) => ({
+      createdTimestamp: NOW,
+      interactionMetadata: { user: { id: 'u1' } },
+      ...overrides,
+    });
+
+    /**
+     * @param {object} component
+     * @param {object} [interactionOverrides]
+     * @param {object} [options]
+     */
+    const run = async (component, interactionOverrides = {}, options = {}) => {
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        handler,
+        ...component,
+      });
+      await guildConfig.enable('g1', 'shop');
+      attach({ now: () => NOW, ...options });
+
+      const interaction = makeInteraction({ message: message(), ...interactionOverrides });
+      client.emit('interactionCreate', interaction);
+      await flush();
+      return { handler, interaction };
+    };
+
+    it("devrait laisser l'invocateur utiliser son propre composant", async () => {
+      const { handler } = await run({ restrictToInvoker: true });
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("devrait refuser le composant à quelqu'un d'autre", async () => {
+      const { handler, interaction } = await run(
+        { restrictToInvoker: true },
+        {
+          user: { id: 'u2' },
+        },
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+
+    it("devrait refuser quand le message n'a pas d'invocateur connu", async () => {
+      // Message posté par le plugin lui-même : aucune interaction derrière,
+      // donc aucun propriétaire à comparer. On ferme.
+      const { handler } = await run(
+        { restrictToInvoker: true },
+        {
+          message: message({ interactionMetadata: null }),
+        },
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('devrait laisser passer un composant encore valide', async () => {
+      const { handler } = await run(
+        { expiresAfter: 60 },
+        {
+          message: message({ createdTimestamp: NOW - 59_000 }),
+        },
+      );
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it('devrait refuser un composant expiré', async () => {
+      const { handler, interaction } = await run(
+        { expiresAfter: 60 },
+        {
+          message: message({ createdTimestamp: NOW - 61_000 }),
+        },
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+
+    it('devrait traduire le refus de propriété', async () => {
+      const { interaction } = await run(
+        { restrictToInvoker: true },
+        { user: { id: 'u2' }, locale: 'en-US' },
+        { t: translator.t },
+      );
+
+      expect(interaction.reply.mock.calls[0][0].content).toBe("This component isn't for you.");
+    });
+
+    it("devrait traduire le refus d'expiration", async () => {
+      const { interaction } = await run(
+        { expiresAfter: 60 },
+        { message: message({ createdTimestamp: NOW - 120_000 }), locale: 'en-US' },
+        { t: translator.t },
+      );
+
+      expect(interaction.reply.mock.calls[0][0].content).toBe('This component has expired.');
+    });
+
+    it('ne devrait vérifier ni propriété ni expiration sur un modal', async () => {
+      // Un modal n'est visible que de qui l'a ouvert, et n'a pas toujours de
+      // message : les deux contrôles n'ont rien à vérifier.
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'form',
+        type: 'modal',
+        handler,
+        restrictToInvoker: true,
+        expiresAfter: 1,
+      });
+      await guildConfig.enable('g1', 'shop');
+      attach({ now: () => NOW });
+
+      client.emit(
+        'interactionCreate',
+        makeInteraction({
+          isButton: () => false,
+          isModalSubmit: () => true,
+          customId: 'shop:form',
+          user: { id: 'u2' },
+          message: null,
+        }),
+      );
+      await flush();
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it('ne devrait rien vérifier quand le composant ne déclare aucune des deux', async () => {
+      const { handler } = await run({}, { user: { id: 'u2' }, message: null });
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+  });
 });

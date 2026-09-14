@@ -6,6 +6,8 @@ import { createLogger } from './core/logger.js';
 import { createStorage } from './core/storage/index.js';
 import { createRegistries } from './core/registry/index.js';
 import { createGuildConfig } from './core/guild-config.js';
+import { createAudit } from './core/audit.js';
+import { GUILD_CONFIG_CHANGED, announceGuildConfigChange } from './core/shard-bus.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
 import { createErrorReporting } from './core/reporting/index.js';
@@ -16,7 +18,10 @@ import {
   attachEventDispatcher,
   attachCommandDispatcher,
   attachComponentDispatcher,
+  attachAutocompleteDispatcher,
 } from './core/dispatcher.js';
+import { installProcessGuards } from './core/process-guards.js';
+import { errorMessage, errorStack } from './core/errors.js';
 import { createScheduler } from './core/scheduler.js';
 import { createCommandSync } from './core/command-sync.js';
 import { applyConventions } from './core/conventions.js';
@@ -32,6 +37,7 @@ export const ALWAYS_ENABLED = ['core'];
  * @property {import('./core/logger.js').Logger} logger
  * @property {import('./core/registry/index.js').Registries} registries
  * @property {ReturnType<typeof createGuildConfig>} guildConfig
+ * @property {ReturnType<typeof createAudit>} audit
  * @property {import('./core/loader.js').LoadedPlugin[]} plugins
  * @property {Map<string, import('./core/context.js').PluginContext>} contexts
  * @property {ReturnType<typeof createScheduler>} scheduler
@@ -77,7 +83,16 @@ export const bootstrap = async ({
   logger.info('Démarrage de Nexis');
 
   const registries = createRegistries();
-  const guildConfig = createGuildConfig({ storage });
+
+  // Déclaré avant `guildConfig` : son `onWrite` doit pouvoir joindre le
+  // client, qui n'existe qu'après le `setup()` des plugins.
+  const clientRef = { current: /** @type {import('discord.js').Client | null} */ (null) };
+
+  const guildConfig = createGuildConfig({
+    storage,
+    onWrite: (guildId) => announceGuildConfigChange(clientRef.current, guildId),
+  });
+  const audit = createAudit({ storage, limit: config.auditLogLimit });
   const plugins = await loadPlugins({ dir: config.pluginsDir, logger });
 
   // Le client doit exister avant setup() — les plugins le reçoivent dans
@@ -85,6 +100,7 @@ export const bootstrap = async ({
   // crée le client avec la liste finale : setup() ne doit pas s'en servir
   // pour émettre, seulement le mémoriser.
   const contexts = new Map();
+
   const commandSync = createCommandSync({
     rest: restFactory(config.token),
     clientId: config.clientId,
@@ -96,7 +112,6 @@ export const bootstrap = async ({
 
   /** @type {import('./core/loader.js').LoadedPlugin[]} */
   const active = [];
-  const clientRef = { current: /** @type {import('discord.js').Client | null} */ (null) };
   // ctx.client pendant setup() n'accepte qu'un seul usage : le mémoriser tel
   // quel (`const client = ctx.client`) pour s'en servir plus tard. Lire une
   // de ses propriétés pendant setup() capture `undefined` pour toujours (le
@@ -138,6 +153,7 @@ export const bootstrap = async ({
       alwaysEnabled: ALWAYS_ENABLED,
       ownerId: config.ownerId,
       errorReporting: { getRecent: errorReporting.getRecent },
+      audit,
       t: translator.t,
     });
 
@@ -159,6 +175,24 @@ export const bootstrap = async ({
   const allowsDM = active.some((plugin) => plugin.manifest.allowDM === true);
   const client = clientFactory({ eventNames: registries.events.eventNames(), allowsDM });
   clientRef.current = client;
+
+  // `error` est le seul event dont l'absence d'écouteur est fatale : un
+  // EventEmitter qui l'émet sans personne pour l'entendre lève. discord.js
+  // s'en sert pour les incidents de passerelle, précisément le moment où
+  // planter serait le plus dommageable. Ce listener ne prive aucun plugin
+  // du sien : plusieurs écouteurs coexistent sur un même event.
+  // Une écriture faite sur un autre shard périme notre cache : sans cette
+  // écoute, le shard qui sert un serveur continuerait de lire les valeurs
+  // d'avant une modification faite depuis le dashboard.
+  client.on(GUILD_CONFIG_CHANGED, (/** @type {string} */ guildId) => {
+    guildConfig.invalidate(guildId);
+  });
+
+  client.on('error', (error) => {
+    logger.error(`Erreur du client Discord : ${errorMessage(error)}`, {
+      stack: errorStack(error),
+    });
+  });
 
   attachEventDispatcher({
     client,
@@ -191,6 +225,16 @@ export const bootstrap = async ({
     t: translator.t,
   });
 
+  attachAutocompleteDispatcher({
+    client,
+    contexts,
+    registries,
+    guildConfig,
+    logger,
+    alwaysEnabled: ALWAYS_ENABLED,
+    ownerId: config.ownerId,
+  });
+
   const scheduler = createScheduler({
     plugins: active,
     registries,
@@ -198,6 +242,7 @@ export const bootstrap = async ({
     client,
     logger,
     alwaysEnabled: ALWAYS_ENABLED,
+    timezone: config.schedulerTimezone,
   });
   scheduler.start();
 
@@ -212,6 +257,19 @@ export const bootstrap = async ({
     .all()
     .filter((route) => activePluginNames.has(route.plugin));
 
+  // Même filtre pour les commandes : l'API de permissions ne doit pas
+  // proposer de régler les droits d'une commande qu'aucun plugin actif ne
+  // sert. Réduites ici à ce dont les règles ont besoin — le dashboard n'a
+  // que faire des builders discord.js.
+  const activeCommands = registries.commands
+    .all()
+    .filter(({ plugin }) => activePluginNames.has(plugin))
+    .map(({ plugin, command }) => ({
+      name: command.data.name,
+      plugin,
+      permissions: command.permissions,
+    }));
+
   // Après les registres et le client : le routeur a besoin de la liste
   // complète des routes, et l'autorisation a besoin du client.
   const http = await startDashboard({
@@ -223,10 +281,12 @@ export const bootstrap = async ({
     client,
     logger,
     plugins: active,
+    commands: activeCommands,
     commandSync,
-    // Même paire que celle donnée au contexte des plugins ci-dessus (ligne
-    // 140) : le dashboard n'a pas besoin de reportAll(), seulement de lire
-    // et de vider le journal local.
+    audit,
+    // Même paire que celle donnée au contexte des plugins ci-dessus : le
+    // dashboard n'a pas besoin de reportAll(), seulement de lire et de
+    // vider le journal local.
     errorReporting: { getRecent: errorReporting.getRecent, clear: errorReporting.clear },
     fetchImpl,
   });
@@ -246,6 +306,7 @@ export const bootstrap = async ({
     logger,
     registries,
     guildConfig,
+    audit,
     plugins: active,
     contexts,
     scheduler,
@@ -266,16 +327,10 @@ export const bootstrap = async ({
 const main = async () => {
   loadDotenv();
   const app = await bootstrap();
+  // Posés avant `login()` : la connexion à la passerelle est déjà du
+  // travail asynchrone susceptible d'échouer hors de tout try/catch.
+  installProcessGuards({ logger: app.logger, shutdown: app.shutdown });
   await app.client.login(app.config.token);
-
-  /** @param {string} signal */
-  const stop = async (signal) => {
-    app.logger.info(`Signal reçu, arrêt en cours`, { signal });
-    await app.shutdown();
-    process.exit(0);
-  };
-  process.on('SIGINT', () => stop('SIGINT'));
-  process.on('SIGTERM', () => stop('SIGTERM'));
 };
 
 // Ne démarre le bot que si ce fichier est le point d'entrée du processus.

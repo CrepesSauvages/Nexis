@@ -19,6 +19,8 @@ const props = {
   onLocaleChange: vi.fn(),
   onLogout: vi.fn(),
   onOpenErrors: vi.fn(),
+  onOpenPermissions: vi.fn(),
+  onOpenAudit: vi.fn(),
 };
 
 describe('TopBar', () => {
@@ -51,5 +53,28 @@ describe('TopBar', () => {
     render(<TopBar {...props} user={{ ...user, owner: true }} onOpenErrors={onOpenErrors} />);
     await userEvent.click(screen.getByRole('button', { name: "Journal d'erreurs" }));
     expect(onOpenErrors).toHaveBeenCalled();
+  });
+
+  it('devrait ouvrir les permissions', async () => {
+    const onOpenPermissions = vi.fn();
+    render(<TopBar {...props} onOpenPermissions={onOpenPermissions} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Permissions' }));
+    expect(onOpenPermissions).toHaveBeenCalled();
+  });
+
+  it('devrait ouvrir le journal des changements', async () => {
+    const onOpenAudit = vi.fn();
+    render(<TopBar {...props} onOpenAudit={onOpenAudit} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Journal' }));
+    expect(onOpenAudit).toHaveBeenCalled();
+  });
+
+  it('devrait offrir permissions et journal à un non-propriétaire', () => {
+    // Leurs endpoints demandent « Gérer le serveur » sur le serveur affiché,
+    // pas d'être propriétaire du bot : les réserver serait une restriction
+    // que le serveur ne fait pas.
+    render(<TopBar {...props} user={{ ...user, owner: false }} />);
+    expect(screen.getByRole('button', { name: 'Permissions' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Journal' })).toBeInTheDocument();
   });
 });

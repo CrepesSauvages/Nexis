@@ -1,4 +1,24 @@
-import { Routes } from 'discord.js';
+import { PermissionFlagsBits, Routes } from 'discord.js';
+
+/**
+ * Permission Discord posée d'office selon le niveau déclaré par la commande.
+ *
+ * Sans elle, `permissions` n'était vérifié qu'à l'exécution : la commande
+ * s'affichait dans le sélecteur de tout le monde et ne refusait qu'au
+ * moment du clic. Le niveau déclaré est déjà la bonne information — il
+ * suffisait de la donner aussi à Discord.
+ *
+ * « 0 » masque une commande de propriétaire à tous les membres. Un
+ * administrateur du serveur peut la réafficher depuis les réglages
+ * d'intégration ; le dispatcher, lui, continue de ne l'exécuter que pour
+ * le propriétaire du bot, et c'est là que se joue la sécurité.
+ *
+ * @type {Record<string, string>}
+ */
+const DEFAULT_MEMBER_PERMISSIONS = {
+  'guild-admin': PermissionFlagsBits.ManageGuild.toString(),
+  owner: '0',
+};
 
 /**
  * @typedef {object} CommandDataWithJSON
@@ -45,9 +65,23 @@ export const createCommandSync = ({
    * @returns {unknown[]}
    */
   const toJSON = (entries) =>
-    entries.map(({ command }) =>
-      typeof command.data.toJSON === 'function' ? command.data.toJSON() : command.data,
-    );
+    entries.map(({ command }) => {
+      const json = /** @type {Record<string, unknown>} */ (
+        typeof command.data.toJSON === 'function' ? command.data.toJSON() : { ...command.data }
+      );
+
+      // Un plugin qui a posé lui-même `setDefaultMemberPermissions` garde
+      // son choix : le niveau déclaré ne fait que combler un silence, il ne
+      // se substitue pas à une décision explicite.
+      const fallback = command.permissions
+        ? DEFAULT_MEMBER_PERMISSIONS[command.permissions]
+        : undefined;
+      const declared = json.default_member_permissions;
+      if (fallback !== undefined && (declared === undefined || declared === null)) {
+        json.default_member_permissions = fallback;
+      }
+      return json;
+    });
 
   /**
    * @param {string} route

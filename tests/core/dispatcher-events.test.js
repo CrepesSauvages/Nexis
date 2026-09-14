@@ -214,3 +214,60 @@ describe('attachEventDispatcher', () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 });
+
+describe('exécution parallèle des handlers', () => {
+  /** @param {object} [overrides] */
+  const attach = (overrides = {}) =>
+    attachEventDispatcher({
+      client: asClient(),
+      plugins: [makePlugin('lent'), makePlugin('rapide'), makePlugin('a')],
+      registries,
+      guildConfig,
+      logger: silent(),
+      ...overrides,
+    });
+
+  it('ne devrait pas faire attendre un plugin derrière un plugin lent', async () => {
+    /** @type {string[]} */
+    const order = [];
+    const lent = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      order.push('lent');
+    });
+    const rapide = vi.fn(async () => {
+      order.push('rapide');
+    });
+    registries.events.add('lent', 'guildMemberAdd', lent);
+    registries.events.add('rapide', 'guildMemberAdd', rapide);
+    await guildConfig.enable('g1', 'lent');
+    await guildConfig.enable('g1', 'rapide');
+    attach();
+
+    client.emit('guildMemberAdd', { guild: { id: 'g1' } });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Déclaré en second, terminé en premier : les deux ont démarré ensemble.
+    expect(order).toEqual(['rapide', 'lent']);
+  });
+
+  it("devrait fermer et journaliser quand la vérification d'activation échoue", async () => {
+    const handler = vi.fn();
+    registries.events.add('a', 'guildMemberAdd', handler);
+    const logger = { ...silent(), error: vi.fn() };
+    attach({
+      guildConfig: {
+        ...guildConfig,
+        isEnabled: () => Promise.reject(new Error('storage HS')),
+      },
+      logger: /** @type {never} */ (logger),
+    });
+
+    client.emit('guildMemberAdd', { guild: { id: 'g1' } });
+    await flush();
+    await flush();
+
+    // Un rejet ici tuait le listener sans que personne ne l'apprenne.
+    expect(handler).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledOnce();
+  });
+});

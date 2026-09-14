@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { resolveAuth } from '../../../src/core/http/auth.js';
+import { createGuildAccess } from '../../../src/core/guild-access.js';
 
 /** @type {import('../../../src/core/http/session.js').StoredSession} */
 const session = {
@@ -21,6 +22,19 @@ const fakeClient = (guilds = {}) =>
     /** @type {unknown} */ ({ guilds: { cache: new Map(Object.entries(guilds)) } })
   );
 
+/**
+ * Le client et l'accès qui en dérive, d'un seul geste : `resolveAuth` lit
+ * la disponibilité sur le premier et le serveur par le second. Le vrai
+ * `createGuildAccess` est utilisé — sans shard, il retombe sur le cache
+ * local, exactement ce que ces tests exercent.
+ *
+ * @param {Record<string, unknown>} [guilds]
+ */
+const withClient = (guilds = {}) => {
+  const client = fakeClient(guilds);
+  return { client, access: createGuildAccess(client) };
+};
+
 /** @param {boolean} manageGuild */
 const guildWithMember = (manageGuild) => ({
   members: { fetch: vi.fn().mockResolvedValue({ permissions: { has: () => manageGuild } }) },
@@ -36,7 +50,7 @@ describe('niveau inconnu', () => {
       resolveAuth({
         level: 'invente',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: undefined,
       }),
@@ -50,7 +64,7 @@ describe('niveau public', () => {
       resolveAuth({
         level: 'public',
         session: undefined,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: undefined,
       }),
@@ -64,7 +78,7 @@ describe('session requise', () => {
       resolveAuth({
         level: 'guild-admin',
         session: undefined,
-        client: fakeClient(),
+        ...withClient(),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -78,7 +92,7 @@ describe('niveau owner', () => {
       resolveAuth({
         level: 'owner',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: 'u1',
       }),
@@ -90,7 +104,7 @@ describe('niveau owner', () => {
       resolveAuth({
         level: 'owner',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: 'autre',
       }),
@@ -102,7 +116,7 @@ describe('niveau owner', () => {
       resolveAuth({
         level: 'owner',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: undefined,
       }),
@@ -116,7 +130,14 @@ describe('client Discord pas encore connecté', () => {
       /** @type {unknown} */ ({ isReady: () => false, guilds: { cache: new Map() } })
     );
     await expect(
-      resolveAuth({ level: 'guild-member', session, client, guildId: 'g1', ownerId: undefined }),
+      resolveAuth({
+        level: 'guild-member',
+        session,
+        client,
+        access: createGuildAccess(client),
+        guildId: 'g1',
+        ownerId: undefined,
+      }),
     ).rejects.toMatchObject({ status: 503 });
   });
 });
@@ -127,7 +148,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-member',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: undefined,
         ownerId: undefined,
       }),
@@ -139,7 +160,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-member',
         session,
-        client: fakeClient(),
+        ...withClient(),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -151,7 +172,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-member',
         session,
-        client: fakeClient({ g1: guildWithoutMember() }),
+        ...withClient({ g1: guildWithoutMember() }),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -163,7 +184,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-member',
         session,
-        client: fakeClient({ g1: guildWithMember(false) }),
+        ...withClient({ g1: guildWithMember(false) }),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -175,7 +196,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-admin',
         session,
-        client: fakeClient({ g1: guildWithMember(false) }),
+        ...withClient({ g1: guildWithMember(false) }),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -187,7 +208,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-admin',
         session,
-        client: fakeClient({ g1: guildWithMember(true) }),
+        ...withClient({ g1: guildWithMember(true) }),
         guildId: 'g1',
         ownerId: undefined,
       }),
@@ -200,7 +221,7 @@ describe('niveaux liés à un serveur', () => {
       resolveAuth({
         level: 'guild-admin',
         session: stale,
-        client: fakeClient({ g1: guildWithMember(false) }),
+        ...withClient({ g1: guildWithMember(false) }),
         guildId: 'g1',
         ownerId: undefined,
       }),

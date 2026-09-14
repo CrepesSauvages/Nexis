@@ -2,13 +2,15 @@ import { HttpError } from '../errors.js';
 import { sendJson } from './request.js';
 import { validateConfigValues } from '../config-schema.js';
 import { SUPPORTED_LOCALES } from '../i18n/index.js';
+import { checkRoles } from '../command-perms.js';
 import {
+  ROLE_ERRORS,
   canManageGuild,
   localizeSchema,
   localizeText,
   parseErrorLogLimit,
   pluginNameFrom,
-  positionOf,
+  sendPermsRefusal,
   sendRefusal,
 } from './core-routes-helpers.js';
 
@@ -25,18 +27,22 @@ import {
  * @param {import('../loader.js').LoadedPlugin[]} options.plugins
  * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
  * @param {ReturnType<typeof import('../plugin-admin.js').createPluginAdmin>} options.admin
- * @param {import('discord.js').Client} options.client
+ * @param {ReturnType<typeof import('../command-perms.js').createCommandPerms>} options.perms
+ * @param {ReturnType<typeof import('../guild-access.js').createGuildAccess>} options.access
  * @param {string[]} options.alwaysEnabled
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
+ * @param {ReturnType<typeof import('../audit.js').createAudit>} options.audit
  * @returns {import('./router.js').HttpRoute[]}
  */
 export const createCoreRoutes = ({
   plugins,
   guildConfig,
   admin,
-  client,
+  perms,
+  access,
   alwaysEnabled,
   errorReporting,
+  audit,
 }) => [
   {
     method: 'GET',
@@ -45,7 +51,7 @@ export const createCoreRoutes = ({
     // et vérifie lui-même la session, faute d'un niveau « connecté, sans
     // serveur ciblé » parmi les quatre que le registre accepte.
     auth: 'public',
-    handler: (_params, { session }) => {
+    handler: async (_params, { session }) => {
       if (!session) throw new HttpError(401, 'Authentification requise');
 
       // `session.guilds` date du login. C'est le seul usage que la conception
@@ -53,9 +59,13 @@ export const createCoreRoutes = ({
       // revérifiée auprès de Discord à chaque requête, donc un administrateur
       // rétrogradé voit peut-être un serveur de trop, mais reçoit un 403 dès
       // qu'il le touche.
-      return session.guilds
-        .filter((guild) => client.guilds.cache.has(guild.id))
-        .filter((guild) => canManageGuild(guild.permissions))
+      const manageable = session.guilds.filter((guild) => canManageGuild(guild.permissions));
+      // Une seule diffusion pour toute la liste : la poser serveur par
+      // serveur coûterait un aller-retour inter-shard par ligne.
+      const served = await access.present(manageable.map((guild) => guild.id));
+
+      return manageable
+        .filter((guild) => served.has(guild.id))
         .map(({ id, name, icon }) => ({ id, name, icon }));
     },
   },
@@ -93,25 +103,23 @@ export const createCoreRoutes = ({
     method: 'GET',
     path: '/api/core/guild-resources',
     auth: 'guild-admin',
-    handler: ({ guildId }) => {
-      const guild = client.guilds.cache.get(/** @type {string} */ (guildId));
-      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+    handler: async ({ guildId }) => {
+      // Lu dans le cache du shard qui sert ce serveur : aucun appel réseau
+      // à Discord. Les salons ne sont pas filtrés par type —
+      // `validateConfigValues` accepte n'importe quel identifiant connu du
+      // serveur, la liste rendue doit couvrir exactement le même ensemble.
+      const resources = await access.resources(/** @type {string} */ (guildId));
+      if (!resources) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 
-      // Tout est déjà en cache : aucun appel réseau à Discord. Les salons ne
-      // sont pas filtrés par type — `validateConfigValues` accepte n'importe
-      // quel identifiant présent dans `channels.cache`, la liste rendue doit
-      // donc couvrir exactement le même ensemble.
-      const channels = [...guild.channels.cache.values()]
-        // Un fil n'a pas de `rawPosition` : il compte pour 0.
-        .sort((a, b) => positionOf(a) - positionOf(b))
-        .map((channel) => ({ id: channel.id, name: channel.name, type: channel.type }));
-
-      // Hiérarchie Discord : le rôle le plus haut d'abord.
-      const roles = [...guild.roles.cache.values()]
-        .sort((a, b) => b.position - a.position)
-        .map((role) => ({ id: role.id, name: role.name, color: role.hexColor }));
-
-      return { channels, roles };
+      return {
+        channels: resources.channels
+          .sort((a, b) => a.position - b.position)
+          .map(({ id, name, type }) => ({ id, name, type })),
+        // Hiérarchie Discord : le rôle le plus haut d'abord.
+        roles: resources.roles
+          .sort((a, b) => b.position - a.position)
+          .map(({ id, name, color }) => ({ id, name, color })),
+      };
     },
   },
 
@@ -119,8 +127,12 @@ export const createCoreRoutes = ({
     method: 'POST',
     path: '/api/core/plugins/enable',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
-      const result = await admin.enable(/** @type {string} */ (guildId), pluginNameFrom(body));
+    handler: async ({ guildId, body, user }, { res }) => {
+      const result = await admin.enable(
+        /** @type {string} */ (guildId),
+        pluginNameFrom(body),
+        user?.id,
+      );
       return result.ok ? { ok: true } : sendRefusal(res, result);
     },
   },
@@ -129,8 +141,12 @@ export const createCoreRoutes = ({
     method: 'POST',
     path: '/api/core/plugins/disable',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
-      const result = await admin.disable(/** @type {string} */ (guildId), pluginNameFrom(body));
+    handler: async ({ guildId, body, user }, { res }) => {
+      const result = await admin.disable(
+        /** @type {string} */ (guildId),
+        pluginNameFrom(body),
+        user?.id,
+      );
       return result.ok ? { ok: true } : sendRefusal(res, result);
     },
   },
@@ -139,7 +155,7 @@ export const createCoreRoutes = ({
     method: 'PATCH',
     path: '/api/core/config',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
+    handler: async ({ guildId, body, user }, { res }) => {
       const name = pluginNameFrom(body);
       const { values } = /** @type {{ values?: unknown }} */ (body ?? {});
       if (!values || typeof values !== 'object' || Array.isArray(values)) {
@@ -150,8 +166,9 @@ export const createCoreRoutes = ({
       if (!plugin) throw new HttpError(404, 'Plugin introuvable');
 
       const id = /** @type {string} */ (guildId);
-      const guild = client.guilds.cache.get(id);
-      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+      if (!(await access.present([id])).has(id)) {
+        throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+      }
 
       // La validation des champs obligatoires raisonne sur le résultat de la
       // fusion, pas sur le corps seul : un champ déjà stocké et non mentionné
@@ -160,7 +177,7 @@ export const createCoreRoutes = ({
       const result = await validateConfigValues({
         schema: plugin.manifest.config,
         values: /** @type {Record<string, unknown>} */ (values),
-        guild,
+        exists: (type, reference) => access.exists(id, type, reference),
         current,
       });
       if (!result.ok) {
@@ -175,6 +192,15 @@ export const createCoreRoutes = ({
       // pas. La validation ayant tout contrôlé avant d'arriver ici, l'écriture
       // est soit complète, soit inexistante.
       await guildConfig.setConfig(id, name, result.values);
+      // Les clés, pas les valeurs : un journal n'a pas à devenir une
+      // seconde copie de la configuration.
+      await audit.record({
+        guildId: id,
+        actor: user?.id ?? 'inconnu',
+        action: 'config.update',
+        target: name,
+        details: { keys: Object.keys(result.values) },
+      });
       return { ok: true, config: await guildConfig.getConfig(id, name, plugin.manifest.config) };
     },
   },
@@ -196,7 +222,7 @@ export const createCoreRoutes = ({
     method: 'PUT',
     path: '/api/core/locale',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
+    handler: async ({ guildId, body, user }, { res }) => {
       const { locale } = /** @type {{ locale?: unknown }} */ (body ?? {});
       if (typeof locale !== 'string' || !SUPPORTED_LOCALES.includes(locale)) {
         sendJson(res, 400, {
@@ -206,8 +232,73 @@ export const createCoreRoutes = ({
         return undefined;
       }
       await guildConfig.setLocale(/** @type {string} */ (guildId), locale);
+      await audit.record({
+        guildId: /** @type {string} */ (guildId),
+        actor: user?.id ?? 'inconnu',
+        action: 'locale.set',
+        target: locale,
+      });
       return { ok: true, locale };
     },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/permissions',
+    auth: 'guild-admin',
+    handler: async ({ guildId }) => ({
+      commands: await perms.list(/** @type {string} */ (guildId)),
+    }),
+  },
+
+  {
+    method: 'PUT',
+    path: '/api/core/permissions',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body, user }, { res }) => {
+      const { command, roles } = /** @type {{ command?: unknown, roles?: unknown }} */ (body ?? {});
+      if (typeof command !== 'string' || command.length === 0) {
+        throw new HttpError(400, 'Champ `command` manquant ou vide');
+      }
+
+      const id = /** @type {string} */ (guildId);
+
+      // `null` rend la commande à son niveau déclaré ; un tableau remplace
+      // la liste entière. La nuance compte : une liste vide ne « retire pas
+      // la règle », elle réserve la commande aux administrateurs.
+      if (roles !== null) {
+        const known = await access.resources(id);
+        if (!known) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+
+        const ids = new Set(known.roles.map((role) => role.id));
+        const invalid = checkRoles(roles, (roleId) => ids.has(roleId));
+        if (invalid) {
+          sendJson(res, 400, { error: ROLE_ERRORS[invalid], reason: invalid });
+          return undefined;
+        }
+      }
+
+      const result = await perms.set(
+        id,
+        command,
+        roles === null ? undefined : /** @type {string[]} */ (roles),
+        user?.id,
+      );
+      return result.ok
+        ? { ok: true, command, roles: result.roles ?? null }
+        : sendPermsRefusal(res, result);
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/audit',
+    // Un administrateur de serveur lit le journal de SON serveur : c'est
+    // lui qui a besoin de savoir qui a changé quoi chez lui.
+    auth: 'guild-admin',
+    handler: async ({ guildId, query }) => ({
+      entries: await audit.recent(/** @type {string} */ (guildId), parseErrorLogLimit(query.limit)),
+    }),
   },
 
   {

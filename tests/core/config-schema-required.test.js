@@ -1,27 +1,25 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { validateConfigValues } from '../../src/core/config-schema.js';
 
 /**
- * Faux serveur réduit à ce que la validation consulte.
+ * Doublure de `exists` : le contenu du serveur réduit à ce que la
+ * validation consulte. Une fonction plutôt qu'un objet `Guild` — c'est ce
+ * que `validateConfigValues` demande depuis qu'elle ne suppose plus le
+ * serveur servi par ce process.
+ *
  * @param {{ channels?: string[], roles?: string[], members?: string[] }} [contents]
- * @returns {import('discord.js').Guild}
+ * @returns {(type: 'channel' | 'role' | 'user', id: string) => Promise<boolean>}
  */
-const fakeGuild = ({ channels = [], roles = [], members = [] } = {}) =>
-  /** @type {import('discord.js').Guild} */ (
-    /** @type {unknown} */ ({
-      channels: { cache: new Map(channels.map((id) => [id, {}])) },
-      roles: { cache: new Map(roles.map((id) => [id, {}])) },
-      members: {
-        fetch: vi.fn(async (id) => {
-          if (!members.includes(String(id))) throw new Error('Unknown Member');
-          return {};
-        }),
-      },
-    })
-  );
+const fakeExists =
+  ({ channels = [], roles = [], members = [] } = {}) =>
+  async (type, id) => {
+    if (type === 'channel') return channels.includes(id);
+    if (type === 'role') return roles.includes(id);
+    return members.includes(id);
+  };
 
 /** Faux serveur générique, réutilisé par les tests qui ne portent pas sur les références au serveur. */
-const guild = fakeGuild();
+const exists = fakeExists();
 
 describe('champs obligatoires', () => {
   const schema = {
@@ -34,7 +32,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { logs: schema.logs },
       values: {},
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'logs', reason: 'missing_required' }] });
@@ -46,7 +44,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { logs: schema.logs },
       values: {},
-      guild,
+      exists,
       current: { logs: 'déjà là' },
     });
     expect(result).toEqual({ ok: true, values: {} });
@@ -56,7 +54,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { logs: schema.logs },
       values: { logs: '' },
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'logs', reason: 'missing_required' }] });
@@ -68,7 +66,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { quota: schema.quota },
       values: { quota: 0 },
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: true, values: { quota: 0 } });
@@ -78,7 +76,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { actif: schema.actif },
       values: { actif: false },
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: true, values: { actif: false } });
@@ -88,7 +86,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { quota: schema.quota },
       values: { quota: 'douze' },
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'quota', reason: 'wrong_type' }] });
@@ -98,7 +96,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { note: { type: 'string', label: 'Note' } },
       values: {},
-      guild,
+      exists,
       current: {},
     });
     expect(result).toEqual({ ok: true, values: {} });
@@ -110,7 +108,7 @@ describe('champs obligatoires', () => {
     const result = await validateConfigValues({
       schema: { note: { type: 'string', label: 'Note' } },
       values: { note: 'ok' },
-      guild,
+      exists,
     });
     expect(result).toEqual({ ok: true, values: { note: 'ok' } });
   });

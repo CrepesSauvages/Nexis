@@ -185,3 +185,104 @@ describe('start et stop', () => {
     expect(() => build([], makeClient([])).stop()).not.toThrow();
   });
 });
+
+describe('exécution par vagues', () => {
+  /**
+   * Compte les exécutions simultanées : le maximum observé dit si la
+   * concurrence est effectivement bornée.
+   */
+  const trackingHandler = () => {
+    let running = 0;
+    let peak = 0;
+    const handler = vi.fn(async () => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setImmediate(resolve));
+      running -= 1;
+    });
+    return { handler, peak: () => peak };
+  };
+
+  it('devrait traiter plusieurs serveurs en parallèle', async () => {
+    const { handler, peak } = trackingHandler();
+    registries.jobs.add('stats', '0 9 * * *', handler);
+    for (const id of ['g1', 'g2', 'g3', 'g4']) await guildConfig.enable(id, 'stats');
+
+    const scheduler = build([makePlugin('stats')], makeClient(['g1', 'g2', 'g3', 'g4']), {
+      concurrency: 4,
+    });
+    await scheduler.runJob({ plugin: 'stats', cron: '0 9 * * *', handler });
+
+    expect(handler).toHaveBeenCalledTimes(4);
+    expect(peak()).toBeGreaterThan(1);
+  });
+
+  it('ne devrait pas dépasser la concurrence demandée', async () => {
+    const { handler, peak } = trackingHandler();
+    registries.jobs.add('stats', '0 9 * * *', handler);
+    const ids = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6'];
+    for (const id of ids) await guildConfig.enable(id, 'stats');
+
+    const scheduler = build([makePlugin('stats')], makeClient(ids), { concurrency: 2 });
+    await scheduler.runJob({ plugin: 'stats', cron: '0 9 * * *', handler });
+
+    expect(handler).toHaveBeenCalledTimes(6);
+    expect(peak()).toBeLessThanOrEqual(2);
+  });
+
+  it('ne devrait pas laisser un serveur en échec priver les suivants', async () => {
+    const handler = vi.fn(async (/** @type {string} */ guildId) => {
+      if (guildId === 'g1') throw new Error('boum');
+    });
+    registries.jobs.add('stats', '0 9 * * *', handler);
+    for (const id of ['g1', 'g2', 'g3']) await guildConfig.enable(id, 'stats');
+
+    const scheduler = build([makePlugin('stats')], makeClient(['g1', 'g2', 'g3']), {
+      concurrency: 3,
+    });
+    await scheduler.runJob({ plugin: 'stats', cron: '0 9 * * *', handler });
+
+    expect(handler).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('armement des tâches', () => {
+  it('devrait protéger chaque tâche du recouvrement', () => {
+    registries.jobs.add('stats', '0 9 * * *', vi.fn());
+    const scheduler = build([makePlugin('stats')], makeClient(['g1']));
+    scheduler.start();
+
+    // Une fonction plutôt que `true` : le saut est journalisé, pas subi
+    // en silence.
+    expect(scheduler.armed()[0].options.protect).toBeTypeOf('function');
+    scheduler.stop();
+  });
+
+  it('devrait armer dans le fuseau demandé', () => {
+    registries.jobs.add('stats', '0 9 * * *', vi.fn());
+    const scheduler = build([makePlugin('stats')], makeClient(['g1']), {
+      timezone: 'Europe/Paris',
+    });
+    scheduler.start();
+
+    expect(scheduler.armed()[0].options.timezone).toBe('Europe/Paris');
+    scheduler.stop();
+  });
+
+  it("ne devrait imposer aucun fuseau quand rien n'est configuré", () => {
+    registries.jobs.add('stats', '0 9 * * *', vi.fn());
+    const scheduler = build([makePlugin('stats')], makeClient(['g1']));
+    scheduler.start();
+
+    expect(scheduler.armed()[0].options.timezone).toBeUndefined();
+    scheduler.stop();
+  });
+
+  it('ne devrait rien armer pour une expression cron invalide', () => {
+    registries.jobs.add('stats', 'pas du cron', vi.fn());
+    const scheduler = build([makePlugin('stats')], makeClient(['g1']));
+    scheduler.start();
+
+    expect(scheduler.armed()).toEqual([]);
+  });
+});

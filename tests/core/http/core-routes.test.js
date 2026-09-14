@@ -235,7 +235,7 @@ describe('GET /api/core/guild-resources', () => {
     );
     expect(body.channels).toEqual([
       { id: 'c2', name: 'annonces', type: 0 },
-      // Fil sans `rawPosition` : `positionOf` le compte pour 0, à égalité
+      // Fil sans `rawPosition` : `guild-access` le compte pour 0, à égalité
       // avec `c2` — le tri stable le place ensuite, dans l'ordre où il
       // apparaît dans le cache.
       { id: 'c3', name: 'fil-support', type: 11 },

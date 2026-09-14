@@ -1,4 +1,3 @@
-import { PermissionFlagsBits } from 'discord.js';
 import { HttpError } from '../errors.js';
 
 /** Les seuls niveaux d'autorisation que cette fonction sait interpréter. */
@@ -17,11 +16,12 @@ const KNOWN_LEVELS = ['public', 'guild-member', 'guild-admin', 'owner'];
  * @param {string} options.level
  * @param {import('./session.js').StoredSession | undefined} options.session
  * @param {import('discord.js').Client} options.client
+ * @param {ReturnType<typeof import('../guild-access.js').createGuildAccess>} options.access
  * @param {string | undefined} options.guildId
  * @param {string | undefined} options.ownerId
  * @returns {Promise<void>}
  */
-export const resolveAuth = async ({ level, session, client, guildId, ownerId }) => {
+export const resolveAuth = async ({ level, session, client, access, guildId, ownerId }) => {
   if (!KNOWN_LEVELS.includes(level)) {
     // Inatteignable aujourd'hui : routes.js valide déjà `auth` contre
     // AUTH_LEVELS, et les routes du socle sont codées en dur avec `public`.
@@ -52,19 +52,16 @@ export const resolveAuth = async ({ level, session, client, guildId, ownerId }) 
     throw new HttpError(503, 'Le bot est en cours de connexion à Discord, réessayez');
   }
 
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+  // Interrogé par shard si le bot est réparti : un serveur servi ailleurs
+  // n'est pas un serveur où le bot est absent.
+  const membership = await access.membership(guildId, session.userId);
+  if (!membership.guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 
-  let member;
-  try {
-    member = await guild.members.fetch(session.userId);
-  } catch {
-    // Discord répond « Unknown Member » quand l'utilisateur a quitté le
-    // serveur : une absence, pas une panne — d'où un 403 et non un 500.
-    throw new HttpError(403, "Vous n'êtes pas membre de ce serveur");
-  }
+  // Discord répond « Unknown Member » quand l'utilisateur a quitté le
+  // serveur : une absence, pas une panne — d'où un 403 et non un 500.
+  if (!membership.member) throw new HttpError(403, "Vous n'êtes pas membre de ce serveur");
 
-  if (level === 'guild-admin' && !member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (level === 'guild-admin' && !membership.manageGuild) {
     throw new HttpError(403, 'Permission « Gérer le serveur » requise');
   }
 };

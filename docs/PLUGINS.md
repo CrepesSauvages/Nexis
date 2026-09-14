@@ -62,12 +62,13 @@ export const setup = (ctx) => {
 
 ### Ce que contient `ctx`
 
-| Propriété             | Description                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ctx.client`          | Le client discord.js. Voir la contrainte ci-dessous.                                                  |
-| `ctx.logger`          | Logger préfixé `[plugin:mon-plugin]`. Méthodes `debug`, `info`, `warn`, `error`.                      |
-| `ctx.storage`         | Clé/valeur, isolé au plugin. `get`, `set`, `delete`, `keys`.                                          |
-| `ctx.config(guildId)` | Configuration résolue pour un serveur : défauts du manifeste fusionnés avec les valeurs enregistrées. |
+| Propriété                | Description                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `ctx.client`             | Le client discord.js. Voir la contrainte ci-dessous.                                                  |
+| `ctx.logger`             | Logger préfixé `[plugin:mon-plugin]`. Méthodes `debug`, `info`, `warn`, `error`.                      |
+| `ctx.storage`            | Clé/valeur, isolé au plugin. `get`, `set`, `delete`, `keys`.                                          |
+| `ctx.config(guildId)`    | Configuration résolue pour un serveur : défauts du manifeste fusionnés avec les valeurs enregistrées. |
+| `ctx.localizations(key)` | Traductions d'une clé au format attendu par `setNameLocalizations` / `setDescriptionLocalizations`.   |
 
 **Contrainte sur `ctx.client` pendant `setup()` :** le client discord.js réel n'existe pas encore à ce stade (`setup()` s'exécute avant sa création). `ctx.client` n'accepte donc qu'un seul usage synchrone pendant `setup()` : le mémoriser tel quel (`const client = ctx.client`) pour vous en servir plus tard, dans un handler par exemple. Lire une de ses propriétés ou appeler une de ses méthodes **de façon synchrone pendant `setup()`** ne fonctionne pas — une lecture de propriété capture `undefined` pour toujours, et un appel de méthode lève une erreur qui exclut silencieusement le plugin du démarrage.
 
@@ -88,7 +89,160 @@ export const maCommande = {
 
 Les commandes sont enregistrées **par serveur**, au moment où un administrateur active le plugin via `/nexis enable`. Un membre ne voit donc que ce qui est réellement actif chez lui.
 
+`permissions` agit sur deux plans. À la synchronisation, Nexis en déduit le
+`default_member_permissions` de la commande : Discord la masque alors dans le
+sélecteur des membres qui n'ont pas le niveau requis (« Gérer le serveur » pour
+`guild-admin`, personne pour `owner`). À l'exécution, le core revérifie. Le
+masquage est du confort — un administrateur peut réafficher n'importe quelle
+commande depuis les réglages d'intégration du serveur — la vérification est la
+sécurité. Un plugin qui appelle lui-même `setDefaultMemberPermissions` garde
+son choix.
+
+### Permissions par rôle, par serveur
+
+Le niveau déclaré est la règle par défaut, pas la règle finale. Un
+administrateur peut, sur son serveur, donner une commande à des rôles précis :
+
+```
+/nexis perms allow commande:purge role:@Modération
+/nexis perms deny  commande:purge role:@Modération
+/nexis perms reset commande:purge
+/nexis perms list
+```
+
+La liste de rôles **remplace** le niveau déclaré. Elle ouvre autant qu'elle
+ferme : `allow` sur une commande `guild-admin` la donne à un rôle de
+modération, et `allow` sur une commande publique la restreint à ce seul rôle.
+Une liste vide réserve la commande aux administrateurs ; `reset` la supprime
+et rend la commande à son niveau déclaré.
+
+Deux garde-fous, tenus par le core :
+
+- **Qui peut « Gérer le serveur » garde toujours l'accès.** C'est lui qui écrit
+  la règle : l'en exclure ne ferait que l'enfermer dehors avec la clé à
+  l'intérieur.
+- **Une commande `owner` ne se délègue jamais.** Elle engage l'installation
+  entière, pas ce seul serveur ; `/nexis perms` refuse d'y toucher, et
+  `isAllowed` ignorerait la règle de toute façon.
+
+La surcharge porte sur le **nom** de la commande : une commande slash et un
+menu contextuel qui partagent un nom partagent aussi leur règle.
+
+Discord efface les commandes d'un serveur dès que le bot en est retiré. Si le bot y est réinvité, le core les repousse tout seul à l'arrivée — un plugin resté activé retrouve ses commandes sans intervention.
+
 Si `execute` lève une erreur, le core répond à l'utilisateur avec un identifiant court et écrit la trace complète dans les logs sous ce même identifiant.
+
+### Temps de recharge
+
+```js
+export const maCommande = {
+  data: new SlashCommandBuilder().setName('daily').setDescription('Récompense du jour'),
+  cooldown: { seconds: 30, scope: 'user' }, // scope : 'user' (défaut) | 'guild' | 'channel'
+  async execute(interaction, ctx) {
+    /* ... */
+  },
+};
+```
+
+Le core refuse la commande tant que la recharge court, avec le temps restant
+dans la langue de l'utilisateur. Rien à écrire côté plugin, et rien à
+réimplémenter : deux plugins qui compteraient chacun leur propre recharge
+finiraient par ne pas la compter pareil.
+
+La recharge n'est consommée que par une exécution réelle : une commande
+refusée — plugin désactivé, permission manquante — ne fait patienter
+personne. Marteler une commande ne repousse pas non plus l'échéance ; le
+délai part de la dernière exécution, pas de la dernière tentative.
+
+Elle vit en mémoire et repart à zéro au redémarrage. C'est assumé : la
+persister coûterait un aller-retour de storage sur le chemin le plus chaud
+du bot, pour un état qui dure quelques secondes.
+
+### Commandes longues
+
+Discord ferme l'interaction au bout de trois secondes. Une commande qui
+interroge une API, lit un gros fichier ou parcourt beaucoup de membres
+déclare `defer` et le core l'acquitte avant de l'exécuter :
+
+```js
+export const maCommande = {
+  data: new SlashCommandBuilder().setName('rapport').setDescription('Génère le rapport'),
+  defer: 'ephemeral', // true pour une réponse visible de tous
+  async execute(interaction, ctx) {
+    const rapport = await genererLeRapport(); // peut prendre dix secondes
+    await interaction.editReply(rapport);
+  },
+};
+```
+
+Avec `defer`, répondez par `interaction.editReply()` : `reply()` échouerait,
+l'interaction étant déjà acquittée. Si l'acquittement lui-même échoue, la
+commande est exécutée quand même — la refuser en plus ne réparerait rien.
+
+### Autocomplétion
+
+Une commande peut proposer des choix dynamiques sur ses options, en plus de `execute` :
+
+```js
+export default (ctx) => ({
+  data: new SlashCommandBuilder()
+    .setName('objet')
+    .setDescription('Choisit un objet')
+    .addStringOption((option) =>
+      option.setName('nom').setDescription('Nom').setAutocomplete(true).setRequired(true),
+    ),
+
+  async autocomplete(interaction, ctx) {
+    const saisie = interaction.options.getFocused().toLowerCase();
+    const objets = await ctx.storage.get('objets');
+    return objets
+      .filter((objet) => objet.startsWith(saisie))
+      .map((objet) => ({ name: objet, value: objet }));
+  },
+
+  async execute(interaction, ctx) {
+    /* ... */
+  },
+});
+```
+
+**Retournez les choix, ne répondez pas vous-même.** C'est le core qui appelle
+`interaction.respond()` : il garantit ainsi une réponse et une seule, et tronque
+à 25 choix, la limite de Discord — au-delà, l'API rejette la réponse entière.
+
+Une interaction d'autocomplétion n'a aucun moyen d'afficher un message : elle ne
+peut ni répondre en texte, ni être différée. Un plugin désactivé sur ce serveur,
+une permission refusée (la même que celle déclarée par la commande), un handler
+absent ou qui lève rendent donc tous la même chose — une liste vide. Le refus
+est silencieux côté utilisateur, mais tracé dans les logs côté bot.
+
+Discord laisse trois secondes pour répondre : un `autocomplete` qui interroge une
+API distante doit prévoir son propre garde-fou.
+
+### Menus contextuels
+
+Un clic droit sur un membre ou sur un message donne une commande d'application
+comme une autre — même registre, mêmes permissions, même traçabilité des
+erreurs. Il suffit d'un autre builder, dans le même dossier `commands/` :
+
+```js
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+
+export default (ctx) => ({
+  data: new ContextMenuCommandBuilder().setName('Signaler').setType(ApplicationCommandType.Message),
+  permissions: 'guild-admin',
+
+  /** @param {import('discord.js').MessageContextMenuCommandInteraction} interaction */
+  async execute(interaction) {
+    await interaction.reply({ content: `Signalé : ${interaction.targetId}`, flags: 64 });
+  },
+});
+```
+
+Discord sépare ses espaces de noms par type : une commande slash `signaler` et
+un menu contextuel `Signaler` coexistent sans conflit, y compris dans le même
+plugin. Un menu contextuel n'a pas d'options — lui déclarer un `autocomplete`
+est refusé au démarrage plutôt que de le laisser dormir.
 
 ## Events
 
@@ -100,6 +254,12 @@ ctx.registerEvent('guildMemberAdd', async (member) => {
 ```
 
 Le core a déjà vérifié que le plugin est activé sur ce serveur — inutile de le refaire.
+
+Les handlers d'un même event tournent **en parallèle**, chacun dans son propre
+try/catch : un plugin qui échoue ne prive pas ses voisins de l'event, et un
+plugin lent ne les fait pas attendre. Aucun ordre n'est garanti entre eux ;
+deux plugins qui doivent se coordonner passent par un service
+(`provideService` / `useService`), pas par l'ordre d'exécution.
 
 **Les intents sont calculés automatiquement** depuis les events déclarés. Écouter `messageCreate` active `GuildMessages` et `MessageContent` sans configuration. Un nom d'event inconnu fait échouer le démarrage plutôt que de rester silencieux : voir `src/core/intents.js` pour la liste supportée.
 
@@ -115,7 +275,15 @@ ctx.registerJob('0 9 * * *', async (guildId, config) => {
 
 Le core itère lui-même les serveurs actifs et résout la configuration. Le handler reçoit `(guildId, config)`.
 
-Syntaxe cron standard, gérée par [croner](https://github.com/hexagon/croner).
+Syntaxe cron standard, gérée par [croner](https://github.com/hexagon/croner), lue
+dans le fuseau de `SCHEDULER_TIMEZONE` (celui du système par défaut).
+
+Le core traite les serveurs par vagues plutôt qu'un par un : sur un bot à
+plusieurs centaines de serveurs, une tâche d'une fraction de seconde tiendrait
+sinon plusieurs minutes et déborderait sur son exécution suivante. Une tâche
+encore en cours quand son heure revient **ne démarre pas** une seconde fois —
+le saut est journalisé, c'est le signe que l'intervalle est trop court pour le
+travail.
 
 ## Conventions de dossiers
 
@@ -280,6 +448,65 @@ Le matching se fait par **préfixe** : un customId dynamique comme `mon-plugin:c
 
 Le core vérifie l'activation du plugin puis la permission avant d'appeler `handler`, exactement comme pour les commandes. Un customId qui ne correspond à aucun handler enregistré (bouton d'un message envoyé avant un redémarrage, par exemple) reçoit une réponse ephémère plutôt qu'une erreur silencieuse.
 
+#### Permissions héritées d'une commande
+
+Un composant a son propre niveau déclaré, et ne suit donc pas ce qu'un
+administrateur a réglé pour la commande qui l'a produit. Ouvrir `/purge` à un
+rôle de modération laisserait son bouton de confirmation fermé — la commande
+inutilisable à mi-chemin. `permissionsFrom` rattache le composant à la règle
+d'une commande :
+
+```js
+ctx.registerComponent({
+  customId: 'purge-confirm',
+  type: 'button',
+  permissions: 'guild-admin', // règle par défaut, comme pour la commande
+  permissionsFrom: 'purge', // ... et même surcharge de serveur qu'elle
+  handler,
+});
+```
+
+Sans `permissionsFrom`, seul le niveau déclaré s'applique — c'est le bon choix
+pour un composant qui n'appartient à aucune commande en particulier.
+
+#### Propriété et expiration
+
+Deux options resserrent qui peut cliquer, et jusqu'à quand :
+
+```js
+ctx.registerComponent({
+  customId: 'confirm',
+  type: 'button',
+  restrictToInvoker: true, // seule la personne qui a lancé la commande peut cliquer
+  expiresAfter: 120, // secondes après l'envoi du message
+  handler: async (interaction) => {
+    /* ... */
+  },
+});
+```
+
+Sans `restrictToInvoker`, une confirmation est cliquable par quiconque passe
+la barre des permissions — un autre administrateur peut valider une purge
+qu'il n'a pas demandée. C'est le défaut de Discord, pas une décision : le
+`customId` d'un bouton ne dit rien de qui l'a fait apparaître.
+
+Aucun état n'est conservé pour ces deux contrôles. Discord porte déjà les
+informations sur le message qui tient le composant : qui a déclenché
+l'interaction dont il est né, et quand il a été envoyé. Un registre en
+mémoire, lui, ne survivrait pas au redémarrage qui laisse pourtant les
+boutons en place.
+
+Conséquence : `restrictToInvoker` **refuse** un composant posé sur un message
+que le plugin a envoyé de lui-même, hors de toute interaction — un tel
+message n'a pas d'invocateur, la restriction ne peut donc pas être honorée.
+Pour un panneau permanent (rôles par réaction, menu d'accueil), n'utilisez
+pas cette option : c'est la permission qui décide, pas la propriété.
+
+Les modals échappent aux deux contrôles : Discord ne les montre qu'à la
+personne qui les a ouverts, et les referme de lui-même.
+
+Voir `plugins/moderation/` pour les deux options en usage réel.
+
 ## Cycle de vie
 
 Le code d'un plugin est chargé **une seule fois au démarrage**. L'activation par serveur (`/nexis enable`) est un filtre au runtime : elle n'exécute pas `setup()` une seconde fois. Ajouter ou modifier un plugin demande donc de redémarrer le bot.
@@ -294,6 +521,8 @@ Si `setup()` lève une erreur, le plugin est écarté et le bot démarre quand m
 | `/nexis enable <plugin>`  | Active un plugin ici.                          |
 | `/nexis disable <plugin>` | Le désactive.                                  |
 | `/nexis info <plugin>`    | Détail, dépendances et configuration courante. |
+| `/nexis perms …`          | Rôles autorisés, commande par commande.        |
+| `/nexis audit`            | Qui a changé quoi sur ce serveur.              |
 
 Toutes exigent la permission « Gérer le serveur ».
 

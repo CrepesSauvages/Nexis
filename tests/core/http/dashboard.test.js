@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bootstrap } from '../../../src/index.js';
+import { servesDashboard } from '../../../src/core/http/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, '..', '..', 'fixtures', 'plugins-with-routes');
@@ -184,5 +185,21 @@ describe("routes d'un plugin dont setup() échoue", () => {
     const response = await fetch(`${baseUrl(instance)}/api/plugins/ok/ping`);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ pong: true });
+  });
+});
+
+describe('servesDashboard', () => {
+  it('devrait servir le dashboard sans sharding', () => {
+    expect(servesDashboard({ enabled: false, id: 0 })).toBe(true);
+  });
+
+  it('devrait le servir depuis le shard 0', () => {
+    expect(servesDashboard({ enabled: true, id: 0 })).toBe(true);
+  });
+
+  it('ne devrait pas le servir depuis les autres shards', () => {
+    // Lancés ensemble, ils se heurteraient au port déjà pris.
+    expect(servesDashboard({ enabled: true, id: 1 })).toBe(false);
+    expect(servesDashboard({ enabled: true, id: 7 })).toBe(false);
   });
 });

@@ -8,6 +8,12 @@ import { createSessions, SESSION_COOKIE } from '../../../src/core/http/session.j
 import { createRouter } from '../../../src/core/http/router.js';
 import { createAuthRoutes, OAUTH_STATE_COOKIE } from '../../../src/core/http/auth-routes.js';
 import { createGuildConfig } from '../../../src/core/guild-config.js';
+import { createGuildAccess } from '../../../src/core/guild-access.js';
+
+/** Aucun serveur : les routes d'authentification sont toutes `public`. */
+const emptyClient = /** @type {import('discord.js').Client} */ (
+  /** @type {unknown} */ ({ guilds: { cache: new Map() } })
+);
 
 /** @type {string} */
 let dir;
@@ -42,9 +48,8 @@ const start = async ({ ownerId } = {}) => {
       ownerId,
     }),
     sessions,
-    client: /** @type {import('discord.js').Client} */ (
-      /** @type {unknown} */ ({ guilds: { cache: new Map() } })
-    ),
+    client: emptyClient,
+    access: createGuildAccess(emptyClient),
     guildConfig: createGuildConfig({ storage }),
     ownerId,
     logger: /** @type {import('../../../src/core/logger.js').Logger} */ (

@@ -11,6 +11,19 @@ export const manifest = {
  * services. Les commandes purge/lock vivent dans commands/, chargées par
  * la convention de dossier.
  *
+ * Les trois déclarent `restrictToInvoker` et `expiresAfter` : une
+ * confirmation ne regarde que la personne qui a lancé la commande — sans
+ * quoi n'importe quel autre administrateur pourrait valider une purge
+ * qu'il n'a pas demandée — et une confirmation oubliée dans un salon ne
+ * doit pas rester armée indéfiniment.
+ *
+ * Les deux confirmations déclarent en plus `permissionsFrom` : ouvrir
+ * `/purge` à un rôle de modération doit ouvrir son bouton avec elle, sans
+ * quoi la commande resterait inutilisable à mi-chemin. `cancel`, partagé
+ * par les deux commandes, ne se rattache à aucune : annuler n'est pas un
+ * acte de modération, et `restrictToInvoker` suffit à le réserver à qui
+ * l'a déclenché.
+ *
  * @param {import('../../src/core/context.js').PluginContext} ctx
  */
 export const setup = (ctx) => {
@@ -18,6 +31,9 @@ export const setup = (ctx) => {
     customId: 'purge-confirm',
     type: 'button',
     permissions: 'guild-admin',
+    permissionsFrom: 'purge',
+    restrictToInvoker: true,
+    expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */
     handler: async (interaction) => {
       if (!interaction.inCachedGuild() || !interaction.channel) return;
@@ -34,6 +50,9 @@ export const setup = (ctx) => {
     customId: 'lock-confirm',
     type: 'button',
     permissions: 'guild-admin',
+    permissionsFrom: 'lock',
+    restrictToInvoker: true,
+    expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */
     handler: async (interaction) => {
       if (!interaction.inCachedGuild()) return;
@@ -49,7 +68,8 @@ export const setup = (ctx) => {
   ctx.registerComponent({
     customId: 'cancel',
     type: 'button',
-    permissions: 'guild-admin',
+    restrictToInvoker: true,
+    expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */
     handler: async (interaction) => {
       await interaction.update({ content: 'Annulé.', components: [] });
