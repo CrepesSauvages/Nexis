@@ -88,7 +88,74 @@ export const maCommande = {
 
 Les commandes sont enregistrées **par serveur**, au moment où un administrateur active le plugin via `/nexis enable`. Un membre ne voit donc que ce qui est réellement actif chez lui.
 
+Discord efface les commandes d'un serveur dès que le bot en est retiré. Si le bot y est réinvité, le core les repousse tout seul à l'arrivée — un plugin resté activé retrouve ses commandes sans intervention.
+
 Si `execute` lève une erreur, le core répond à l'utilisateur avec un identifiant court et écrit la trace complète dans les logs sous ce même identifiant.
+
+### Autocomplétion
+
+Une commande peut proposer des choix dynamiques sur ses options, en plus de `execute` :
+
+```js
+export default (ctx) => ({
+  data: new SlashCommandBuilder()
+    .setName('objet')
+    .setDescription('Choisit un objet')
+    .addStringOption((option) =>
+      option.setName('nom').setDescription('Nom').setAutocomplete(true).setRequired(true),
+    ),
+
+  async autocomplete(interaction, ctx) {
+    const saisie = interaction.options.getFocused().toLowerCase();
+    const objets = await ctx.storage.get('objets');
+    return objets
+      .filter((objet) => objet.startsWith(saisie))
+      .map((objet) => ({ name: objet, value: objet }));
+  },
+
+  async execute(interaction, ctx) {
+    /* ... */
+  },
+});
+```
+
+**Retournez les choix, ne répondez pas vous-même.** C'est le core qui appelle
+`interaction.respond()` : il garantit ainsi une réponse et une seule, et tronque
+à 25 choix, la limite de Discord — au-delà, l'API rejette la réponse entière.
+
+Une interaction d'autocomplétion n'a aucun moyen d'afficher un message : elle ne
+peut ni répondre en texte, ni être différée. Un plugin désactivé sur ce serveur,
+une permission refusée (la même que celle déclarée par la commande), un handler
+absent ou qui lève rendent donc tous la même chose — une liste vide. Le refus
+est silencieux côté utilisateur, mais tracé dans les logs côté bot.
+
+Discord laisse trois secondes pour répondre : un `autocomplete` qui interroge une
+API distante doit prévoir son propre garde-fou.
+
+### Menus contextuels
+
+Un clic droit sur un membre ou sur un message donne une commande d'application
+comme une autre — même registre, mêmes permissions, même traçabilité des
+erreurs. Il suffit d'un autre builder, dans le même dossier `commands/` :
+
+```js
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+
+export default (ctx) => ({
+  data: new ContextMenuCommandBuilder().setName('Signaler').setType(ApplicationCommandType.Message),
+  permissions: 'guild-admin',
+
+  /** @param {import('discord.js').MessageContextMenuCommandInteraction} interaction */
+  async execute(interaction) {
+    await interaction.reply({ content: `Signalé : ${interaction.targetId}`, flags: 64 });
+  },
+});
+```
+
+Discord sépare ses espaces de noms par type : une commande slash `signaler` et
+un menu contextuel `Signaler` coexistent sans conflit, y compris dans le même
+plugin. Un menu contextuel n'a pas d'options — lui déclarer un `autocomplete`
+est refusé au démarrage plutôt que de le laisser dormir.
 
 ## Events
 

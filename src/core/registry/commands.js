@@ -1,15 +1,45 @@
 import { PluginError } from '../errors.js';
 
 /**
+ * Types de commande d'application Discord, tels que l'API les numérote.
+ * Repris en constantes locales plutôt qu'importés d'`ApplicationCommandType`
+ * (discord.js) : ce registre ne dépend d'aucune autre part de discord.js, et
+ * ces trois valeurs font partie du protocole, pas de la bibliothèque.
+ */
+export const CHAT_INPUT = 1;
+export const USER_CONTEXT_MENU = 2;
+export const MESSAGE_CONTEXT_MENU = 3;
+
+const TYPES = [CHAT_INPUT, USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU];
+
+/** @type {Record<number, string>} */
+const TYPE_LABELS = {
+  [CHAT_INPUT]: 'slash',
+  [USER_CONTEXT_MENU]: 'menu contextuel utilisateur',
+  [MESSAGE_CONTEXT_MENU]: 'menu contextuel message',
+};
+
+/**
  * @typedef {object} CommandDef
- * @property {{ name: string }} data - SlashCommandBuilder de discord.js
+ * @property {{ name: string, type?: number }} data - SlashCommandBuilder ou ContextMenuCommandBuilder de discord.js
  * @property {(interaction: unknown, ctx: unknown) => Promise<void> | void} execute
+ * @property {(interaction: unknown, ctx: unknown) => Promise<Array<{ name: string, value: string | number }>> | Array<{ name: string, value: string | number }> | undefined} [autocomplete] - réservé aux commandes slash
  * @property {'guild-admin' | 'owner'} [permissions]
  */
 
 export const createCommandRegistry = () => {
   /** @type {Map<string, { plugin: string, command: CommandDef }>} */
   const entries = new Map();
+
+  /**
+   * Discord sépare ses espaces de noms par type : une commande slash
+   * `report` et un menu contextuel `report` coexistent sans se gêner. La
+   * clé du registre doit donc porter le type, sous peine de déclarer un
+   * conflit là où Discord n'en voit aucun.
+   * @param {string} name
+   * @param {number} type
+   */
+  const keyOf = (name, type) => `${type}:${name}`;
 
   return {
     /**
@@ -21,27 +51,56 @@ export const createCommandRegistry = () => {
       if (!name) {
         throw new PluginError('Commande sans data.name', { plugin });
       }
+      // Un SlashCommandBuilder n'expose aucun `type` — l'API Discord traite
+      // son absence comme CHAT_INPUT. Seul un ContextMenuCommandBuilder en
+      // porte un, posé par son `setType()`.
+      const type = command.data.type ?? CHAT_INPUT;
+      if (!TYPES.includes(type)) {
+        throw new PluginError(`Type de commande invalide pour "${name}" : ${type}`, {
+          plugin,
+          name,
+          type,
+          TYPES,
+        });
+      }
       if (typeof command.execute !== 'function') {
         throw new PluginError(`La commande "${name}" n'a pas de fonction execute`, {
           plugin,
           name,
         });
       }
-      const existing = entries.get(name);
-      if (existing) {
+      if (command.autocomplete !== undefined && typeof command.autocomplete !== 'function') {
+        throw new PluginError(`L'autocomplétion de "${name}" n'est pas une fonction`, {
+          plugin,
+          name,
+        });
+      }
+      // Un menu contextuel n'a pas d'options : Discord ne lui enverra jamais
+      // d'interaction d'autocomplétion, et un handler déclaré ici ne serait
+      // jamais appelé. Le refuser au démarrage vaut mieux que de le laisser
+      // dormir.
+      if (command.autocomplete !== undefined && type !== CHAT_INPUT) {
         throw new PluginError(
-          `Conflit de commande "${name}" entre les plugins "${existing.plugin}" et "${plugin}"`,
-          { name, plugins: [existing.plugin, plugin] },
+          `La commande "${name}" est un ${TYPE_LABELS[type]} : elle ne peut pas déclarer d'autocomplétion`,
+          { plugin, name, type },
         );
       }
-      entries.set(name, { plugin, command });
+      const existing = entries.get(keyOf(name, type));
+      if (existing) {
+        throw new PluginError(
+          `Conflit de commande "${name}" (${TYPE_LABELS[type]}) entre les plugins "${existing.plugin}" et "${plugin}"`,
+          { name, type, plugins: [existing.plugin, plugin] },
+        );
+      }
+      entries.set(keyOf(name, type), { plugin, command });
     },
     /**
      * @param {string} name
+     * @param {number} [type] - CHAT_INPUT par défaut
      * @returns {{ plugin: string, command: CommandDef } | undefined}
      */
-    get(name) {
-      return entries.get(name);
+    get(name, type = CHAT_INPUT) {
+      return entries.get(keyOf(name, type));
     },
     /**
      * @param {string} plugin

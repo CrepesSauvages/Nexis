@@ -1,5 +1,6 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { guildIdOf } from './intents.js';
+import { CHAT_INPUT, USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU } from './registry/commands.js';
 import { newErrorId, errorMessage, errorStack } from './errors.js';
 import { resolveLocale } from './i18n/locale-resolver.js';
 
@@ -97,6 +98,58 @@ const resolveInteractionLocale = async (guildConfig, logger, interaction, logCon
 };
 
 /**
+ * Nombre maximal de choix qu'une réponse d'autocomplétion peut porter.
+ * Au-delà, Discord rejette la réponse entière en 400 : le core tronque
+ * plutôt que de laisser chaque plugin découvrir la limite en production.
+ */
+const MAX_AUTOCOMPLETE_CHOICES = 25;
+
+/**
+ * Déduit le type de commande d'application d'une interaction discord.js,
+ * ou `undefined` si elle n'en est pas une. Les trois types partagent le
+ * même dispatch : même activation, mêmes permissions, même traçabilité —
+ * seul l'espace de noms du registre les distingue.
+ *
+ * Les prédicats sont appelés en optionnel : les doublures des tests
+ * n'implémentent que celui qui les concerne.
+ *
+ * @param {import('discord.js').Interaction} interaction
+ * @returns {number | undefined}
+ */
+const commandTypeOf = (interaction) => {
+  if (interaction.isChatInputCommand?.()) return CHAT_INPUT;
+  if (interaction.isUserContextMenuCommand?.()) return USER_CONTEXT_MENU;
+  if (interaction.isMessageContextMenuCommand?.()) return MESSAGE_CONTEXT_MENU;
+  return undefined;
+};
+
+/**
+ * Répond à une interaction d'autocomplétion, avec la même protection que
+ * `respondToInteraction` : un rejet ici (token expiré, interaction déjà
+ * répondue) ne doit jamais remonter jusqu'à un listener non awaité.
+ *
+ * @param {import('./logger.js').Logger} logger
+ * @param {import('discord.js').AutocompleteInteraction} interaction
+ * @param {unknown} choices
+ * @param {Record<string, unknown>} logContext
+ * @returns {Promise<void>}
+ */
+const respondWithChoices = async (logger, interaction, choices, logContext) => {
+  if (choices !== undefined && !Array.isArray(choices)) {
+    logger.warn(
+      'Autocomplétion ignorée : le handler doit retourner un tableau de choix, pas y répondre lui-même',
+      logContext,
+    );
+  }
+  const list = Array.isArray(choices) ? choices.slice(0, MAX_AUTOCOMPLETE_CHOICES) : [];
+  try {
+    await interaction.respond(list);
+  } catch (error) {
+    logger.warn(`Réponse à l'autocomplétion impossible : ${errorMessage(error)}`, logContext);
+  }
+};
+
+/**
  * Attache un listener unique par type d'event déclaré. Chaque handler
  * est appelé dans son propre try/catch : un plugin qui échoue n'empêche
  * jamais ses voisins de recevoir l'event, ni les events suivants.
@@ -177,16 +230,26 @@ export const attachCommandDispatcher = ({
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
   client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    const type = commandTypeOf(interaction);
+    if (type === undefined) return;
 
-    const logContext = { command: interaction.commandName, guildId: interaction.guildId };
-    const locale = await resolveInteractionLocale(guildConfig, logger, interaction, logContext);
+    // `commandTypeOf` a déjà écarté tout ce qui n'est pas une commande ;
+    // discord.js ne le sait pas, d'où ce rétrécissement explicite vers le
+    // type commun aux trois (slash et menus contextuels).
+    const typed = /** @type {import('discord.js').CommandInteraction} */ (interaction);
+    const logContext = { command: typed.commandName, guildId: typed.guildId };
+    const locale = await resolveInteractionLocale(
+      guildConfig,
+      logger,
+      /** @type {import('discord.js').Interaction} */ (typed),
+      logContext,
+    );
 
-    const entry = registries.commands.get(interaction.commandName);
+    const entry = registries.commands.get(typed.commandName, type);
     if (!entry) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.command_removed'),
         logContext,
       );
@@ -198,7 +261,7 @@ export const attachCommandDispatcher = ({
     // laisser passer la commande — on ferme (fail closed), pas l'inverse.
     let active = false;
     try {
-      active = await isActive(entry.plugin, interaction.guildId);
+      active = await isActive(entry.plugin, typed.guildId);
     } catch (error) {
       logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
         plugin: entry.plugin,
@@ -209,17 +272,23 @@ export const attachCommandDispatcher = ({
     if (!active) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.plugin_not_active', { plugin: entry.plugin }),
         logContext,
       );
       return;
     }
 
-    if (!checkPermission(entry.command.permissions, interaction, ownerId)) {
+    if (
+      !checkPermission(
+        entry.command.permissions,
+        /** @type {import('discord.js').Interaction} */ (typed),
+        ownerId,
+      )
+    ) {
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.permission_denied'),
         logContext,
       );
@@ -227,7 +296,7 @@ export const attachCommandDispatcher = ({
     }
 
     try {
-      await entry.command.execute(interaction, contexts.get(entry.plugin));
+      await entry.command.execute(typed, contexts.get(entry.plugin));
     } catch (error) {
       const errorId = newErrorId();
       logger.error(`Erreur dans une commande : ${errorMessage(error)}`, {
@@ -238,7 +307,7 @@ export const attachCommandDispatcher = ({
       });
       await respondToInteraction(
         logger,
-        interaction,
+        typed,
         t(locale, 'dispatcher.command_error', { errorId }),
         logContext,
       );
@@ -363,6 +432,102 @@ export const attachComponentDispatcher = ({
         t(locale, 'dispatcher.component_error', { errorId }),
         logContext,
       );
+    }
+  });
+};
+
+/**
+ * Attache le listener d'autocomplétion.
+ *
+ * Discord attend une réponse en moins de trois secondes et n'en accepte
+ * qu'une seule : c'est donc le core qui répond, à partir du tableau de
+ * choix que le handler retourne. Le plugin n'a ni à répondre lui-même, ni
+ * à connaître la limite de 25 choix.
+ *
+ * Une autocomplétion n'a aucun canal pour expliquer un refus — elle ne
+ * peut ni envoyer de message, ni être différée. Un plugin désactivé, une
+ * permission refusée, un handler absent ou en erreur rendent donc tous la
+ * même chose : une liste vide, plutôt qu'un silence que Discord afficherait
+ * à l'utilisateur comme « échec du chargement des options ».
+ *
+ * @param {object} options
+ * @param {import('discord.js').Client} options.client
+ * @param {Map<string, import('./context.js').PluginContext>} options.contexts
+ * @param {import('./registry/index.js').Registries} options.registries
+ * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} options.guildConfig
+ * @param {import('./logger.js').Logger} options.logger
+ * @param {string[]} [options.alwaysEnabled]
+ * @param {string} [options.ownerId]
+ * @returns {void}
+ */
+export const attachAutocompleteDispatcher = ({
+  client,
+  contexts,
+  registries,
+  guildConfig,
+  logger,
+  alwaysEnabled = [],
+  ownerId = undefined,
+}) => {
+  const isActive = makeIsActive(guildConfig, alwaysEnabled);
+
+  client.on('interactionCreate', async (interaction) => {
+    if (interaction.isAutocomplete?.() !== true) return;
+
+    const typed = /** @type {import('discord.js').AutocompleteInteraction} */ (interaction);
+    const logContext = { command: typed.commandName, guildId: typed.guildId };
+
+    // Seules les commandes slash ont des options, donc une autocomplétion.
+    const entry = registries.commands.get(typed.commandName, CHAT_INPUT);
+    const autocomplete = entry?.command.autocomplete;
+    if (!entry || !autocomplete) {
+      await respondWithChoices(logger, typed, [], logContext);
+      return;
+    }
+
+    let active = false;
+    try {
+      active = await isActive(entry.plugin, typed.guildId);
+    } catch (error) {
+      logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
+        plugin: entry.plugin,
+        ...logContext,
+        stack: errorStack(error),
+      });
+    }
+    if (!active) {
+      await respondWithChoices(logger, typed, [], logContext);
+      return;
+    }
+
+    // Même échelle de permissions que la commande elle-même : les choix
+    // proposés sont calculés par le plugin sur ses propres données, et
+    // les suggérer à quelqu'un dont l'exécution serait refusée reviendrait
+    // à lui montrer par la porte de derrière ce que la commande lui cache.
+    if (
+      !checkPermission(
+        entry.command.permissions,
+        /** @type {import('discord.js').Interaction} */ (typed),
+        ownerId,
+      )
+    ) {
+      await respondWithChoices(logger, typed, [], logContext);
+      return;
+    }
+
+    try {
+      const choices = await autocomplete(typed, contexts.get(entry.plugin));
+      await respondWithChoices(logger, typed, choices, logContext);
+    } catch (error) {
+      // Pas d'errorId ici, contrairement aux commandes et aux components :
+      // il n'y a personne à qui le montrer. La trace reste dans les logs et
+      // dans le reporting.
+      logger.error(`Erreur dans une autocomplétion : ${errorMessage(error)}`, {
+        plugin: entry.plugin,
+        ...logContext,
+        stack: errorStack(error),
+      });
+      await respondWithChoices(logger, typed, [], logContext);
     }
   });
 };

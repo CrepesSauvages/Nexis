@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRegistries } from '../../../src/core/registry/index.js';
+import { USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU } from '../../../src/core/registry/commands.js';
 import { PluginError } from '../../../src/core/errors.js';
 
 const noop = () => {};
@@ -53,6 +54,56 @@ describe('registre de commandes', () => {
       /** @type {unknown} */ ({ data: { name: 'x' } })
     );
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
+  it('devrait accepter une commande slash et un menu contextuel de même nom', () => {
+    const { commands } = createRegistries();
+    commands.add('mod', command('Signaler'));
+    commands.add('mod', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop });
+    expect(commands.all()).toHaveLength(2);
+  });
+
+  it('devrait retrouver un menu contextuel par son type', () => {
+    const { commands } = createRegistries();
+    commands.add('mod', { data: { name: 'Signaler', type: MESSAGE_CONTEXT_MENU }, execute: noop });
+    expect(commands.get('Signaler', MESSAGE_CONTEXT_MENU)).toMatchObject({ plugin: 'mod' });
+    // Les deux autres espaces de noms restent vides.
+    expect(commands.get('Signaler')).toBeUndefined();
+    expect(commands.get('Signaler', USER_CONTEXT_MENU)).toBeUndefined();
+  });
+
+  it('devrait refuser deux menus contextuels de même nom et même type', () => {
+    const { commands } = createRegistries();
+    commands.add('a', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop });
+    expect(() =>
+      commands.add('b', { data: { name: 'Signaler', type: USER_CONTEXT_MENU }, execute: noop }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter un type de commande inconnu', () => {
+    const { commands } = createRegistries();
+    expect(() => commands.add('a', { data: { name: 'x', type: 42 }, execute: noop })).toThrow(
+      PluginError,
+    );
+  });
+
+  it("devrait rejeter une autocomplétion qui n'est pas une fonction", () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ data: { name: 'x' }, execute: noop, autocomplete: 'non' })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une autocomplétion déclarée sur un menu contextuel', () => {
+    const { commands } = createRegistries();
+    expect(() =>
+      commands.add('a', {
+        data: { name: 'Signaler', type: USER_CONTEXT_MENU },
+        execute: noop,
+        autocomplete: () => [],
+      }),
+    ).toThrow(/autocomplétion/);
   });
 });
 

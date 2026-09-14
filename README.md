@@ -44,6 +44,20 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 
 Sans ces deux étapes, le bot fonctionne normalement — seul le buffer local (`/nexis errors`) reste actif.
 
+### Ce qui échappe à tout try/catch
+
+Les deux erreurs qu'aucun `catch` n'attrape passent malgré tout par le logger,
+donc par le reporting :
+
+- une **promesse rejetée sans traitement** est journalisée, et le bot continue —
+  une promesse oubliée dans un plugin ne doit pas emporter les autres ;
+- une **exception non interceptée** est journalisée puis fatale : la pile est
+  interrompue au milieu de son travail, l'état du process n'est plus connu.
+
+`SIGINT` et `SIGTERM` déclenchent un arrêt propre — scheduler, dashboard,
+client Discord, storage — borné à 5 secondes : passé ce délai le process sort
+quand même, ce qu'attend tout superviseur (systemd, Docker).
+
 ## Dashboard
 
 Le dashboard s'active en renseignant `DISCORD_CLIENT_SECRET` — sans lui,

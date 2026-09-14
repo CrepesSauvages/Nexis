@@ -16,7 +16,10 @@ import {
   attachEventDispatcher,
   attachCommandDispatcher,
   attachComponentDispatcher,
+  attachAutocompleteDispatcher,
 } from './core/dispatcher.js';
+import { installProcessGuards } from './core/process-guards.js';
+import { errorMessage, errorStack } from './core/errors.js';
 import { createScheduler } from './core/scheduler.js';
 import { createCommandSync } from './core/command-sync.js';
 import { applyConventions } from './core/conventions.js';
@@ -160,6 +163,17 @@ export const bootstrap = async ({
   const client = clientFactory({ eventNames: registries.events.eventNames(), allowsDM });
   clientRef.current = client;
 
+  // `error` est le seul event dont l'absence d'écouteur est fatale : un
+  // EventEmitter qui l'émet sans personne pour l'entendre lève. discord.js
+  // s'en sert pour les incidents de passerelle, précisément le moment où
+  // planter serait le plus dommageable. Ce listener ne prive aucun plugin
+  // du sien : plusieurs écouteurs coexistent sur un même event.
+  client.on('error', (error) => {
+    logger.error(`Erreur du client Discord : ${errorMessage(error)}`, {
+      stack: errorStack(error),
+    });
+  });
+
   attachEventDispatcher({
     client,
     plugins: active,
@@ -189,6 +203,16 @@ export const bootstrap = async ({
     alwaysEnabled: ALWAYS_ENABLED,
     ownerId: config.ownerId,
     t: translator.t,
+  });
+
+  attachAutocompleteDispatcher({
+    client,
+    contexts,
+    registries,
+    guildConfig,
+    logger,
+    alwaysEnabled: ALWAYS_ENABLED,
+    ownerId: config.ownerId,
   });
 
   const scheduler = createScheduler({
@@ -266,16 +290,10 @@ export const bootstrap = async ({
 const main = async () => {
   loadDotenv();
   const app = await bootstrap();
+  // Posés avant `login()` : la connexion à la passerelle est déjà du
+  // travail asynchrone susceptible d'échouer hors de tout try/catch.
+  installProcessGuards({ logger: app.logger, shutdown: app.shutdown });
   await app.client.login(app.config.token);
-
-  /** @param {string} signal */
-  const stop = async (signal) => {
-    app.logger.info(`Signal reçu, arrêt en cours`, { signal });
-    await app.shutdown();
-    process.exit(0);
-  };
-  process.on('SIGINT', () => stop('SIGINT'));
-  process.on('SIGTERM', () => stop('SIGTERM'));
 };
 
 // Ne démarre le bot que si ce fichier est le point d'entrée du processus.
