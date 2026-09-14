@@ -13,6 +13,13 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    // `vitest/globals` et `@testing-library/jest-dom/vitest` augmentent tous
+    // deux l'interface `Assertion` de Chai, avec des paramètres de type
+    // différents depuis Vitest 5 : TypeScript refuse alors la fusion des
+    // déclarations (TS2428), à l'intérieur de `node_modules` et sans rien
+    // qui dépende de notre code. `skipLibCheck` borne la vérification à nos
+    // propres fichiers — ce que fait le modèle React de Vite par défaut.
+    "skipLibCheck": true,
     "types": ["vitest/globals", "@testing-library/jest-dom/vitest", "vite/client"]
   },
   "include": ["src"]

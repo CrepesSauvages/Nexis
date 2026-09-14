@@ -147,6 +147,8 @@ Voir **[docs/PLUGINS.md](docs/PLUGINS.md)**, et `plugins/example/` pour un plugi
 | `npm start`               | Démarre en production.                              |
 | `npm test`                | Lance la suite Vitest.                              |
 | `npm run lint`            | ESLint avec correction automatique.                 |
+| `npm run lint:check`      | ESLint sans rien modifier — ce que lance la CI.     |
+| `npm run check-types`     | Vérifie les types JSDoc avec `tsc --noEmit`.        |
 | `npm run format`          | Prettier.                                           |
 | `npm run deploy-commands` | Publie les commandes globales vers Discord.         |
 

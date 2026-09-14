@@ -12,9 +12,16 @@ import prettier from 'eslint-config-prettier';
 // --write` s'applique à ces fichiers via lint-staged. À revoir quand
 // `typescript-eslint` supportera TS 7.
 export default [
+  {
+    // Sorties de build et données d'exécution : du code qui n'est pas le
+    // nôtre, ou pas du code du tout. `eslint` sans argument analyse tout le
+    // dépôt — sans cette exclusion, un `npm run build:web` préalable fait
+    // remonter des centaines d'erreurs venues du bundle de l'interface.
+    ignores: ['web/dist/**', 'data/**', 'coverage/**'],
+  },
   js.configs.recommended,
   {
-    files: ['src/**/*.js', 'plugins/**/*.js', 'tests/**/*.js'],
+    files: ['src/**/*.js', 'plugins/**/*.js', 'tests/**/*.js', 'scripts/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

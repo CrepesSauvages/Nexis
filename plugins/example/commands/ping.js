@@ -23,7 +23,6 @@ export default (ctx) => ({
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   async execute(interaction) {
     if (!interaction.inCachedGuild()) return;
-    const { greeting } = await ctx.config(interaction.guildId ?? '');
     const locale = await ctx.resolveLocale(interaction);
 
     const latency = Date.now() - interaction.createdTimestamp;
