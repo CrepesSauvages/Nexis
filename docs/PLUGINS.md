@@ -88,6 +88,15 @@ export const maCommande = {
 
 Les commandes sont enregistrées **par serveur**, au moment où un administrateur active le plugin via `/nexis enable`. Un membre ne voit donc que ce qui est réellement actif chez lui.
 
+`permissions` agit sur deux plans. À la synchronisation, Nexis en déduit le
+`default_member_permissions` de la commande : Discord la masque alors dans le
+sélecteur des membres qui n'ont pas le niveau requis (« Gérer le serveur » pour
+`guild-admin`, personne pour `owner`). À l'exécution, le core revérifie. Le
+masquage est du confort — un administrateur peut réafficher n'importe quelle
+commande depuis les réglages d'intégration du serveur — la vérification est la
+sécurité. Un plugin qui appelle lui-même `setDefaultMemberPermissions` garde
+son choix.
+
 Discord efface les commandes d'un serveur dès que le bot en est retiré. Si le bot y est réinvité, le core les repousse tout seul à l'arrivée — un plugin resté activé retrouve ses commandes sans intervention.
 
 Si `execute` lève une erreur, le core répond à l'utilisateur avec un identifiant court et écrit la trace complète dans les logs sous ce même identifiant.

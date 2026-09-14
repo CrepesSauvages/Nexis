@@ -6,6 +6,7 @@ import { createJsonDriver } from '../../src/core/storage/drivers/json.js';
 import { createRegistries } from '../../src/core/registry/index.js';
 import { createGuildConfig } from '../../src/core/guild-config.js';
 import { createLogger } from '../../src/core/logger.js';
+import { PermissionFlagsBits } from 'discord.js';
 import { createCommandSync } from '../../src/core/command-sync.js';
 
 const silent = () => createLogger({ level: 'error' });
@@ -115,5 +116,72 @@ describe('syncGlobal', () => {
   it('ne devrait pas cibler une guild', async () => {
     await build({ alwaysEnabled: ['core'] }).syncGlobal();
     expect(rest.put.mock.calls[0][0]).not.toContain('guilds');
+  });
+});
+
+describe('permissions par défaut poussées à Discord', () => {
+  /**
+   * `data` passe par une fabrique plutôt que par un littéral en ligne :
+   * `CommandDef['data']` ne déclare pas `toJSON`, et TypeScript refuse une
+   * propriété en trop sur un littéral posé directement à l'appel.
+   *
+   * @param {string} name
+   * @param {Record<string, unknown>} [extra] - champs du JSON réellement poussé
+   */
+  const dataWithJson = (name, extra = {}) => ({ name, toJSON: () => ({ name, ...extra }) });
+
+  /** @returns {Record<string, unknown>} le premier corps poussé */
+  const firstPushed = () =>
+    /** @type {Record<string, unknown>[]} */ (rest.put.mock.calls[0][1].body)[0];
+
+  /**
+   * @param {object} command
+   * @returns {Promise<Record<string, unknown>>}
+   */
+  const pushed = async (command) => {
+    registries.commands.add('welcome', {
+      data: dataWithJson('hello'),
+      execute: () => {},
+      ...command,
+    });
+    await guildConfig.enable('g1', 'welcome');
+    await build().syncGuild('g1');
+    return firstPushed();
+  };
+
+  it('devrait masquer une commande guild-admin derrière « Gérer le serveur »', async () => {
+    const json = await pushed({ permissions: 'guild-admin' });
+    expect(json.default_member_permissions).toBe(PermissionFlagsBits.ManageGuild.toString());
+  });
+
+  it('devrait masquer une commande owner à tous les membres', async () => {
+    const json = await pushed({ permissions: 'owner' });
+    expect(json.default_member_permissions).toBe('0');
+  });
+
+  it('ne devrait rien imposer à une commande sans niveau déclaré', async () => {
+    const json = await pushed({});
+    expect(json.default_member_permissions).toBeUndefined();
+  });
+
+  it('devrait respecter un default_member_permissions déjà posé par le plugin', async () => {
+    registries.commands.add('welcome', {
+      data: dataWithJson('hello', { default_member_permissions: '8' }),
+      execute: () => {},
+      permissions: 'guild-admin',
+    });
+    await guildConfig.enable('g1', 'welcome');
+    await build().syncGuild('g1');
+
+    expect(firstPushed().default_member_permissions).toBe('8');
+  });
+
+  it("ne devrait pas muter la donnée du plugin en l'absence de toJSON", async () => {
+    const data = { name: 'hello' };
+    registries.commands.add('welcome', { data, execute: () => {}, permissions: 'guild-admin' });
+    await guildConfig.enable('g1', 'welcome');
+    await build().syncGuild('g1');
+
+    expect(data).toEqual({ name: 'hello' });
   });
 });
