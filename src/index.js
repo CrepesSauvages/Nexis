@@ -7,6 +7,7 @@ import { createStorage } from './core/storage/index.js';
 import { createRegistries } from './core/registry/index.js';
 import { createGuildConfig } from './core/guild-config.js';
 import { createAudit } from './core/audit.js';
+import { GUILD_CONFIG_CHANGED, announceGuildConfigChange } from './core/shard-bus.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
 import { createErrorReporting } from './core/reporting/index.js';
@@ -82,7 +83,15 @@ export const bootstrap = async ({
   logger.info('Démarrage de Nexis');
 
   const registries = createRegistries();
-  const guildConfig = createGuildConfig({ storage });
+
+  // Déclaré avant `guildConfig` : son `onWrite` doit pouvoir joindre le
+  // client, qui n'existe qu'après le `setup()` des plugins.
+  const clientRef = { current: /** @type {import('discord.js').Client | null} */ (null) };
+
+  const guildConfig = createGuildConfig({
+    storage,
+    onWrite: (guildId) => announceGuildConfigChange(clientRef.current, guildId),
+  });
   const audit = createAudit({ storage, limit: config.auditLogLimit });
   const plugins = await loadPlugins({ dir: config.pluginsDir, logger });
 
@@ -91,6 +100,7 @@ export const bootstrap = async ({
   // crée le client avec la liste finale : setup() ne doit pas s'en servir
   // pour émettre, seulement le mémoriser.
   const contexts = new Map();
+
   const commandSync = createCommandSync({
     rest: restFactory(config.token),
     clientId: config.clientId,
@@ -102,7 +112,6 @@ export const bootstrap = async ({
 
   /** @type {import('./core/loader.js').LoadedPlugin[]} */
   const active = [];
-  const clientRef = { current: /** @type {import('discord.js').Client | null} */ (null) };
   // ctx.client pendant setup() n'accepte qu'un seul usage : le mémoriser tel
   // quel (`const client = ctx.client`) pour s'en servir plus tard. Lire une
   // de ses propriétés pendant setup() capture `undefined` pour toujours (le
@@ -172,6 +181,13 @@ export const bootstrap = async ({
   // s'en sert pour les incidents de passerelle, précisément le moment où
   // planter serait le plus dommageable. Ce listener ne prive aucun plugin
   // du sien : plusieurs écouteurs coexistent sur un même event.
+  // Une écriture faite sur un autre shard périme notre cache : sans cette
+  // écoute, le shard qui sert un serveur continuerait de lire les valeurs
+  // d'avant une modification faite depuis le dashboard.
+  client.on(GUILD_CONFIG_CHANGED, (/** @type {string} */ guildId) => {
+    guildConfig.invalidate(guildId);
+  });
+
   client.on('error', (error) => {
     logger.error(`Erreur du client Discord : ${errorMessage(error)}`, {
       stack: errorStack(error),
@@ -268,9 +284,9 @@ export const bootstrap = async ({
     commands: activeCommands,
     commandSync,
     audit,
-    // Même paire que celle donnée au contexte des plugins ci-dessus (ligne
-    // 140) : le dashboard n'a pas besoin de reportAll(), seulement de lire
-    // et de vider le journal local.
+    // Même paire que celle donnée au contexte des plugins ci-dessus : le
+    // dashboard n'a pas besoin de reportAll(), seulement de lire et de
+    // vider le journal local.
     errorReporting: { getRecent: errorReporting.getRecent, clear: errorReporting.clear },
     fetchImpl,
   });

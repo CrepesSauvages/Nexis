@@ -138,16 +138,6 @@ export const localizeSchema = (locale, plugin, schema) =>
     ]),
   );
 
-/**
- * Position d'un salon dans la liste du serveur. Un `ThreadChannel` n'a pas de
- * `rawPosition` — le test d'appartenance restreint le type pour TypeScript
- * autant qu'il évite un `NaN` à l'exécution.
- *
- * @param {import('discord.js').GuildBasedChannel} channel
- * @returns {number}
- */
-export const positionOf = (channel) => ('rawPosition' in channel ? channel.rawPosition : 0);
-
 /** Défaut et plafond de `?limit=` pour GET /api/core/errors. */
 export const DEFAULT_ERROR_LOG_LIMIT = 50;
 export const MAX_ERROR_LOG_LIMIT = 200;

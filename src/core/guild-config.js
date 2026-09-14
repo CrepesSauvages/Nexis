@@ -12,9 +12,13 @@ const DEFAULT_MAX_CACHED_GUILDS = 500;
  * le dispatcher consulte cette structure sur chaque message reçu.
  * Toute écriture invalide l'entrée concernée.
  *
- * @param {{ storage: import('./storage/driver.js').StorageDriver, maxCachedGuilds?: number }} options
+ * @param {{ storage: import('./storage/driver.js').StorageDriver, maxCachedGuilds?: number, onWrite?: (guildId: string) => void | Promise<void> }} options
  */
-export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHED_GUILDS }) => {
+export const createGuildConfig = ({
+  storage,
+  maxCachedGuilds = DEFAULT_MAX_CACHED_GUILDS,
+  onWrite = undefined,
+}) => {
   /**
    * Tout ce qu'on retient d'un serveur, en un seul objet : un serveur
    * oublié l'est alors entièrement, et `invalidate` se résume à une
@@ -93,6 +97,27 @@ export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHE
     return attempt;
   };
 
+  /**
+   * Signale une écriture à l'appelant, s'il l'a demandé. Le point unique
+   * par lequel passent toutes les mutations : un chemin d'écriture ne peut
+   * pas oublier de prévenir.
+   *
+   * Ni l'attente ni l'échec ne remontent : prévenir les autres process est
+   * un effet de bord de l'écriture, pas une condition de sa réussite.
+   *
+   * @param {string} guildId
+   * @returns {void}
+   */
+  const announce = (guildId) => {
+    if (!onWrite) return;
+    try {
+      void Promise.resolve(onWrite(guildId)).catch(() => undefined);
+    } catch {
+      // Un `onWrite` qui lève de façon synchrone ne doit pas faire échouer
+      // une écriture déjà persistée.
+    }
+  };
+
   /** @param {string} guildId */
   const enabledKey = (guildId) => `core:guild:${guildId}:enabled`;
   /** @param {string} guildId @param {string} plugin */
@@ -140,6 +165,7 @@ export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHE
   const writeEnabled = async (guildId, list) => {
     await storage.set(enabledKey(guildId), list);
     entryOf(guildId).enabled = list;
+    announce(guildId);
   };
 
   return {
@@ -215,6 +241,7 @@ export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHE
       return serialize(guildId, async () => {
         await storage.set(localeKey(guildId), locale);
         entryOf(guildId).locale = locale;
+        announce(guildId);
       });
     },
 
@@ -255,6 +282,7 @@ export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHE
         const merged = { ...current, ...values };
         await storage.set(key, merged);
         entryOf(guildId).configs.set(plugin, merged);
+        announce(guildId);
       });
     },
 
@@ -300,6 +328,7 @@ export const createGuildConfig = ({ storage, maxCachedGuilds = DEFAULT_MAX_CACHE
         }
         await storage.set(key, next);
         entryOf(guildId).permissions = next;
+        announce(guildId);
       });
     },
 

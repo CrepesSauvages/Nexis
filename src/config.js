@@ -6,6 +6,20 @@ const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
 
 /**
+ * Drivers qui ne survivent pas à plusieurs process : `json` tient tout en
+ * mémoire et réécrit le fichier entier, `sqlite` ouvre un handle local
+ * sans coordination entre process. Sous sharding, chaque shard en aurait
+ * sa propre copie et écraserait celle des autres.
+ */
+const SINGLE_PROCESS_DRIVERS = ['json', 'sqlite'];
+
+/**
+ * @typedef {object} ShardingConfig
+ * @property {boolean} enabled
+ * @property {number} id - identifiant de ce shard, 0 sans sharding
+ */
+
+/**
  * @typedef {object} DashboardConfig
  * @property {boolean} enabled
  * @property {string | undefined} clientSecret
@@ -26,6 +40,7 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {number} errorLogLimit
  * @property {number} auditLogLimit
  * @property {string | undefined} schedulerTimezone
+ * @property {ShardingConfig} sharding
  * @property {DashboardConfig} dashboard
  */
 
@@ -156,6 +171,19 @@ export const loadConfig = (env = process.env) => {
   // qui est rarement ce que veut un hébergement dont l'horloge est en UTC.
   const schedulerTimezone = timezone(env.SCHEDULER_TIMEZONE, 'SCHEDULER_TIMEZONE');
 
+  // `SHARDING_MANAGER` et `SHARDS` sont posés par discord.js dans
+  // l'environnement de chaque shard qu'il lance : ce n'est pas à
+  // l'utilisateur de les renseigner.
+  const sharded = env.SHARDING_MANAGER === 'true';
+  const sharding = { enabled: sharded, id: sharded ? Number(env.SHARDS ?? 0) : 0 };
+  if (sharded && SINGLE_PROCESS_DRIVERS.includes(driver)) {
+    throw new ConfigError(
+      `Le driver "${driver}" ne peut pas être partagé entre plusieurs shards : chacun en tiendrait sa propre copie. ` +
+        'Utilisez STORAGE_DRIVER=postgres ou mongo pour un bot shardé.',
+      { driver, available: DRIVERS.filter((name) => !SINGLE_PROCESS_DRIVERS.includes(name)) },
+    );
+  }
+
   // Le secret OAuth EST l'interrupteur du dashboard : sans lui aucun port
   // n'est ouvert, et une installation qui ne veut que le bot n'a rien à
   // configurer. Port et hôte sont validés même dashboard éteint — une
@@ -181,6 +209,7 @@ export const loadConfig = (env = process.env) => {
     errorLogLimit,
     auditLogLimit,
     schedulerTimezone,
+    sharding,
     dashboard,
   };
 };

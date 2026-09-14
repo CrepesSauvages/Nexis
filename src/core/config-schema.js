@@ -12,25 +12,6 @@ const GUILD_REFERENCES = ['channel', 'role', 'user'];
  */
 
 /**
- * @param {import('discord.js').Guild} guild
- * @param {string} type
- * @param {string} id
- * @returns {Promise<boolean>}
- */
-const existsInGuild = async (guild, type, id) => {
-  if (type === 'channel') return guild.channels.cache.has(id);
-  if (type === 'role') return guild.roles.cache.has(id);
-  // Le cache des membres n'est peuplé que par ce que la passerelle a fait
-  // passer : son silence ne prouve rien, il faut demander à Discord.
-  try {
-    await guild.members.fetch(id);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
  * @param {unknown} value
  * @param {import('./manifest.js').ConfigEntry} entry
  * @returns {string | undefined} motif de rejet, ou undefined si la valeur convient
@@ -63,11 +44,11 @@ const checkType = (value, entry) => {
  * @param {object} options
  * @param {Record<string, import('./manifest.js').ConfigEntry> | undefined} options.schema
  * @param {Record<string, unknown>} options.values
- * @param {import('discord.js').Guild} options.guild
+ * @param {(type: 'channel' | 'role' | 'user', id: string) => Promise<boolean>} options.exists - le référencé existe-t-il dans ce serveur ? Injecté plutôt que déduit d'un objet `Guild` : sur un bot réparti en shards, le serveur visé n'est pas forcément servi par ce process.
  * @param {Record<string, unknown>} [options.current] - configuration en vigueur, défauts déjà fusionnés
  * @returns {Promise<ValidationResult>}
  */
-export const validateConfigValues = async ({ schema, values, guild, current = {} }) => {
+export const validateConfigValues = async ({ schema, values, exists, current = {} }) => {
   /** @type {FieldError[]} */
   const fields = [];
 
@@ -90,7 +71,10 @@ export const validateConfigValues = async ({ schema, values, guild, current = {}
 
     if (
       GUILD_REFERENCES.includes(entry.type) &&
-      !(await existsInGuild(guild, entry.type, /** @type {string} */ (value)))
+      !(await exists(
+        /** @type {'channel' | 'role' | 'user'} */ (entry.type),
+        /** @type {string} */ (value),
+      ))
     ) {
       fields.push({ key, reason: 'not_found_in_guild' });
     }

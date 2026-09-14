@@ -13,23 +13,21 @@ const schema = {
 };
 
 /**
- * Faux serveur réduit à ce que la validation consulte.
+ * Doublure de `exists` : le contenu du serveur réduit à ce que la
+ * validation consulte. Une fonction plutôt qu'un objet `Guild` — c'est ce
+ * que `validateConfigValues` demande depuis qu'elle ne suppose plus le
+ * serveur servi par ce process.
+ *
  * @param {{ channels?: string[], roles?: string[], members?: string[] }} [contents]
- * @returns {import('discord.js').Guild}
+ * @returns {(type: 'channel' | 'role' | 'user', id: string) => Promise<boolean>}
  */
-const fakeGuild = ({ channels = [], roles = [], members = [] } = {}) =>
-  /** @type {import('discord.js').Guild} */ (
-    /** @type {unknown} */ ({
-      channels: { cache: new Map(channels.map((id) => [id, {}])) },
-      roles: { cache: new Map(roles.map((id) => [id, {}])) },
-      members: {
-        fetch: vi.fn(async (id) => {
-          if (!members.includes(String(id))) throw new Error('Unknown Member');
-          return {};
-        }),
-      },
-    })
-  );
+const fakeExists =
+  ({ channels = [], roles = [], members = [] } = {}) =>
+  async (type, id) => {
+    if (type === 'channel') return channels.includes(id);
+    if (type === 'role') return roles.includes(id);
+    return members.includes(id);
+  };
 
 const ID = '123456789012345678';
 const AUTRE_ID = '987654321098765432';
@@ -39,7 +37,7 @@ describe('types simples', () => {
     const result = await validateConfigValues({
       schema,
       values: { greeting: 'Bonjour', delay: 5, announce: true, mode: 'doux' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({
       ok: true,
@@ -51,7 +49,7 @@ describe('types simples', () => {
     const result = await validateConfigValues({
       schema,
       values: { delay: '5' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'delay', reason: 'wrong_type' }] });
   });
@@ -60,7 +58,7 @@ describe('types simples', () => {
     const result = await validateConfigValues({
       schema,
       values: { announce: 'true' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'announce', reason: 'wrong_type' }] });
   });
@@ -69,7 +67,7 @@ describe('types simples', () => {
     const result = await validateConfigValues({
       schema,
       values: { delay: Number.POSITIVE_INFINITY },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'delay', reason: 'wrong_type' }] });
   });
@@ -78,7 +76,7 @@ describe('types simples', () => {
     const result = await validateConfigValues({
       schema,
       values: { mode: 'brutal' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'mode', reason: 'not_in_options' }] });
   });
@@ -89,7 +87,7 @@ describe('clés inconnues', () => {
     const result = await validateConfigValues({
       schema,
       values: { greting: 'faute de frappe' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'greting', reason: 'unknown_key' }] });
   });
@@ -98,7 +96,7 @@ describe('clés inconnues', () => {
     const result = await validateConfigValues({
       schema: undefined,
       values: { quoi: 1 },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'quoi', reason: 'unknown_key' }] });
   });
@@ -110,7 +108,7 @@ describe('clés inconnues', () => {
     const values = JSON.parse(
       '{"__proto__":"123456789012345678","constructor":"x","toString":"y"}',
     );
-    const result = await validateConfigValues({ schema, values, guild: fakeGuild() });
+    const result = await validateConfigValues({ schema, values, exists: fakeExists() });
     expect(result).toEqual({
       ok: false,
       fields: [
@@ -127,7 +125,7 @@ describe('références au serveur', () => {
     const result = await validateConfigValues({
       schema,
       values: { salon: ID },
-      guild: fakeGuild({ channels: [ID] }),
+      exists: fakeExists({ channels: [ID] }),
     });
     expect(result.ok).toBe(true);
   });
@@ -136,7 +134,7 @@ describe('références au serveur', () => {
     const result = await validateConfigValues({
       schema,
       values: { salon: AUTRE_ID },
-      guild: fakeGuild({ channels: [ID] }),
+      exists: fakeExists({ channels: [ID] }),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'salon', reason: 'not_found_in_guild' }] });
   });
@@ -145,7 +143,7 @@ describe('références au serveur', () => {
     const result = await validateConfigValues({
       schema,
       values: { salon: 'general' },
-      guild: fakeGuild({ channels: [ID] }),
+      exists: fakeExists({ channels: [ID] }),
     });
     expect(result).toEqual({ ok: false, fields: [{ key: 'salon', reason: 'wrong_type' }] });
   });
@@ -154,23 +152,27 @@ describe('références au serveur', () => {
     const result = await validateConfigValues({
       schema,
       values: { role: ID },
-      guild: fakeGuild({ roles: [ID] }),
+      exists: fakeExists({ roles: [ID] }),
     });
     expect(result.ok).toBe(true);
   });
 
-  it('devrait interroger Discord pour un membre, pas son cache', async () => {
-    const guild = fakeGuild({ members: [ID] });
-    const result = await validateConfigValues({ schema, values: { moderateur: ID }, guild });
+  it('devrait déléguer la vérification du référencé', async () => {
+    // Le « comment » — interroger Discord plutôt que son cache pour un
+    // membre — appartient à guild-access.js et s'y teste ; ici, seul
+    // compte le fait de poser la question avec le bon type.
+    const exists = vi.fn().mockResolvedValue(true);
+    const result = await validateConfigValues({ schema, values: { moderateur: ID }, exists });
+
     expect(result.ok).toBe(true);
-    expect(guild.members.fetch).toHaveBeenCalledWith(ID);
+    expect(exists).toHaveBeenCalledWith('user', ID);
   });
 
   it('devrait refuser un membre que Discord ne connaît pas', async () => {
     const result = await validateConfigValues({
       schema,
       values: { moderateur: AUTRE_ID },
-      guild: fakeGuild({ members: [ID] }),
+      exists: fakeExists({ members: [ID] }),
     });
     expect(result).toEqual({
       ok: false,
@@ -184,7 +186,7 @@ describe('exhaustivité', () => {
     const result = await validateConfigValues({
       schema,
       values: { delay: 'x', mode: 'brutal', inconnu: 1, greeting: 'ok' },
-      guild: fakeGuild(),
+      exists: fakeExists(),
     });
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.fields).toEqual([
@@ -195,7 +197,7 @@ describe('exhaustivité', () => {
   });
 
   it('devrait accepter un objet vide', async () => {
-    expect(await validateConfigValues({ schema, values: {}, guild: fakeGuild() })).toEqual({
+    expect(await validateConfigValues({ schema, values: {}, exists: fakeExists() })).toEqual({
       ok: true,
       values: {},
     });

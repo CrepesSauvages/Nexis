@@ -191,12 +191,45 @@ Voir **[docs/PLUGINS.md](docs/PLUGINS.md)**, et `plugins/example/` pour un plugi
 | ------------------------- | --------------------------------------------------- |
 | `npm run dev`             | Démarre avec rechargement au changement de fichier. |
 | `npm start`               | Démarre en production.                              |
+| `npm run start:sharded`   | Démarre réparti sur plusieurs shards.               |
 | `npm test`                | Lance la suite Vitest.                              |
 | `npm run lint`            | ESLint avec correction automatique.                 |
 | `npm run lint:check`      | ESLint sans rien modifier — ce que lance la CI.     |
 | `npm run check-types`     | Vérifie les types JSDoc avec `tsc --noEmit`.        |
 | `npm run format`          | Prettier.                                           |
 | `npm run deploy-commands` | Publie les commandes globales vers Discord.         |
+
+## Sharding
+
+Discord impose de répartir un bot sur plusieurs shards au-delà de 2 500
+serveurs, et le rend souhaitable bien avant : un seul process finit par passer
+son temps à traiter la passerelle.
+
+```bash
+npm run start:sharded
+```
+
+Chaque shard est un process à part exécutant `src/index.js` sur une tranche des
+serveurs. Le nombre de shards est demandé à Discord (`auto`) sauf si
+`TOTAL_SHARDS` le fixe.
+
+Trois conséquences, tenues par le core et non par le déploiement :
+
+- **Le storage doit être partageable entre process.** `json` et `sqlite` ne le
+  sont pas — chaque shard en tiendrait sa propre copie et écraserait celle des
+  autres. Le démarrage est refusé, avant de lancer le moindre shard, avec
+  n'importe quel autre driver que `postgres` ou `mongo`.
+- **Le dashboard ne tourne que sur le shard 0**, sans quoi les autres se
+  heurteraient au port déjà pris. Il n'est pas limité à la tranche de ce
+  shard : il interroge les autres quand un serveur n'est pas le sien
+  (`src/core/guild-access.js`).
+- **Une écriture de configuration est annoncée à tous les shards**, dont les
+  caches sont indépendants. Sans ce signal, une modification faite depuis le
+  dashboard laisserait le shard qui sert réellement ce serveur travailler sur
+  les valeurs d'avant.
+
+Les tâches planifiées n'ont rien de particulier à faire : chaque shard itère
+ses propres serveurs, donc chaque serveur est traité exactement une fois.
 
 ## Docker
 

@@ -10,7 +10,6 @@ import {
   localizeText,
   parseErrorLogLimit,
   pluginNameFrom,
-  positionOf,
   sendPermsRefusal,
   sendRefusal,
 } from './core-routes-helpers.js';
@@ -29,7 +28,7 @@ import {
  * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
  * @param {ReturnType<typeof import('../plugin-admin.js').createPluginAdmin>} options.admin
  * @param {ReturnType<typeof import('../command-perms.js').createCommandPerms>} options.perms
- * @param {import('discord.js').Client} options.client
+ * @param {ReturnType<typeof import('../guild-access.js').createGuildAccess>} options.access
  * @param {string[]} options.alwaysEnabled
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
  * @param {ReturnType<typeof import('../audit.js').createAudit>} options.audit
@@ -40,7 +39,7 @@ export const createCoreRoutes = ({
   guildConfig,
   admin,
   perms,
-  client,
+  access,
   alwaysEnabled,
   errorReporting,
   audit,
@@ -52,7 +51,7 @@ export const createCoreRoutes = ({
     // et vérifie lui-même la session, faute d'un niveau « connecté, sans
     // serveur ciblé » parmi les quatre que le registre accepte.
     auth: 'public',
-    handler: (_params, { session }) => {
+    handler: async (_params, { session }) => {
       if (!session) throw new HttpError(401, 'Authentification requise');
 
       // `session.guilds` date du login. C'est le seul usage que la conception
@@ -60,9 +59,13 @@ export const createCoreRoutes = ({
       // revérifiée auprès de Discord à chaque requête, donc un administrateur
       // rétrogradé voit peut-être un serveur de trop, mais reçoit un 403 dès
       // qu'il le touche.
-      return session.guilds
-        .filter((guild) => client.guilds.cache.has(guild.id))
-        .filter((guild) => canManageGuild(guild.permissions))
+      const manageable = session.guilds.filter((guild) => canManageGuild(guild.permissions));
+      // Une seule diffusion pour toute la liste : la poser serveur par
+      // serveur coûterait un aller-retour inter-shard par ligne.
+      const served = await access.present(manageable.map((guild) => guild.id));
+
+      return manageable
+        .filter((guild) => served.has(guild.id))
         .map(({ id, name, icon }) => ({ id, name, icon }));
     },
   },
@@ -100,25 +103,23 @@ export const createCoreRoutes = ({
     method: 'GET',
     path: '/api/core/guild-resources',
     auth: 'guild-admin',
-    handler: ({ guildId }) => {
-      const guild = client.guilds.cache.get(/** @type {string} */ (guildId));
-      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+    handler: async ({ guildId }) => {
+      // Lu dans le cache du shard qui sert ce serveur : aucun appel réseau
+      // à Discord. Les salons ne sont pas filtrés par type —
+      // `validateConfigValues` accepte n'importe quel identifiant connu du
+      // serveur, la liste rendue doit couvrir exactement le même ensemble.
+      const resources = await access.resources(/** @type {string} */ (guildId));
+      if (!resources) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 
-      // Tout est déjà en cache : aucun appel réseau à Discord. Les salons ne
-      // sont pas filtrés par type — `validateConfigValues` accepte n'importe
-      // quel identifiant présent dans `channels.cache`, la liste rendue doit
-      // donc couvrir exactement le même ensemble.
-      const channels = [...guild.channels.cache.values()]
-        // Un fil n'a pas de `rawPosition` : il compte pour 0.
-        .sort((a, b) => positionOf(a) - positionOf(b))
-        .map((channel) => ({ id: channel.id, name: channel.name, type: channel.type }));
-
-      // Hiérarchie Discord : le rôle le plus haut d'abord.
-      const roles = [...guild.roles.cache.values()]
-        .sort((a, b) => b.position - a.position)
-        .map((role) => ({ id: role.id, name: role.name, color: role.hexColor }));
-
-      return { channels, roles };
+      return {
+        channels: resources.channels
+          .sort((a, b) => a.position - b.position)
+          .map(({ id, name, type }) => ({ id, name, type })),
+        // Hiérarchie Discord : le rôle le plus haut d'abord.
+        roles: resources.roles
+          .sort((a, b) => b.position - a.position)
+          .map(({ id, name, color }) => ({ id, name, color })),
+      };
     },
   },
 
@@ -165,8 +166,9 @@ export const createCoreRoutes = ({
       if (!plugin) throw new HttpError(404, 'Plugin introuvable');
 
       const id = /** @type {string} */ (guildId);
-      const guild = client.guilds.cache.get(id);
-      if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+      if (!(await access.present([id])).has(id)) {
+        throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+      }
 
       // La validation des champs obligatoires raisonne sur le résultat de la
       // fusion, pas sur le corps seul : un champ déjà stocké et non mentionné
@@ -175,7 +177,7 @@ export const createCoreRoutes = ({
       const result = await validateConfigValues({
         schema: plugin.manifest.config,
         values: /** @type {Record<string, unknown>} */ (values),
-        guild,
+        exists: (type, reference) => access.exists(id, type, reference),
         current,
       });
       if (!result.ok) {
@@ -265,10 +267,11 @@ export const createCoreRoutes = ({
       // la liste entière. La nuance compte : une liste vide ne « retire pas
       // la règle », elle réserve la commande aux administrateurs.
       if (roles !== null) {
-        const guild = client.guilds.cache.get(id);
-        if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+        const known = await access.resources(id);
+        if (!known) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
 
-        const invalid = checkRoles(roles, (roleId) => guild.roles.cache.has(roleId));
+        const ids = new Set(known.roles.map((role) => role.id));
+        const invalid = checkRoles(roles, (roleId) => ids.has(roleId));
         if (invalid) {
           sendJson(res, 400, { error: ROLE_ERRORS[invalid], reason: invalid });
           return undefined;

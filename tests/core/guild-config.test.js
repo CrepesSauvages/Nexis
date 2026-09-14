@@ -355,3 +355,60 @@ describe('cache borné', () => {
     expect(await config.getLocale('g1')).toBeUndefined();
   });
 });
+
+describe('signalement des écritures', () => {
+  /** @returns {{ config: ReturnType<typeof createGuildConfig>, written: string[] }} */
+  const withHook = () => {
+    /** @type {string[]} */
+    const written = [];
+    const config = createGuildConfig({
+      storage,
+      onWrite: (guildId) => {
+        written.push(guildId);
+      },
+    });
+    return { config, written };
+  };
+
+  it('devrait signaler une activation', async () => {
+    const { config, written } = withHook();
+    await config.enable('g1', 'welcome');
+    expect(written).toEqual(['g1']);
+  });
+
+  it('devrait signaler une écriture de configuration', async () => {
+    const { config, written } = withHook();
+    await config.setConfig('g1', 'welcome', { greeting: 'Salut' });
+    expect(written).toEqual(['g1']);
+  });
+
+  it('devrait signaler un changement de langue et de permissions', async () => {
+    const { config, written } = withHook();
+    await config.setLocale('g1', 'de');
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    expect(written).toEqual(['g1', 'g1']);
+  });
+
+  it("ne devrait rien signaler quand l'écriture est un no-op", async () => {
+    const { config, written } = withHook();
+    await config.enable('g1', 'welcome');
+    // Déjà activé : `enable` rend la main sans écrire.
+    await config.enable('g1', 'welcome');
+    await config.disable('g1', 'absent');
+    expect(written).toEqual(['g1']);
+  });
+
+  it('ne devrait pas faire échouer une écriture si le signal lève', async () => {
+    const config = createGuildConfig({
+      storage,
+      onWrite: () => {
+        throw new Error('bus HS');
+      },
+    });
+
+    // Prévenir les autres process est un effet de bord de l'écriture, pas
+    // une condition de sa réussite.
+    await expect(config.enable('g1', 'welcome')).resolves.toBeUndefined();
+    expect(await config.enabledPlugins('g1')).toEqual(['welcome']);
+  });
+});

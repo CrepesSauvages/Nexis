@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createJsonDriver } from '../../../src/core/storage/drivers/json.js';
 import { createSessions } from '../../../src/core/http/session.js';
+import { createGuildAccess } from '../../../src/core/guild-access.js';
 import { createRouter } from '../../../src/core/http/router.js';
 import { createGuildConfig } from '../../../src/core/guild-config.js';
 
@@ -91,6 +92,7 @@ export class RouterTestHarness {
       routes,
       sessions,
       client: resolvedClient,
+      access: createGuildAccess(resolvedClient),
       guildConfig: guildConfig ?? createGuildConfig({ storage }),
       alwaysEnabled,
       fallback,

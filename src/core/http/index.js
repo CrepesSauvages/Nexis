@@ -3,11 +3,25 @@ import { createOAuth } from './oauth.js';
 import { createAuthRoutes } from './auth-routes.js';
 import { createPluginAdmin } from '../plugin-admin.js';
 import { createCommandPerms } from '../command-perms.js';
+import { createGuildAccess } from '../guild-access.js';
 import { createCoreRoutes } from './core-routes.js';
 import { createRouter } from './router.js';
 import { createHttpServer } from './server.js';
 import { createStaticHandler } from './static.js';
 import { errorMessage } from '../errors.js';
+
+/**
+ * Ce process sert-il le dashboard ?
+ *
+ * Un seul le fait : lancés ensemble, les autres shards se heurteraient au
+ * port déjà pris. Celui qui le sert interroge les autres au besoin
+ * (`guild-access.js`), il n'est donc pas limité aux serveurs de sa propre
+ * tranche.
+ *
+ * @param {import('../../config.js').ShardingConfig} sharding
+ * @returns {boolean}
+ */
+export const servesDashboard = (sharding) => !sharding.enabled || sharding.id === 0;
 
 /** Intervalle du balayage des sessions périmées. */
 const SESSION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
@@ -50,6 +64,11 @@ export const startDashboard = async ({
   errorReporting,
   fetchImpl,
 }) => {
+  if (!servesDashboard(config.sharding)) {
+    logger.info('Dashboard servi par un autre shard', { shard: config.sharding.id });
+    return undefined;
+  }
+
   const { enabled, clientSecret, host, port, baseUrl } = config.dashboard;
   if (!enabled || !clientSecret) {
     logger.warn('Dashboard désactivé : DISCORD_CLIENT_SECRET absent');
@@ -61,6 +80,7 @@ export const startDashboard = async ({
   const oauth = createOAuth({ clientId: config.clientId, clientSecret, baseUrl, fetchImpl });
   const admin = createPluginAdmin({ plugins, guildConfig, commandSync, alwaysEnabled, audit });
   const perms = createCommandPerms({ commands, guildConfig, audit });
+  const access = createGuildAccess(client);
 
   const server = createHttpServer({
     router: createRouter({
@@ -83,7 +103,7 @@ export const startDashboard = async ({
           guildConfig,
           admin,
           perms,
-          client,
+          access,
           alwaysEnabled,
           errorReporting,
           audit,
@@ -98,6 +118,7 @@ export const startDashboard = async ({
       ],
       sessions,
       client,
+      access,
       guildConfig,
       alwaysEnabled,
       ownerId: config.ownerId,

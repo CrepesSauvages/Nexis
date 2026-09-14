@@ -185,3 +185,43 @@ describe('SCHEDULER_TIMEZONE', () => {
     );
   });
 });
+
+describe('sharding', () => {
+  it('ne devrait pas se croire shardé sans le drapeau de discord.js', () => {
+    expect(loadConfig(validEnv).sharding).toEqual({ enabled: false, id: 0 });
+  });
+
+  it('devrait lire son identifiant de shard', () => {
+    // `SHARDING_MANAGER` et `SHARDS` sont posés par discord.js lui-même
+    // dans l'environnement de chaque shard qu'il lance.
+    const config = loadConfig({
+      ...validEnv,
+      SHARDING_MANAGER: 'true',
+      SHARDS: '3',
+      STORAGE_DRIVER: 'postgres',
+      STORAGE_PATH: 'postgres://localhost/nexis',
+    });
+    expect(config.sharding).toEqual({ enabled: true, id: 3 });
+  });
+
+  it('devrait refuser un driver mono-process sous sharding', () => {
+    // Chaque shard en tiendrait sa propre copie et écraserait celle des
+    // autres : mieux vaut refuser de démarrer.
+    for (const driver of ['json', 'sqlite']) {
+      expect(() =>
+        loadConfig({ ...validEnv, SHARDING_MANAGER: 'true', STORAGE_DRIVER: driver }),
+      ).toThrow(ConfigError);
+    }
+  });
+
+  it('devrait accepter un driver partageable sous sharding', () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        SHARDING_MANAGER: 'true',
+        STORAGE_DRIVER: 'mongo',
+        STORAGE_PATH: 'mongodb://localhost/nexis',
+      }),
+    ).not.toThrow();
+  });
+});

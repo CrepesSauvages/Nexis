@@ -1,6 +1,6 @@
 {
   "name": "nexis",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "Nexis a bot discord, fully customisable in Js",
   "keywords": [
     "discord",
@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "start:sharded": "node src/shard-manager.js",
     "lint": "eslint --fix",
     "lint:check": "eslint",
     "format": "prettier --write src",
