@@ -58,6 +58,8 @@ export const checkRoles = (roles, existsInGuild) => {
   return undefined;
 };
 
+import { NO_AUDIT } from './audit.js';
+
 /**
  * @typedef {'unknown_command' | 'owner_command' | 'no_override' | 'already_listed' | 'not_listed'} PermsRefusalReason
  */
@@ -81,10 +83,26 @@ export const checkRoles = (roles, existsInGuild) => {
  * @param {object} options
  * @param {Array<{ name: string, plugin: string, permissions?: 'guild-admin' | 'owner' }>} options.commands
  * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} options.guildConfig
+ * @param {typeof NO_AUDIT} [options.audit] - journal des changements ; inerte par défaut
  */
-export const createCommandPerms = ({ commands, guildConfig }) => {
+export const createCommandPerms = ({ commands, guildConfig, audit = NO_AUDIT }) => {
   /** @param {string} name */
   const find = (name) => commands.find((command) => command.name === name);
+
+  /**
+   * Toute écriture passe par ici : le journal ne peut pas être oublié sur
+   * un chemin, et l'auteur inconnu porte une valeur explicite plutôt qu'un
+   * champ absent.
+   *
+   * @param {string} guildId
+   * @param {string | undefined} actor
+   * @param {string} action
+   * @param {string} target
+   * @param {Record<string, unknown>} [details]
+   * @returns {Promise<void>}
+   */
+  const record = (guildId, actor, action, target, details) =>
+    audit.record({ guildId, actor: actor ?? 'inconnu', action, target, details });
 
   /**
    * @param {string} name
@@ -122,9 +140,10 @@ export const createCommandPerms = ({ commands, guildConfig }) => {
      * @param {string} guildId
      * @param {string} command
      * @param {string} roleId
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<PermsResult>}
      */
-    async allow(guildId, command, roleId) {
+    async allow(guildId, command, roleId, actor) {
       const refusal = refuseTarget(command);
       if (refusal) return { ok: false, reason: refusal };
 
@@ -133,6 +152,7 @@ export const createCommandPerms = ({ commands, guildConfig }) => {
 
       const roles = [...(current ?? []), roleId];
       await guildConfig.setCommandRoles(guildId, command, roles);
+      await record(guildId, actor, 'perms.allow', command, { role: roleId, roles });
       return { ok: true, roles };
     },
 
@@ -140,9 +160,10 @@ export const createCommandPerms = ({ commands, guildConfig }) => {
      * @param {string} guildId
      * @param {string} command
      * @param {string} roleId
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<PermsResult>}
      */
-    async deny(guildId, command, roleId) {
+    async deny(guildId, command, roleId, actor) {
       const refusal = refuseTarget(command);
       if (refusal) return { ok: false, reason: refusal };
 
@@ -155,19 +176,22 @@ export const createCommandPerms = ({ commands, guildConfig }) => {
 
       const roles = current.filter((id) => id !== roleId);
       await guildConfig.setCommandRoles(guildId, command, roles);
+      await record(guildId, actor, 'perms.deny', command, { role: roleId, roles });
       return { ok: true, roles };
     },
 
     /**
      * @param {string} guildId
      * @param {string} command
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<PermsResult>}
      */
-    async reset(guildId, command) {
+    async reset(guildId, command, actor) {
       const refusal = refuseTarget(command);
       if (refusal) return { ok: false, reason: refusal };
 
       await guildConfig.setCommandRoles(guildId, command, undefined);
+      await record(guildId, actor, 'perms.reset', command);
       return { ok: true, roles: undefined };
     },
 
@@ -177,13 +201,17 @@ export const createCommandPerms = ({ commands, guildConfig }) => {
      * @param {string} guildId
      * @param {string} command
      * @param {string[] | undefined} roles
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<PermsResult>}
      */
-    async set(guildId, command, roles) {
+    async set(guildId, command, roles, actor) {
       const refusal = refuseTarget(command);
       if (refusal) return { ok: false, reason: refusal };
 
       await guildConfig.setCommandRoles(guildId, command, roles);
+      await record(guildId, actor, roles === undefined ? 'perms.reset' : 'perms.set', command, {
+        roles: roles ?? null,
+      });
       return { ok: true, roles };
     },
   };

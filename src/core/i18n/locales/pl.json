@@ -48,6 +48,10 @@
 
   "nexis.locale.confirmed": "Język serwera ustawiony na {language}.",
 
+  "nexis.audit.title": "**Dziennik zmian**",
+  "nexis.audit.empty": "Nie zapisano żadnej zmiany na tym serwerze.",
+  "nexis.audit.entry": "`{timestamp}` <@{actor}> — `{action}` {target}{details}",
+  "nexis.command.audit.description": "Kto co zmienił na tym serwerze",
   "nexis.perms.title": "**Uprawnienia ról**",
   "nexis.perms.empty": "Żadne polecenie nie ma tu listy ról. Każde stosuje poziom zadeklarowany przez swoją wtyczkę.",
   "nexis.perms.entry": "• `{command}` → {roles}",

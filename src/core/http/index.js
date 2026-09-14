@@ -27,6 +27,7 @@ import { createStaticHandler } from './static.js';
  * @param {Array<{ name: string, plugin: string, permissions?: 'guild-admin' | 'owner' }>} options.commands - commandes des plugins actifs, déjà filtrées par bootstrap()
  * @param {{ syncGuild: (guildId: string) => Promise<void> }} options.commandSync
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
+ * @param {ReturnType<typeof import('../audit.js').createAudit>} options.audit
  * @param {typeof fetch} [options.fetchImpl]
  * @returns {Promise<ReturnType<typeof createHttpServer> | undefined>}
  */
@@ -41,6 +42,7 @@ export const startDashboard = async ({
   plugins,
   commands,
   commandSync,
+  audit,
   errorReporting,
   fetchImpl,
 }) => {
@@ -53,8 +55,8 @@ export const startDashboard = async ({
   const httpLogger = logger.child('http');
   const sessions = createSessions({ storage });
   const oauth = createOAuth({ clientId: config.clientId, clientSecret, baseUrl, fetchImpl });
-  const admin = createPluginAdmin({ plugins, guildConfig, commandSync, alwaysEnabled });
-  const perms = createCommandPerms({ commands, guildConfig });
+  const admin = createPluginAdmin({ plugins, guildConfig, commandSync, alwaysEnabled, audit });
+  const perms = createCommandPerms({ commands, guildConfig, audit });
 
   const server = createHttpServer({
     router: createRouter({
@@ -80,6 +82,7 @@ export const startDashboard = async ({
           client,
           alwaysEnabled,
           errorReporting,
+          audit,
         }),
         // Le registre type son handler en `Function` générique (routes.js) ;
         // le routeur attend la signature précise (params, io) => unknown.

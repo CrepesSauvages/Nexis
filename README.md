@@ -30,6 +30,7 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 | `PLUGINS_DIR`           | `./plugins`             | Répertoire scanné au démarrage.                                                                                             |
 | `SENTRY_DSN`            | —                       | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
 | `ERROR_LOG_LIMIT`       | `500`                   | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
+| `AUDIT_LOG_LIMIT`       | `200`                   | Nombre de changements conservés **par serveur** (`/nexis audit`).                                                           |
 | `DISCORD_CLIENT_SECRET` | —                       | Optionnel. Sa présence active le dashboard. Sans lui, aucun port n'est ouvert.                                              |
 | `DASHBOARD_HOST`        | `127.0.0.1`             | Adresse d'écoute du dashboard.                                                                                              |
 | `DASHBOARD_PORT`        | `3000`                  | Port d'écoute du dashboard.                                                                                                 |
@@ -58,6 +59,24 @@ donc par le reporting :
 client Discord, storage — borné à 5 secondes : passé ce délai le process sort
 quand même, ce qu'attend tout superviseur (systemd, Docker).
 
+## Journal des changements
+
+Toute écriture d'administration est enregistrée par serveur : activation et
+désactivation de plugin, écriture de configuration, changement de langue,
+règles de permission. Chaque entrée porte son auteur, son horodatage, un code
+d'action stable (`plugin.enable`, `config.update`, `perms.allow`…) et sa cible.
+
+Consultation : `/nexis audit` sur Discord, ou `GET /api/core/audit?guild=<id>`
+— les deux exigent « Gérer le serveur », comme le reste de l'administration.
+
+D'une écriture de configuration, seules les **clés** touchées sont retenues,
+jamais leurs valeurs : un journal n'a pas à devenir une seconde copie de la
+configuration, dont il hériterait la durée de vie sans en hériter les
+précautions.
+
+Le buffer est circulaire — `AUDIT_LOG_LIMIT` entrées par serveur, 200 par
+défaut — et vit dans le storage configuré, donc survit aux redémarrages.
+
 ## Dashboard
 
 Le dashboard s'active en renseignant `DISCORD_CLIENT_SECRET` — sans lui,
@@ -83,6 +102,7 @@ devient alors `Secure`.
 | `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                  |
 | `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                  |
 | `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.               |
+| `GET`   | `/api/core/audit?guild=<id>`           | Changements d'administration, les plus récents d'abord.     |
 | `GET`   | `/api/core/permissions?guild=<id>`     | Commandes, niveau déclaré et rôles autorisés.               |
 | `PUT`   | `/api/core/permissions?guild=<id>`     | Corps `{ "command": "...", "roles": ["<id>"] }`.            |
 | `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.            |

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createJsonDriver } from '../../../../src/core/storage/drivers/json.js';
 import { createGuildConfig } from '../../../../src/core/guild-config.js';
 import { createRegistries } from '../../../../src/core/registry/index.js';
+import { createAudit } from '../../../../src/core/audit.js';
 import { buildNexisCommand } from '../../../../plugins/core/commands/nexis.js';
 import { translator } from '../../../../src/core/i18n/index.js';
 import { resolveLocale as resolveLocalePure } from '../../../../src/core/i18n/locale-resolver.js';
@@ -95,6 +96,7 @@ beforeEach(async () => {
     guildConfig,
     commandSync: { syncGuild: vi.fn().mockResolvedValue(undefined) },
     registries: createRegistries(),
+    audit: createAudit({ storage }),
     alwaysEnabled: [],
     ownerId: 'owner-123',
     errorReporting: { getRecent: vi.fn().mockResolvedValue([]) },
@@ -628,5 +630,65 @@ describe('/nexis perms — autocomplétion', () => {
 
   it('devrait exclure les commandes de propriétaire', () => {
     expect(suggest('')).not.toContain('secret');
+  });
+});
+
+describe('/nexis audit', () => {
+  it("devrait annoncer un journal vide quand rien n'a changé", async () => {
+    const interaction = makeInteraction('audit');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('Aucun changement enregistré');
+  });
+
+  it("devrait montrer l'activation d'un plugin, son auteur et son action", async () => {
+    await command.execute(makeInteraction('enable', 'welcome'));
+
+    const interaction = makeInteraction('audit');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+
+    expect(text).toContain('plugin.enable');
+    expect(text).toContain('welcome');
+    expect(text).toContain('<@owner-123>');
+  });
+
+  it('devrait enregistrer un changement de langue', async () => {
+    const setLocale = {
+      guildId: 'g1',
+      locale: /** @type {string | undefined} */ (undefined),
+      user: { id: 'owner-123' },
+      reply: vi.fn(),
+      options: {
+        getSubcommandGroup: () => null,
+        getSubcommand: () => 'locale',
+        getString: () => 'en',
+        getRole: () => null,
+      },
+    };
+    await command.execute(setLocale);
+
+    const interaction = makeInteraction('audit');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('locale.set');
+  });
+
+  it('devrait enregistrer une surcharge de permissions', async () => {
+    core.registries.commands.add('welcome', { data: { name: 'hello' }, execute: () => {} });
+    await command.execute(makePermsInteraction('allow', { role: { id: '111111111111111111' } }));
+
+    const interaction = makeInteraction('audit');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain('perms.allow');
+  });
+
+  it('devrait montrer les plus récents changements en premier', async () => {
+    await command.execute(makeInteraction('enable', 'welcome'));
+    await command.execute(makeInteraction('enable', 'economy'));
+
+    const interaction = makeInteraction('audit');
+    await command.execute(interaction);
+    const text = replyText(interaction);
+
+    expect(text.indexOf('economy')).toBeLessThan(text.indexOf('welcome'));
   });
 });

@@ -16,6 +16,7 @@ import { createCommandPerms } from '../../../src/core/command-perms.js';
  * @property {string[]} alwaysEnabled
  * @property {string | undefined} ownerId
  * @property {{ getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> }} errorReporting
+ * @property {ReturnType<typeof import('../../../src/core/audit.js').createAudit>} audit
  * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
  * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
  */
@@ -58,6 +59,9 @@ const commandOption = (option) =>
  * qu'un nom construit à la volée : « deny » donnerait « denyed ».
  * @type {Record<'allow' | 'deny' | 'reset', string>}
  */
+/** Marge sous le plafond de 2000 caractères d'une réponse Discord. */
+const MAX_REPLY_LENGTH = 1900;
+
 const PERMS_SUCCESS_KEYS = {
   allow: 'nexis.perms.allowed',
   deny: 'nexis.perms.denied',
@@ -149,6 +153,12 @@ const data = new SlashCommandBuilder()
             { name: 'Polski', value: 'pl' },
           ),
       ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('audit')
+      .setDescription('Qui a changé quoi sur ce serveur')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.audit.description')),
   )
   .addSubcommandGroup((group) =>
     group
@@ -242,6 +252,7 @@ export const buildNexisCommand = (core) => {
       guildConfig: core.guildConfig,
       commandSync: core.commandSync,
       alwaysEnabled: core.alwaysEnabled,
+      audit: core.audit,
     });
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
@@ -271,7 +282,7 @@ export const buildNexisCommand = (core) => {
    */
   const enable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    const result = await admin().enable(interaction.guildId ?? '', name);
+    const result = await admin().enable(interaction.guildId ?? '', name, interaction.user.id);
 
     if (result.ok) {
       await reply(interaction, core.t(locale, 'nexis.enable.success', { name }));
@@ -304,7 +315,7 @@ export const buildNexisCommand = (core) => {
    */
   const disable = async (interaction, name) => {
     const locale = await core.resolveLocale(interaction);
-    const result = await admin().disable(interaction.guildId ?? '', name);
+    const result = await admin().disable(interaction.guildId ?? '', name, interaction.user.id);
 
     if (result.ok) {
       await reply(interaction, core.t(locale, 'nexis.disable.success', { name }));
@@ -431,11 +442,10 @@ export const buildNexisCommand = (core) => {
     });
 
     // Garde-fou dur : une réponse Discord est plafonnée à 2000 caractères.
-    // Tronque ligne par ligne plutôt que de risquer un échec de reply().
-    const MAX_LENGTH = 1900;
+    // Tronque plutôt que de risquer un échec de reply().
     let body = `${core.t(locale, 'nexis.errors.title')}\n${lines.join('\n')}`;
-    if (body.length > MAX_LENGTH) {
-      body = `${body.slice(0, MAX_LENGTH)}…`;
+    if (body.length > MAX_REPLY_LENGTH) {
+      body = `${body.slice(0, MAX_REPLY_LENGTH)}…`;
     }
 
     await reply(interaction, body);
@@ -446,11 +456,57 @@ export const buildNexisCommand = (core) => {
    * @param {string} locale
    */
   const setLocale = async (interaction, locale) => {
-    await core.guildConfig.setLocale(interaction.guildId ?? '', locale);
+    const guildId = interaction.guildId ?? '';
+    await core.guildConfig.setLocale(guildId, locale);
+    await core.audit.record({
+      guildId,
+      actor: interaction.user.id,
+      action: 'locale.set',
+      target: locale,
+    });
     await reply(
       interaction,
       core.t(locale, 'nexis.locale.confirmed', { language: LANGUAGE_NAMES[locale] }),
     );
+  };
+
+  /**
+   * Détail d'une entrée du journal, tronqué : la liste sert à repérer un
+   * changement, pas à l'auditer en profondeur — l'API du dashboard rend la
+   * même donnée sans troncature.
+   * @param {Record<string, unknown>} [details]
+   * @returns {string}
+   */
+  const formatDetails = (details) => {
+    if (!details || !Object.keys(details).length) return '';
+    const json = JSON.stringify(details);
+    return json.length > 80 ? ` ${json.slice(0, 80)}…` : ` ${json}`;
+  };
+
+  /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
+  const auditCmd = async (interaction) => {
+    const locale = await core.resolveLocale(interaction);
+    const entries = await core.audit.recent(interaction.guildId ?? '', 10);
+    if (!entries.length) {
+      await reply(interaction, core.t(locale, 'nexis.audit.empty'));
+      return;
+    }
+
+    const lines = entries.map((entry) =>
+      core.t(locale, 'nexis.audit.entry', {
+        // L'ISO complet coûte 24 caractères par ligne pour une précision
+        // à la milliseconde dont personne n'a l'usage ici.
+        timestamp: entry.timestamp.slice(0, 16).replace('T', ' '),
+        actor: entry.actor,
+        action: entry.action,
+        target: entry.target,
+        details: formatDetails(entry.details),
+      }),
+    );
+
+    let body = `${core.t(locale, 'nexis.audit.title')}\n${lines.join('\n')}`;
+    if (body.length > MAX_REPLY_LENGTH) body = `${body.slice(0, MAX_REPLY_LENGTH)}…`;
+    await reply(interaction, body);
   };
 
   /**
@@ -468,6 +524,7 @@ export const buildNexisCommand = (core) => {
         permissions: command.permissions,
       })),
       guildConfig: core.guildConfig,
+      audit: core.audit,
     });
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
@@ -502,10 +559,11 @@ export const buildNexisCommand = (core) => {
     const command = /** @type {string} */ (interaction.options.getString('commande'));
     const role = action === 'reset' ? undefined : interaction.options.getRole('role');
 
+    const actor = interaction.user.id;
     const result =
       action === 'reset'
-        ? await perms().reset(guildId, command)
-        : await perms()[action](guildId, command, /** @type {{ id: string }} */ (role).id);
+        ? await perms().reset(guildId, command, actor)
+        : await perms()[action](guildId, command, /** @type {{ id: string }} */ (role).id, actor);
 
     if (!result.ok) {
       // Chaque motif de refus a sa clé de traduction, nommée d'après lui.
@@ -563,6 +621,7 @@ export const buildNexisCommand = (core) => {
       const subcommand = typed.options.getSubcommand();
       if (subcommand === 'list') return list(typed);
       if (subcommand === 'errors') return errorsCmd(typed);
+      if (subcommand === 'audit') return auditCmd(typed);
       if (subcommand === 'locale') {
         const locale = /** @type {string} */ (typed.options.getString('langue'));
         return setLocale(typed, locale);

@@ -32,6 +32,7 @@ import {
  * @param {import('discord.js').Client} options.client
  * @param {string[]} options.alwaysEnabled
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
+ * @param {ReturnType<typeof import('../audit.js').createAudit>} options.audit
  * @returns {import('./router.js').HttpRoute[]}
  */
 export const createCoreRoutes = ({
@@ -42,6 +43,7 @@ export const createCoreRoutes = ({
   client,
   alwaysEnabled,
   errorReporting,
+  audit,
 }) => [
   {
     method: 'GET',
@@ -124,8 +126,12 @@ export const createCoreRoutes = ({
     method: 'POST',
     path: '/api/core/plugins/enable',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
-      const result = await admin.enable(/** @type {string} */ (guildId), pluginNameFrom(body));
+    handler: async ({ guildId, body, user }, { res }) => {
+      const result = await admin.enable(
+        /** @type {string} */ (guildId),
+        pluginNameFrom(body),
+        user?.id,
+      );
       return result.ok ? { ok: true } : sendRefusal(res, result);
     },
   },
@@ -134,8 +140,12 @@ export const createCoreRoutes = ({
     method: 'POST',
     path: '/api/core/plugins/disable',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
-      const result = await admin.disable(/** @type {string} */ (guildId), pluginNameFrom(body));
+    handler: async ({ guildId, body, user }, { res }) => {
+      const result = await admin.disable(
+        /** @type {string} */ (guildId),
+        pluginNameFrom(body),
+        user?.id,
+      );
       return result.ok ? { ok: true } : sendRefusal(res, result);
     },
   },
@@ -144,7 +154,7 @@ export const createCoreRoutes = ({
     method: 'PATCH',
     path: '/api/core/config',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
+    handler: async ({ guildId, body, user }, { res }) => {
       const name = pluginNameFrom(body);
       const { values } = /** @type {{ values?: unknown }} */ (body ?? {});
       if (!values || typeof values !== 'object' || Array.isArray(values)) {
@@ -180,6 +190,15 @@ export const createCoreRoutes = ({
       // pas. La validation ayant tout contrôlé avant d'arriver ici, l'écriture
       // est soit complète, soit inexistante.
       await guildConfig.setConfig(id, name, result.values);
+      // Les clés, pas les valeurs : un journal n'a pas à devenir une
+      // seconde copie de la configuration.
+      await audit.record({
+        guildId: id,
+        actor: user?.id ?? 'inconnu',
+        action: 'config.update',
+        target: name,
+        details: { keys: Object.keys(result.values) },
+      });
       return { ok: true, config: await guildConfig.getConfig(id, name, plugin.manifest.config) };
     },
   },
@@ -201,7 +220,7 @@ export const createCoreRoutes = ({
     method: 'PUT',
     path: '/api/core/locale',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
+    handler: async ({ guildId, body, user }, { res }) => {
       const { locale } = /** @type {{ locale?: unknown }} */ (body ?? {});
       if (typeof locale !== 'string' || !SUPPORTED_LOCALES.includes(locale)) {
         sendJson(res, 400, {
@@ -211,6 +230,12 @@ export const createCoreRoutes = ({
         return undefined;
       }
       await guildConfig.setLocale(/** @type {string} */ (guildId), locale);
+      await audit.record({
+        guildId: /** @type {string} */ (guildId),
+        actor: user?.id ?? 'inconnu',
+        action: 'locale.set',
+        target: locale,
+      });
       return { ok: true, locale };
     },
   },
@@ -228,7 +253,7 @@ export const createCoreRoutes = ({
     method: 'PUT',
     path: '/api/core/permissions',
     auth: 'guild-admin',
-    handler: async ({ guildId, body }, { res }) => {
+    handler: async ({ guildId, body, user }, { res }) => {
       const { command, roles } = /** @type {{ command?: unknown, roles?: unknown }} */ (body ?? {});
       if (typeof command !== 'string' || command.length === 0) {
         throw new HttpError(400, 'Champ `command` manquant ou vide');
@@ -254,11 +279,23 @@ export const createCoreRoutes = ({
         id,
         command,
         roles === null ? undefined : /** @type {string[]} */ (roles),
+        user?.id,
       );
       return result.ok
         ? { ok: true, command, roles: result.roles ?? null }
         : sendPermsRefusal(res, result);
     },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/audit',
+    // Un administrateur de serveur lit le journal de SON serveur : c'est
+    // lui qui a besoin de savoir qui a changé quoi chez lui.
+    auth: 'guild-admin',
+    handler: async ({ guildId, query }) => ({
+      entries: await audit.recent(/** @type {string} */ (guildId), parseErrorLogLimit(query.limit)),
+    }),
   },
 
   {

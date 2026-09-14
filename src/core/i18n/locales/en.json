@@ -44,6 +44,10 @@
 
   "nexis.locale.confirmed": "Server language set to {language}.",
 
+  "nexis.audit.title": "**Change log**",
+  "nexis.audit.empty": "No change recorded on this server.",
+  "nexis.audit.entry": "`{timestamp}` <@{actor}> — `{action}` {target}{details}",
+  "nexis.command.audit.description": "Who changed what on this server",
   "nexis.perms.title": "**Role permissions**",
   "nexis.perms.empty": "No command has a role list here. Each follows the level declared by its plugin.",
   "nexis.perms.entry": "• `{command}` → {roles}",

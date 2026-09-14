@@ -1,3 +1,5 @@
+import { NO_AUDIT } from './audit.js';
+
 /**
  * @typedef {'not_found' | 'always_enabled' | 'already_enabled' | 'missing_deps' | 'has_dependents'} AdminRefusalReason
  */
@@ -25,8 +27,15 @@
  * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} options.guildConfig
  * @param {{ syncGuild: (guildId: string) => Promise<void> }} options.commandSync
  * @param {string[]} options.alwaysEnabled
+ * @param {typeof NO_AUDIT} [options.audit] - journal des changements ; inerte par défaut
  */
-export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEnabled }) => {
+export const createPluginAdmin = ({
+  plugins,
+  guildConfig,
+  commandSync,
+  alwaysEnabled,
+  audit = NO_AUDIT,
+}) => {
   /** @param {string} name */
   const find = (name) => plugins.find((plugin) => plugin.name === name);
 
@@ -34,9 +43,10 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
     /**
      * @param {string} guildId
      * @param {string} name
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<AdminResult>}
      */
-    async enable(guildId, name) {
+    async enable(guildId, name, actor) {
       const plugin = find(name);
       if (!plugin) return { ok: false, reason: 'not_found' };
       if (alwaysEnabled.includes(name)) return { ok: false, reason: 'always_enabled' };
@@ -50,6 +60,12 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
 
       await guildConfig.enable(guildId, name);
       await commandSync.syncGuild(guildId);
+      await audit.record({
+        guildId,
+        actor: actor ?? 'inconnu',
+        action: 'plugin.enable',
+        target: name,
+      });
       return { ok: true };
     },
 
@@ -62,9 +78,10 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
      *
      * @param {string} guildId
      * @param {string} name
+     * @param {string} [actor] - identifiant Discord de l'auteur, pour le journal
      * @returns {Promise<AdminResult>}
      */
-    async disable(guildId, name) {
+    async disable(guildId, name, actor) {
       const plugin = find(name);
       if (!plugin) return { ok: false, reason: 'not_found' };
       if (alwaysEnabled.includes(name)) return { ok: false, reason: 'always_enabled' };
@@ -80,6 +97,12 @@ export const createPluginAdmin = ({ plugins, guildConfig, commandSync, alwaysEna
 
       await guildConfig.disable(guildId, name);
       await commandSync.syncGuild(guildId);
+      await audit.record({
+        guildId,
+        actor: actor ?? 'inconnu',
+        action: 'plugin.disable',
+        target: name,
+      });
       return { ok: true };
     },
   };

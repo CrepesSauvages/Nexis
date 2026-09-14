@@ -506,6 +506,8 @@ Si `setup()` lève une erreur, le plugin est écarté et le bot démarre quand m
 | `/nexis enable <plugin>`  | Active un plugin ici.                          |
 | `/nexis disable <plugin>` | Le désactive.                                  |
 | `/nexis info <plugin>`    | Détail, dépendances et configuration courante. |
+| `/nexis perms …`          | Rôles autorisés, commande par commande.        |
+| `/nexis audit`            | Qui a changé quoi sur ce serveur.              |
 
 Toutes exigent la permission « Gérer le serveur ».
 

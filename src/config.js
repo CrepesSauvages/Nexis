@@ -24,6 +24,7 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {string | undefined} ownerId
  * @property {string | undefined} sentryDsn
  * @property {number} errorLogLimit
+ * @property {number} auditLogLimit
  * @property {DashboardConfig} dashboard
  */
 
@@ -124,6 +125,10 @@ export const loadConfig = (env = process.env) => {
   const pluginsDir = env.PLUGINS_DIR ?? './plugins';
 
   const errorLogLimit = positiveInt(env.ERROR_LOG_LIMIT, 500, 'ERROR_LOG_LIMIT');
+  // Par serveur, contrairement au journal d'erreurs qui est global : un
+  // même plafond donnerait un tout autre volume selon le nombre de
+  // serveurs, d'où une valeur bien plus basse.
+  const auditLogLimit = positiveInt(env.AUDIT_LOG_LIMIT, 200, 'AUDIT_LOG_LIMIT');
 
   // Le secret OAuth EST l'interrupteur du dashboard : sans lui aucun port
   // n'est ouvert, et une installation qui ne veut que le bot n'a rien à
@@ -148,6 +153,7 @@ export const loadConfig = (env = process.env) => {
     ownerId: env.OWNER_ID,
     sentryDsn: env.SENTRY_DSN,
     errorLogLimit,
+    auditLogLimit,
     dashboard,
   };
 };

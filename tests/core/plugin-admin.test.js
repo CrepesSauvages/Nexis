@@ -135,3 +135,58 @@ describe('disable', () => {
     expect(commandSync.syncGuild).not.toHaveBeenCalled();
   });
 });
+
+describe('journal des changements', () => {
+  /** @returns {{ admin: ReturnType<typeof createPluginAdmin>, records: object[] }} */
+  const buildWithAudit = () => {
+    /** @type {object[]} */
+    const records = [];
+    const admin = createPluginAdmin({
+      plugins: [fakePlugin('core'), fakePlugin('alpha'), fakePlugin('beta', ['alpha'])],
+      guildConfig,
+      commandSync: /** @type {{ syncGuild: (guildId: string) => Promise<void> }} */ (
+        /** @type {unknown} */ (commandSync)
+      ),
+      alwaysEnabled: ['core'],
+      audit: {
+        record: async (record) => {
+          records.push(record);
+        },
+      },
+    });
+    return { admin, records };
+  };
+
+  it('devrait enregistrer une activation avec son auteur', async () => {
+    const { admin, records } = buildWithAudit();
+    await admin.enable('g1', 'alpha', 'u1');
+
+    expect(records).toEqual([
+      { guildId: 'g1', actor: 'u1', action: 'plugin.enable', target: 'alpha' },
+    ]);
+  });
+
+  it('devrait enregistrer une désactivation', async () => {
+    const { admin, records } = buildWithAudit();
+    await admin.enable('g1', 'alpha', 'u1');
+    await admin.disable('g1', 'alpha', 'u2');
+
+    expect(records[1]).toMatchObject({ actor: 'u2', action: 'plugin.disable', target: 'alpha' });
+  });
+
+  it('devrait marquer un auteur inconnu plutôt que de laisser le champ vide', async () => {
+    const { admin, records } = buildWithAudit();
+    await admin.enable('g1', 'alpha');
+
+    expect(records[0]).toMatchObject({ actor: 'inconnu' });
+  });
+
+  it('ne devrait rien enregistrer quand la règle refuse', async () => {
+    const { admin, records } = buildWithAudit();
+    await admin.enable('g1', 'beta', 'u1'); // dépendance manquante
+    await admin.enable('g1', 'fantome', 'u1');
+    await admin.disable('g1', 'alpha', 'u1'); // déjà inactif
+
+    expect(records).toEqual([]);
+  });
+});

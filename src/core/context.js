@@ -18,7 +18,7 @@ import { resolveLocale } from './i18n/locale-resolver.js';
  * @property {(id: string) => string} componentId
  * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
  * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
- * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined }} [core] - réservé au plugin interne
+ * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined, audit: ReturnType<typeof import('./audit.js').createAudit> | undefined }} [core] - réservé au plugin interne
  */
 
 /**
@@ -38,6 +38,7 @@ import { resolveLocale } from './i18n/locale-resolver.js';
  * @param {string[]} [options.alwaysEnabled]
  * @param {string} [options.ownerId]
  * @param {{ getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> }} [options.errorReporting]
+ * @param {ReturnType<typeof import('./audit.js').createAudit>} [options.audit]
  * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
  * @returns {PluginContext}
  */
@@ -54,6 +55,7 @@ export const createContext = ({
   alwaysEnabled = [],
   ownerId = undefined,
   errorReporting = undefined,
+  audit = undefined,
   t = (_locale, key) => `[${key}]`,
 }) => {
   const { name, manifest } = plugin;
@@ -110,6 +112,7 @@ export const createContext = ({
       alwaysEnabled,
       ownerId,
       errorReporting,
+      audit,
     };
   }
 

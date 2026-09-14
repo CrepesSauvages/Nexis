@@ -6,6 +6,7 @@ import { createLogger } from './core/logger.js';
 import { createStorage } from './core/storage/index.js';
 import { createRegistries } from './core/registry/index.js';
 import { createGuildConfig } from './core/guild-config.js';
+import { createAudit } from './core/audit.js';
 import { loadPlugins } from './core/loader.js';
 import { createContext } from './core/context.js';
 import { createErrorReporting } from './core/reporting/index.js';
@@ -35,6 +36,7 @@ export const ALWAYS_ENABLED = ['core'];
  * @property {import('./core/logger.js').Logger} logger
  * @property {import('./core/registry/index.js').Registries} registries
  * @property {ReturnType<typeof createGuildConfig>} guildConfig
+ * @property {ReturnType<typeof createAudit>} audit
  * @property {import('./core/loader.js').LoadedPlugin[]} plugins
  * @property {Map<string, import('./core/context.js').PluginContext>} contexts
  * @property {ReturnType<typeof createScheduler>} scheduler
@@ -81,6 +83,7 @@ export const bootstrap = async ({
 
   const registries = createRegistries();
   const guildConfig = createGuildConfig({ storage });
+  const audit = createAudit({ storage, limit: config.auditLogLimit });
   const plugins = await loadPlugins({ dir: config.pluginsDir, logger });
 
   // Le client doit exister avant setup() — les plugins le reçoivent dans
@@ -141,6 +144,7 @@ export const bootstrap = async ({
       alwaysEnabled: ALWAYS_ENABLED,
       ownerId: config.ownerId,
       errorReporting: { getRecent: errorReporting.getRecent },
+      audit,
       t: translator.t,
     });
 
@@ -262,6 +266,7 @@ export const bootstrap = async ({
     plugins: active,
     commands: activeCommands,
     commandSync,
+    audit,
     // Même paire que celle donnée au contexte des plugins ci-dessus (ligne
     // 140) : le dashboard n'a pas besoin de reportAll(), seulement de lire
     // et de vider le journal local.
@@ -284,6 +289,7 @@ export const bootstrap = async ({
     logger,
     registries,
     guildConfig,
+    audit,
     plugins: active,
     contexts,
     scheduler,
