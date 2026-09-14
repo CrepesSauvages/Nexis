@@ -5,7 +5,6 @@ import {
   GuildPremiumTier,
   MessageFlags,
 } from 'discord.js';
-import { localizationsFor } from '../../../src/core/i18n/index.js';
 
 /**
  * Un fichier de `commands/` exporte une fabrique prenant le contexte.
@@ -24,7 +23,7 @@ export default (ctx) => ({
   data: new SlashCommandBuilder()
     .setName('serverinfo')
     .setDescription('Affiche les informations du serveur')
-    .setDescriptionLocalizations(localizationsFor('utils.serverinfo.command.description')),
+    .setDescriptionLocalizations(ctx.localizations('utils.serverinfo.command.description')),
 
   /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
   async execute(interaction) {

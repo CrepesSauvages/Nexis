@@ -33,6 +33,8 @@ const makeCtx = () => ({
    * @param {string} key
    */
   t: (_locale, key) => `[${key}]`,
+  /** @param {string} key */
+  localizations: (key) => ({ 'en-US': `[${key}]` }),
   resolveLocale: async () => 'fr',
 });
 

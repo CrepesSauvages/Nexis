@@ -1,6 +1,7 @@
 import { DependencyError } from './errors.js';
 import { namespaced } from './storage/index.js';
 import { resolveLocale } from './i18n/locale-resolver.js';
+import { localizationsFor } from './i18n/index.js';
 
 /**
  * @typedef {object} PluginContext
@@ -17,6 +18,7 @@ import { resolveLocale } from './i18n/locale-resolver.js';
  * @property {(component: import('./registry/components.js').ComponentDef) => void} registerComponent
  * @property {(id: string) => string} componentId
  * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
+ * @property {(key: string) => Record<string, string>} localizations
  * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
  * @property {{ plugins: import('./loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('./guild-config.js').createGuildConfig>, commandSync: object | undefined, registries: import('./registry/index.js').Registries, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('./reporting/driver.js').ReportEntry[]> } | undefined, audit: ReturnType<typeof import('./audit.js').createAudit> | undefined }} [core] - réservé au plugin interne
  */
@@ -77,6 +79,11 @@ export const createContext = ({
     provideService: (api) => registries.services.provide(name, api),
 
     t,
+    // Mêmes clés que `ctx.t`, préfixe du plugin compris : une seule
+    // convention à retenir pour traduire un texte et pour localiser le nom
+    // ou la description d'une commande.
+    localizations: (key) => localizationsFor(key),
+
     resolveLocale: async (interaction) => {
       const override = interaction.guildId
         ? await guildConfig.getLocale(interaction.guildId)

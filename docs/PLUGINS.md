@@ -62,12 +62,13 @@ export const setup = (ctx) => {
 
 ### Ce que contient `ctx`
 
-| Propriété             | Description                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ctx.client`          | Le client discord.js. Voir la contrainte ci-dessous.                                                  |
-| `ctx.logger`          | Logger préfixé `[plugin:mon-plugin]`. Méthodes `debug`, `info`, `warn`, `error`.                      |
-| `ctx.storage`         | Clé/valeur, isolé au plugin. `get`, `set`, `delete`, `keys`.                                          |
-| `ctx.config(guildId)` | Configuration résolue pour un serveur : défauts du manifeste fusionnés avec les valeurs enregistrées. |
+| Propriété                | Description                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `ctx.client`             | Le client discord.js. Voir la contrainte ci-dessous.                                                  |
+| `ctx.logger`             | Logger préfixé `[plugin:mon-plugin]`. Méthodes `debug`, `info`, `warn`, `error`.                      |
+| `ctx.storage`            | Clé/valeur, isolé au plugin. `get`, `set`, `delete`, `keys`.                                          |
+| `ctx.config(guildId)`    | Configuration résolue pour un serveur : défauts du manifeste fusionnés avec les valeurs enregistrées. |
+| `ctx.localizations(key)` | Traductions d'une clé au format attendu par `setNameLocalizations` / `setDescriptionLocalizations`.   |
 
 **Contrainte sur `ctx.client` pendant `setup()` :** le client discord.js réel n'existe pas encore à ce stade (`setup()` s'exécute avant sa création). `ctx.client` n'accepte donc qu'un seul usage synchrone pendant `setup()` : le mémoriser tel quel (`const client = ctx.client`) pour vous en servir plus tard, dans un handler par exemple. Lire une de ses propriétés ou appeler une de ses méthodes **de façon synchrone pendant `setup()`** ne fonctionne pas — une lecture de propriété capture `undefined` pour toujours, et un appel de méthode lève une erreur qui exclut silencieusement le plugin du démarrage.
 

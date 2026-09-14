@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { manifest, setup } from '../../../plugins/example/index.js';
 import { validateManifest } from '../../../src/core/manifest.js';
 import { applyConventions } from '../../../src/core/conventions.js';
-import { translator, registerPluginLocales } from '../../../src/core/i18n/index.js';
+import {
+  translator,
+  registerPluginLocales,
+  localizationsFor,
+} from '../../../src/core/i18n/index.js';
 import { mapDiscordLocale } from '../../../src/core/i18n/locale-resolver.js';
 import { loadPluginLocales } from '../../../src/core/i18n/plugin-locales.js';
 
@@ -36,6 +40,7 @@ const makeCtx = () => ({
   provideService: vi.fn(),
   useService: vi.fn(),
   t: translator.t,
+  localizations: localizationsFor,
   resolveLocale: async (/** @type {{ locale?: string }} */ interaction) =>
     mapDiscordLocale(interaction.locale) ?? 'fr',
 });
