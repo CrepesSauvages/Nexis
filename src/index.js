@@ -226,6 +226,7 @@ export const bootstrap = async ({
     client,
     logger,
     alwaysEnabled: ALWAYS_ENABLED,
+    timezone: config.schedulerTimezone,
   });
   scheduler.start();
 

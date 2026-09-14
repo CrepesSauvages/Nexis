@@ -25,6 +25,7 @@ const DEFAULT_PATHS = { json: './data/nexis.json', sqlite: './data/nexis.db' };
  * @property {string | undefined} sentryDsn
  * @property {number} errorLogLimit
  * @property {number} auditLogLimit
+ * @property {string | undefined} schedulerTimezone
  * @property {DashboardConfig} dashboard
  */
 
@@ -82,6 +83,28 @@ const positiveInt = (value, fallback, key) => {
 };
 
 /**
+ * Valide un fuseau horaire IANA. `Intl.DateTimeFormat` est le seul
+ * validateur natif : il lève une `RangeError` sur un fuseau inconnu.
+ * Mieux vaut refuser au démarrage qu'au premier armement d'une tâche, où
+ * l'erreur se lirait comme une expression cron invalide.
+ * @param {string | undefined} value
+ * @param {string} key
+ * @returns {string | undefined}
+ */
+const timezone = (value, key) => {
+  if (!value) return undefined;
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: value });
+    return value;
+  } catch {
+    throw new ConfigError(
+      `Valeur invalide pour ${key} : "${value}". Attendu : un fuseau IANA, ex. "Europe/Paris".`,
+      { key, value },
+    );
+  }
+};
+
+/**
  * Valide un numéro de port. `0` est accepté : il demande à l'OS un port
  * éphémère, ce dont les tests se servent pour ne jamais entrer en
  * collision d'un fichier de test à l'autre.
@@ -129,6 +152,9 @@ export const loadConfig = (env = process.env) => {
   // même plafond donnerait un tout autre volume selon le nombre de
   // serveurs, d'où une valeur bien plus basse.
   const auditLogLimit = positiveInt(env.AUDIT_LOG_LIMIT, 200, 'AUDIT_LOG_LIMIT');
+  // Absent, les expressions cron se lisent dans le fuseau du système, ce
+  // qui est rarement ce que veut un hébergement dont l'horloge est en UTC.
+  const schedulerTimezone = timezone(env.SCHEDULER_TIMEZONE, 'SCHEDULER_TIMEZONE');
 
   // Le secret OAuth EST l'interrupteur du dashboard : sans lui aucun port
   // n'est ouvert, et une installation qui ne veut que le bot n'a rien à
@@ -154,6 +180,7 @@ export const loadConfig = (env = process.env) => {
     sentryDsn: env.SENTRY_DSN,
     errorLogLimit,
     auditLogLimit,
+    schedulerTimezone,
     dashboard,
   };
 };

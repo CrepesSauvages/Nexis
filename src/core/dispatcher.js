@@ -271,8 +271,10 @@ const respondWithChoices = async (logger, interaction, choices, logContext) => {
 
 /**
  * Attache un listener unique par type d'event déclaré. Chaque handler
- * est appelé dans son propre try/catch : un plugin qui échoue n'empêche
- * jamais ses voisins de recevoir l'event, ni les events suivants.
+ * est appelé dans son propre try/catch, et tous en parallèle : un plugin
+ * qui échoue n'empêche jamais ses voisins de recevoir l'event, et un
+ * plugin lent ne les fait pas attendre. Aucun ordre n'est donc garanti
+ * entre les handlers d'un même event — il ne l'a jamais été.
  *
  * @param {object} options
  * @param {import('discord.js').Client} options.client
@@ -301,9 +303,26 @@ export const attachEventDispatcher = ({
     client.on(eventName, async (...args) => {
       const guildId = guildIdOf(eventName, args);
 
-      for (const { plugin, handler } of registries.events.handlersFor(eventName)) {
-        const permitted = guildId ? await isActive(plugin, guildId) : allowsDM.get(plugin) === true;
-        if (!permitted) continue;
+      /**
+       * Un plugin, de bout en bout. Rien n'en sort : `Promise.all`
+       * ci-dessous rejetterait à la première erreur, et son rejet ne serait
+       * capturé par personne — discord.js n'attend jamais ce listener.
+       * @param {{ plugin: string, handler: Function }} entry
+       */
+      const run = async ({ plugin, handler }) => {
+        let permitted = false;
+        try {
+          permitted = guildId ? await isActive(plugin, guildId) : allowsDM.get(plugin) === true;
+        } catch (error) {
+          // Même politique qu'ailleurs : une panne de storage ferme.
+          logger.error(`Vérification d'activation impossible : ${errorMessage(error)}`, {
+            plugin,
+            event: eventName,
+            guildId,
+            stack: errorStack(error),
+          });
+        }
+        if (!permitted) return;
 
         try {
           await handler(...args);
@@ -315,7 +334,9 @@ export const attachEventDispatcher = ({
             stack: errorStack(error),
           });
         }
-      }
+      };
+
+      await Promise.all(registries.events.handlersFor(eventName).map(run));
     });
   }
 };

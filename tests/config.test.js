@@ -165,3 +165,23 @@ describe('configuration du dashboard', () => {
     expect(() => loadConfig({ ...validEnv, DASHBOARD_PORT: '70000' })).toThrow(/DASHBOARD_PORT/);
   });
 });
+
+describe('SCHEDULER_TIMEZONE', () => {
+  it('devrait rester indéfini quand la variable est absente', () => {
+    expect(loadConfig(validEnv).schedulerTimezone).toBeUndefined();
+  });
+
+  it('devrait accepter un fuseau IANA', () => {
+    expect(loadConfig({ ...validEnv, SCHEDULER_TIMEZONE: 'Europe/Paris' }).schedulerTimezone).toBe(
+      'Europe/Paris',
+    );
+  });
+
+  it('devrait rejeter un fuseau inconnu', () => {
+    // Refusé au démarrage : au premier armement, l'erreur se lirait comme
+    // une expression cron invalide.
+    expect(() => loadConfig({ ...validEnv, SCHEDULER_TIMEZONE: 'Mars/Olympus' })).toThrow(
+      ConfigError,
+    );
+  });
+});

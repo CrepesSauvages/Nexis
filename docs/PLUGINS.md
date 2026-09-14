@@ -254,6 +254,12 @@ ctx.registerEvent('guildMemberAdd', async (member) => {
 
 Le core a déjà vérifié que le plugin est activé sur ce serveur — inutile de le refaire.
 
+Les handlers d'un même event tournent **en parallèle**, chacun dans son propre
+try/catch : un plugin qui échoue ne prive pas ses voisins de l'event, et un
+plugin lent ne les fait pas attendre. Aucun ordre n'est garanti entre eux ;
+deux plugins qui doivent se coordonner passent par un service
+(`provideService` / `useService`), pas par l'ordre d'exécution.
+
 **Les intents sont calculés automatiquement** depuis les events déclarés. Écouter `messageCreate` active `GuildMessages` et `MessageContent` sans configuration. Un nom d'event inconnu fait échouer le démarrage plutôt que de rester silencieux : voir `src/core/intents.js` pour la liste supportée.
 
 Par défaut, un plugin ne reçoit rien hors serveur. Mettez `allowDM: true` dans le manifeste pour les messages privés.
@@ -268,7 +274,15 @@ ctx.registerJob('0 9 * * *', async (guildId, config) => {
 
 Le core itère lui-même les serveurs actifs et résout la configuration. Le handler reçoit `(guildId, config)`.
 
-Syntaxe cron standard, gérée par [croner](https://github.com/hexagon/croner).
+Syntaxe cron standard, gérée par [croner](https://github.com/hexagon/croner), lue
+dans le fuseau de `SCHEDULER_TIMEZONE` (celui du système par défaut).
+
+Le core traite les serveurs par vagues plutôt qu'un par un : sur un bot à
+plusieurs centaines de serveurs, une tâche d'une fraction de seconde tiendrait
+sinon plusieurs minutes et déborderait sur son exécution suivante. Une tâche
+encore en cours quand son heure revient **ne démarre pas** une seconde fois —
+le saut est journalisé, c'est le signe que l'intervalle est trop court pour le
+travail.
 
 ## Conventions de dossiers
 

@@ -31,6 +31,7 @@ Puis, sur votre serveur Discord : `/nexis list` pour voir les plugins, `/nexis e
 | `SENTRY_DSN`            | —                       | Optionnel. Active le reporting d'erreurs vers Sentry si renseigné.                                                          |
 | `ERROR_LOG_LIMIT`       | `500`                   | Nombre d'erreurs conservées dans le buffer local (`/nexis errors`).                                                         |
 | `AUDIT_LOG_LIMIT`       | `200`                   | Nombre de changements conservés **par serveur** (`/nexis audit`).                                                           |
+| `SCHEDULER_TIMEZONE`    | fuseau du système       | Fuseau IANA dans lequel lire les expressions cron des tâches, ex. `Europe/Paris`.                                           |
 | `DISCORD_CLIENT_SECRET` | —                       | Optionnel. Sa présence active le dashboard. Sans lui, aucun port n'est ouvert.                                              |
 | `DASHBOARD_HOST`        | `127.0.0.1`             | Adresse d'écoute du dashboard.                                                                                              |
 | `DASHBOARD_PORT`        | `3000`                  | Port d'écoute du dashboard.                                                                                                 |
