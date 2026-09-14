@@ -92,6 +92,53 @@ Discord efface les commandes d'un serveur dès que le bot en est retiré. Si le 
 
 Si `execute` lève une erreur, le core répond à l'utilisateur avec un identifiant court et écrit la trace complète dans les logs sous ce même identifiant.
 
+### Temps de recharge
+
+```js
+export const maCommande = {
+  data: new SlashCommandBuilder().setName('daily').setDescription('Récompense du jour'),
+  cooldown: { seconds: 30, scope: 'user' }, // scope : 'user' (défaut) | 'guild' | 'channel'
+  async execute(interaction, ctx) {
+    /* ... */
+  },
+};
+```
+
+Le core refuse la commande tant que la recharge court, avec le temps restant
+dans la langue de l'utilisateur. Rien à écrire côté plugin, et rien à
+réimplémenter : deux plugins qui compteraient chacun leur propre recharge
+finiraient par ne pas la compter pareil.
+
+La recharge n'est consommée que par une exécution réelle : une commande
+refusée — plugin désactivé, permission manquante — ne fait patienter
+personne. Marteler une commande ne repousse pas non plus l'échéance ; le
+délai part de la dernière exécution, pas de la dernière tentative.
+
+Elle vit en mémoire et repart à zéro au redémarrage. C'est assumé : la
+persister coûterait un aller-retour de storage sur le chemin le plus chaud
+du bot, pour un état qui dure quelques secondes.
+
+### Commandes longues
+
+Discord ferme l'interaction au bout de trois secondes. Une commande qui
+interroge une API, lit un gros fichier ou parcourt beaucoup de membres
+déclare `defer` et le core l'acquitte avant de l'exécuter :
+
+```js
+export const maCommande = {
+  data: new SlashCommandBuilder().setName('rapport').setDescription('Génère le rapport'),
+  defer: 'ephemeral', // true pour une réponse visible de tous
+  async execute(interaction, ctx) {
+    const rapport = await genererLeRapport(); // peut prendre dix secondes
+    await interaction.editReply(rapport);
+  },
+};
+```
+
+Avec `defer`, répondez par `interaction.editReply()` : `reply()` échouerait,
+l'interaction étant déjà acquittée. Si l'acquittement lui-même échoue, la
+commande est exécutée quand même — la refuser en plus ne réparerait rien.
+
 ### Autocomplétion
 
 Une commande peut proposer des choix dynamiques sur ses options, en plus de `execute` :
@@ -346,6 +393,44 @@ new ButtonBuilder().setCustomId(ctx.componentId('confirm')).setLabel('Confirmer'
 Le matching se fait par **préfixe** : un customId dynamique comme `mon-plugin:confirm:1234` (pour encoder l'ID d'une commande, par exemple) déclenche le même handler que `mon-plugin:confirm` — au handler de parser le reste dans `interaction.customId`.
 
 Le core vérifie l'activation du plugin puis la permission avant d'appeler `handler`, exactement comme pour les commandes. Un customId qui ne correspond à aucun handler enregistré (bouton d'un message envoyé avant un redémarrage, par exemple) reçoit une réponse ephémère plutôt qu'une erreur silencieuse.
+
+#### Propriété et expiration
+
+Deux options resserrent qui peut cliquer, et jusqu'à quand :
+
+```js
+ctx.registerComponent({
+  customId: 'confirm',
+  type: 'button',
+  restrictToInvoker: true, // seule la personne qui a lancé la commande peut cliquer
+  expiresAfter: 120, // secondes après l'envoi du message
+  handler: async (interaction) => {
+    /* ... */
+  },
+});
+```
+
+Sans `restrictToInvoker`, une confirmation est cliquable par quiconque passe
+la barre des permissions — un autre administrateur peut valider une purge
+qu'il n'a pas demandée. C'est le défaut de Discord, pas une décision : le
+`customId` d'un bouton ne dit rien de qui l'a fait apparaître.
+
+Aucun état n'est conservé pour ces deux contrôles. Discord porte déjà les
+informations sur le message qui tient le composant : qui a déclenché
+l'interaction dont il est né, et quand il a été envoyé. Un registre en
+mémoire, lui, ne survivrait pas au redémarrage qui laisse pourtant les
+boutons en place.
+
+Conséquence : `restrictToInvoker` **refuse** un composant posé sur un message
+que le plugin a envoyé de lui-même, hors de toute interaction — un tel
+message n'a pas d'invocateur, la restriction ne peut donc pas être honorée.
+Pour un panneau permanent (rôles par réaction, menu d'accueil), n'utilisez
+pas cette option : c'est la permission qui décide, pas la propriété.
+
+Les modals échappent aux deux contrôles : Discord ne les montre qu'à la
+personne qui les a ouverts, et les referme de lui-même.
+
+Voir `plugins/moderation/` pour les deux options en usage réel.
 
 ## Cycle de vie
 

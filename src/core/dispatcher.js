@@ -1,6 +1,7 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { guildIdOf } from './intents.js';
 import { CHAT_INPUT, USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU } from './registry/commands.js';
+import { createCooldowns } from './cooldowns.js';
 import { newErrorId, errorMessage, errorStack } from './errors.js';
 import { resolveLocale } from './i18n/locale-resolver.js';
 
@@ -103,6 +104,75 @@ const resolveInteractionLocale = async (guildConfig, logger, interaction, logCon
  * plutôt que de laisser chaque plugin découvrir la limite en production.
  */
 const MAX_AUTOCOMPLETE_CHOICES = 25;
+
+/**
+ * Clé de recharge d'une commande. Elle porte la commande ET sa portée :
+ * deux commandes distinctes ne partagent jamais leur temps de recharge, et
+ * changer la portée d'une commande ne recycle pas les clés de l'ancienne.
+ *
+ * Hors serveur, `guild` et `channel` retombent sur la conversation privée —
+ * une portée « serveur » sans serveur ne peut être que la personne en face.
+ *
+ * @param {import('discord.js').CommandInteraction} interaction
+ * @param {number} type
+ * @param {'user' | 'guild' | 'channel'} scope
+ * @returns {string}
+ */
+const cooldownKey = (interaction, type, scope) => {
+  const target =
+    scope === 'guild'
+      ? (interaction.guildId ?? `dm:${interaction.user.id}`)
+      : scope === 'channel'
+        ? (interaction.channelId ?? `dm:${interaction.user.id}`)
+        : interaction.user.id;
+  return `${type}:${interaction.commandName}:${scope}:${target}`;
+};
+
+/**
+ * Vérifie qu'un component est utilisé par la bonne personne et à temps.
+ * Rend la clé de traduction du refus, ou `undefined` si l'accès est permis.
+ *
+ * Rien n'est stocké pour cela : Discord porte déjà les deux informations sur
+ * le message qui tient le composant — `interactionMetadata.user` est la
+ * personne dont l'interaction a produit ce message, et `createdTimestamp`
+ * dit quand. Un registre d'invocations en mémoire ne survivrait de toute
+ * façon pas au redémarrage qui laisse les boutons en place.
+ *
+ * @param {{ restrictToInvoker?: boolean, expiresAfter?: number }} entry
+ * @param {import('discord.js').MessageComponentInteraction} interaction
+ * @param {'button' | 'select' | 'modal'} type
+ * @param {() => number} now
+ * @returns {string | undefined}
+ */
+const checkComponentAccess = (entry, interaction, type, now) => {
+  if (entry.restrictToInvoker !== true && entry.expiresAfter === undefined) return undefined;
+  // Un modal n'est visible que de la personne qui l'a ouvert, et Discord le
+  // ferme de lui-même : sa propriété est acquise et son expiration déjà
+  // gérée. Il n'a d'ailleurs pas toujours de message auquel se raccrocher.
+  if (type === 'modal') return undefined;
+
+  const message = interaction.message;
+
+  if (entry.restrictToInvoker === true) {
+    // Métadonnées absentes : le message ne vient pas d'une interaction (un
+    // plugin l'a posté de lui-même), il n'a donc aucun invocateur. La
+    // restriction ne peut pas être honorée — on ferme, plutôt que de la
+    // laisser passer pour tout le monde en silence.
+    const invoker = message?.interactionMetadata?.user?.id;
+    if (invoker === undefined || invoker !== interaction.user.id) {
+      return 'dispatcher.component_not_yours';
+    }
+  }
+
+  if (entry.expiresAfter !== undefined) {
+    const createdAt = message?.createdTimestamp;
+    if (createdAt === undefined || now() - createdAt > entry.expiresAfter * 1000) {
+      return 'dispatcher.component_expired';
+    }
+  }
+
+  return undefined;
+};
 
 /**
  * Déduit le type de commande d'application d'une interaction discord.js,
@@ -215,6 +285,7 @@ export const attachEventDispatcher = ({
  * @param {string[]} [options.alwaysEnabled]
  * @param {string} [options.ownerId]
  * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
+ * @param {ReturnType<typeof createCooldowns>} [options.cooldowns]
  * @returns {void}
  */
 export const attachCommandDispatcher = ({
@@ -226,6 +297,7 @@ export const attachCommandDispatcher = ({
   alwaysEnabled = [],
   ownerId = undefined,
   t = (_locale, key) => `[${key}]`,
+  cooldowns = createCooldowns(),
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
@@ -295,6 +367,41 @@ export const attachCommandDispatcher = ({
       return;
     }
 
+    // La recharge est consommée ici, après les refus : une commande refusée
+    // n'a rien exécuté, la faire patienter punirait l'erreur de l'utilisateur
+    // plutôt que l'usage qu'elle prétend limiter.
+    const { cooldown } = entry.command;
+    if (cooldown) {
+      const scope = cooldown.scope ?? 'user';
+      const attempt = cooldowns.hit(cooldownKey(typed, type, scope), cooldown.seconds);
+      if (!attempt.allowed) {
+        await respondToInteraction(
+          logger,
+          typed,
+          t(locale, 'dispatcher.cooldown', {
+            seconds: Math.max(1, Math.ceil(attempt.retryAfterMs / 1000)),
+          }),
+          logContext,
+        );
+        return;
+      }
+    }
+
+    // Discord ferme l'interaction au bout de trois secondes. Une commande
+    // qui sait qu'elle sera longue déclare `defer` et le core l'acquitte
+    // pour elle — `respondToInteraction` bascule alors sur followUp, et
+    // `interaction.editReply` fonctionne côté plugin.
+    if (entry.command.defer) {
+      try {
+        await typed.deferReply(entry.command.defer === 'ephemeral' ? EPHEMERAL : {});
+      } catch (error) {
+        // L'acquittement a échoué mais la commande, elle, reste légitime :
+        // la refuser en plus priverait l'utilisateur de son travail sans
+        // rien réparer.
+        logger.warn(`Report de la réponse impossible : ${errorMessage(error)}`, logContext);
+      }
+    }
+
     try {
       await entry.command.execute(typed, contexts.get(entry.plugin));
     } catch (error) {
@@ -342,6 +449,7 @@ const componentTypeOf = (interaction) => {
  * @param {string[]} [options.alwaysEnabled]
  * @param {string} [options.ownerId]
  * @param {(locale: string, key: string, params?: Record<string, string | number>) => string} [options.t]
+ * @param {() => number} [options.now]
  * @returns {void}
  */
 export const attachComponentDispatcher = ({
@@ -353,6 +461,7 @@ export const attachComponentDispatcher = ({
   alwaysEnabled = [],
   ownerId = undefined,
   t = (_locale, key) => `[${key}]`,
+  now = Date.now,
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
 
@@ -413,6 +522,12 @@ export const attachComponentDispatcher = ({
         t(locale, 'dispatcher.permission_denied'),
         logContext,
       );
+      return;
+    }
+
+    const refusal = checkComponentAccess(entry, typed, type, now);
+    if (refusal) {
+      await respondToInteraction(logger, typed, t(locale, refusal), logContext);
       return;
     }
 

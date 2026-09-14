@@ -2,8 +2,11 @@
   "dispatcher.command_removed": "To polecenie już nie istnieje. Mogło zostać wyłączone.",
   "dispatcher.plugin_not_active": "Wtyczka `{plugin}` nie jest aktywna na tym serwerze.",
   "dispatcher.permission_denied": "Nie masz uprawnień do użycia tego polecenia.",
+  "dispatcher.cooldown": "Za szybko. Spróbuj ponownie za {seconds} s.",
   "dispatcher.command_error": "Wystąpił błąd. Numer referencyjny: `{errorId}`",
   "dispatcher.component_removed": "Ten komponent nie jest już dostępny. Wiadomość może być zbyt stara.",
+  "dispatcher.component_not_yours": "Ten komponent nie jest dla ciebie.",
+  "dispatcher.component_expired": "Ten komponent wygasł.",
   "dispatcher.component_error": "Wystąpił błąd. Numer referencyjny: `{errorId}`",
 
   "nexis.list.title": "**Wtyczki Nexis**",

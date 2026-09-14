@@ -95,6 +95,45 @@ describe('registre de commandes', () => {
     expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
   });
 
+  it('devrait rejeter un temps de recharge nul ou négatif', () => {
+    const { commands } = createRegistries();
+    expect(() =>
+      commands.add('a', { data: { name: 'x' }, execute: noop, cooldown: { seconds: 0 } }),
+    ).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une portée de recharge inconnue', () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({
+        data: { name: 'x' },
+        execute: noop,
+        cooldown: { seconds: 5, scope: 'serveur' },
+      })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(/[Pp]ortée/);
+  });
+
+  it('devrait accepter les trois portées de recharge', () => {
+    const { commands } = createRegistries();
+    for (const scope of /** @type {const} */ (['user', 'guild', 'channel'])) {
+      commands.add(scope, {
+        data: { name: `cmd-${scope}` },
+        execute: noop,
+        cooldown: { seconds: 5, scope },
+      });
+    }
+    expect(commands.all()).toHaveLength(3);
+  });
+
+  it('devrait rejeter un defer qui ne vaut ni booléen ni "ephemeral"', () => {
+    const { commands } = createRegistries();
+    const invalidCmd = /** @type {import('../../../src/core/registry/commands.js').CommandDef} */ (
+      /** @type {unknown} */ ({ data: { name: 'x' }, execute: noop, defer: 'plus tard' })
+    );
+    expect(() => commands.add('a', invalidCmd)).toThrow(PluginError);
+  });
+
   it('devrait rejeter une autocomplétion déclarée sur un menu contextuel', () => {
     const { commands } = createRegistries();
     expect(() =>
@@ -104,6 +143,38 @@ describe('registre de commandes', () => {
         autocomplete: () => [],
       }),
     ).toThrow(/autocomplétion/);
+  });
+});
+
+describe('registre de components — propriété et expiration', () => {
+  /** @param {object} extra */
+  const button = (extra) => ({ customId: 'confirm', type: 'button', handler: noop, ...extra });
+
+  it('devrait accepter restrictToInvoker et expiresAfter', () => {
+    const { components } = createRegistries();
+    components.add(
+      'shop',
+      /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+        button({ restrictToInvoker: true, expiresAfter: 60 })
+      ),
+    );
+    expect(components.all()[0]).toMatchObject({ restrictToInvoker: true, expiresAfter: 60 });
+  });
+
+  it("devrait rejeter un restrictToInvoker qui n'est pas un booléen", () => {
+    const { components } = createRegistries();
+    const invalid = /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+      /** @type {unknown} */ (button({ restrictToInvoker: 'oui' }))
+    );
+    expect(() => components.add('shop', invalid)).toThrow(PluginError);
+  });
+
+  it('devrait rejeter une expiration nulle ou négative', () => {
+    const { components } = createRegistries();
+    const invalid = /** @type {import('../../../src/core/registry/components.js').ComponentDef} */ (
+      /** @type {unknown} */ (button({ expiresAfter: 0 }))
+    );
+    expect(() => components.add('shop', invalid)).toThrow(PluginError);
   });
 });
 

@@ -2,8 +2,11 @@
   "dispatcher.command_removed": "Este comando ya no existe. Puede que haya sido desactivado.",
   "dispatcher.plugin_not_active": "El plugin `{plugin}` no está activado en este servidor.",
   "dispatcher.permission_denied": "No tienes permiso para usar este comando.",
+  "dispatcher.cooldown": "Demasiado rápido. Inténtalo de nuevo en {seconds} s.",
   "dispatcher.command_error": "Se produjo un error. Referencia: `{errorId}`",
   "dispatcher.component_removed": "Este componente ya no está disponible. Puede que el mensaje sea demasiado antiguo.",
+  "dispatcher.component_not_yours": "Este componente no es para ti.",
+  "dispatcher.component_expired": "Este componente ha caducado.",
   "dispatcher.component_error": "Se produjo un error. Referencia: `{errorId}`",
 
   "nexis.list.title": "**Plugins de Nexis**",

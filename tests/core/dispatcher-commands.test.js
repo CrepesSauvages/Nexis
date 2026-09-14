@@ -9,6 +9,7 @@ import { createGuildConfig } from '../../src/core/guild-config.js';
 import { createLogger } from '../../src/core/logger.js';
 import { attachCommandDispatcher } from '../../src/core/dispatcher.js';
 import { translator } from '../../src/core/i18n/index.js';
+import { createCooldowns } from '../../src/core/cooldowns.js';
 
 const silent = () => createLogger({ level: 'error' });
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -55,6 +56,7 @@ const makeInteraction = (overrides = {}) => ({
   deferred: false,
   reply: vi.fn(),
   followUp: vi.fn(),
+  deferReply: vi.fn(),
   ...overrides,
 });
 
@@ -369,5 +371,173 @@ describe('attachCommandDispatcher', () => {
     await flush();
     const content = /** @type {string} */ (interaction.reply.mock.calls[0][0].content);
     expect(content).toMatch(/^Ein Fehler ist aufgetreten\. Referenz: `[a-f0-9]{8}`$/);
+  });
+
+  describe('temps de recharge', () => {
+    /**
+     * Horloge pilotée, partagée avec le compteur injecté : le test avance
+     * le temps sans jamais attendre.
+     */
+    const clock = () => {
+      let current = 1_000;
+      return {
+        now: () => current,
+        /** @param {number} ms */
+        advance: (ms) => {
+          current += ms;
+        },
+      };
+    };
+
+    /**
+     * @param {object} command
+     * @param {object} [options]
+     */
+    const attachWithCommand = async (command, options = {}) => {
+      registries.commands.add('welcome', {
+        data: { name: 'hello' },
+        execute: vi.fn(),
+        ...command,
+      });
+      await guildConfig.enable('g1', 'welcome');
+      attach(options);
+      return /** @type {ReturnType<typeof vi.fn>} */ (
+        /** @type {unknown} */ (registries.commands.get('hello')?.command.execute)
+      );
+    };
+
+    it('devrait refuser une seconde exécution pendant la recharge', async () => {
+      const execute = await attachWithCommand({ cooldown: { seconds: 30 } });
+
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+      const second = makeInteraction();
+      client.emit('interactionCreate', second);
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+      expect(second.reply).toHaveBeenCalledOnce();
+    });
+
+    it('devrait réexécuter une fois la recharge écoulée', async () => {
+      const { now, advance } = clock();
+      const execute = await attachWithCommand(
+        { cooldown: { seconds: 30 } },
+        { cooldowns: createCooldowns({ now }) },
+      );
+
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+      advance(30_000);
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+
+    it('devrait compter la recharge par utilisateur par défaut', async () => {
+      const execute = await attachWithCommand({ cooldown: { seconds: 30 } });
+
+      client.emit('interactionCreate', makeInteraction({ user: { id: 'u1' } }));
+      await flush();
+      client.emit('interactionCreate', makeInteraction({ user: { id: 'u2' } }));
+      await flush();
+
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+
+    it('devrait compter la recharge par serveur en portée guild', async () => {
+      const execute = await attachWithCommand({
+        cooldown: { seconds: 30, scope: 'guild' },
+      });
+
+      client.emit('interactionCreate', makeInteraction({ user: { id: 'u1' } }));
+      await flush();
+      // Un autre membre du même serveur partage la recharge.
+      client.emit('interactionCreate', makeInteraction({ user: { id: 'u2' } }));
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('ne devrait pas consommer la recharge sur une commande refusée', async () => {
+      const execute = await attachWithCommand({
+        cooldown: { seconds: 300 },
+        permissions: 'guild-admin',
+      });
+
+      client.emit(
+        'interactionCreate',
+        makeInteraction({ memberPermissions: { has: () => false } }),
+      );
+      await flush();
+      // Le refus n'a rien exécuté : la permission retrouvée doit suffire.
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('devrait annoncer le temps restant dans la langue de la locale', async () => {
+      const { now, advance } = clock();
+      await attachWithCommand(
+        { cooldown: { seconds: 30 } },
+        { cooldowns: createCooldowns({ now }), t: translator.t },
+      );
+
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+      advance(10_000);
+      const second = makeInteraction({ locale: 'en-US' });
+      client.emit('interactionCreate', second);
+      await flush();
+
+      expect(second.reply.mock.calls[0][0].content).toBe('Too fast. Try again in 20s.');
+    });
+  });
+
+  describe('acquittement différé', () => {
+    /**
+     * @param {boolean | 'ephemeral'} defer
+     * @param {object} [interactionOverrides]
+     */
+    const run = async (defer, interactionOverrides = {}) => {
+      const execute = vi.fn();
+      registries.commands.add('welcome', { data: { name: 'hello' }, execute, defer });
+      await guildConfig.enable('g1', 'welcome');
+      attach();
+
+      const interaction = makeInteraction(interactionOverrides);
+      client.emit('interactionCreate', interaction);
+      await flush();
+      return { execute, interaction };
+    };
+
+    it("devrait acquitter l'interaction avant execute", async () => {
+      const { execute, interaction } = await run(true);
+
+      expect(interaction.deferReply).toHaveBeenCalledWith({});
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('devrait acquitter en éphémère sur defer: ephemeral', async () => {
+      const { interaction } = await run('ephemeral');
+
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: 64 });
+    });
+
+    it('ne devrait pas acquitter une commande qui ne le demande pas', async () => {
+      const { interaction } = await run(false);
+
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+    });
+
+    it("devrait exécuter la commande même si l'acquittement échoue", async () => {
+      const { execute } = await run(true, {
+        deferReply: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+      });
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
   });
 });

@@ -2,8 +2,11 @@
   "dispatcher.command_removed": "Dit commando bestaat niet meer. Het is mogelijk uitgeschakeld.",
   "dispatcher.plugin_not_active": "De plugin `{plugin}` is niet ingeschakeld op deze server.",
   "dispatcher.permission_denied": "Je hebt geen toestemming om dit commando te gebruiken.",
+  "dispatcher.cooldown": "Te snel. Probeer het over {seconds} s opnieuw.",
   "dispatcher.command_error": "Er is een fout opgetreden. Referentie: `{errorId}`",
   "dispatcher.component_removed": "Dit onderdeel is niet meer beschikbaar. Het bericht is mogelijk te oud.",
+  "dispatcher.component_not_yours": "Deze component is niet voor jou.",
+  "dispatcher.component_expired": "Deze component is verlopen.",
   "dispatcher.component_error": "Er is een fout opgetreden. Referentie: `{errorId}`",
 
   "nexis.list.title": "**Nexis-plugins**",

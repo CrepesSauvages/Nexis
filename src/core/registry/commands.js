@@ -12,6 +12,9 @@ export const MESSAGE_CONTEXT_MENU = 3;
 
 const TYPES = [CHAT_INPUT, USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU];
 
+/** Portées d'un temps de recharge : qui, exactement, doit patienter. */
+export const COOLDOWN_SCOPES = ['user', 'guild', 'channel'];
+
 /** @type {Record<number, string>} */
 const TYPE_LABELS = {
   [CHAT_INPUT]: 'slash',
@@ -25,6 +28,8 @@ const TYPE_LABELS = {
  * @property {(interaction: unknown, ctx: unknown) => Promise<void> | void} execute
  * @property {(interaction: unknown, ctx: unknown) => Promise<Array<{ name: string, value: string | number }>> | Array<{ name: string, value: string | number }> | undefined} [autocomplete] - réservé aux commandes slash
  * @property {'guild-admin' | 'owner'} [permissions]
+ * @property {{ seconds: number, scope?: 'user' | 'guild' | 'channel' }} [cooldown]
+ * @property {boolean | 'ephemeral'} [defer] - acquitte l'interaction avant execute
  */
 
 export const createCommandRegistry = () => {
@@ -84,6 +89,35 @@ export const createCommandRegistry = () => {
           `La commande "${name}" est un ${TYPE_LABELS[type]} : elle ne peut pas déclarer d'autocomplétion`,
           { plugin, name, type },
         );
+      }
+      if (command.cooldown !== undefined) {
+        const { seconds, scope = 'user' } = command.cooldown;
+        if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {
+          throw new PluginError(
+            `Le temps de recharge de "${name}" doit être un nombre de secondes positif`,
+            { plugin, name, seconds },
+          );
+        }
+        if (!COOLDOWN_SCOPES.includes(scope)) {
+          throw new PluginError(`Portée de recharge invalide pour "${name}" : "${scope}"`, {
+            plugin,
+            name,
+            scope,
+            COOLDOWN_SCOPES,
+          });
+        }
+      }
+      if (
+        command.defer !== undefined &&
+        command.defer !== true &&
+        command.defer !== false &&
+        command.defer !== 'ephemeral'
+      ) {
+        throw new PluginError(`\`defer\` doit valoir true, false ou "ephemeral" pour "${name}"`, {
+          plugin,
+          name,
+          defer: command.defer,
+        });
       }
       const existing = entries.get(keyOf(name, type));
       if (existing) {
