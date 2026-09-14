@@ -97,6 +97,36 @@ commande depuis les réglages d'intégration du serveur — la vérification est
 sécurité. Un plugin qui appelle lui-même `setDefaultMemberPermissions` garde
 son choix.
 
+### Permissions par rôle, par serveur
+
+Le niveau déclaré est la règle par défaut, pas la règle finale. Un
+administrateur peut, sur son serveur, donner une commande à des rôles précis :
+
+```
+/nexis perms allow commande:purge role:@Modération
+/nexis perms deny  commande:purge role:@Modération
+/nexis perms reset commande:purge
+/nexis perms list
+```
+
+La liste de rôles **remplace** le niveau déclaré. Elle ouvre autant qu'elle
+ferme : `allow` sur une commande `guild-admin` la donne à un rôle de
+modération, et `allow` sur une commande publique la restreint à ce seul rôle.
+Une liste vide réserve la commande aux administrateurs ; `reset` la supprime
+et rend la commande à son niveau déclaré.
+
+Deux garde-fous, tenus par le core :
+
+- **Qui peut « Gérer le serveur » garde toujours l'accès.** C'est lui qui écrit
+  la règle : l'en exclure ne ferait que l'enfermer dehors avec la clé à
+  l'intérieur.
+- **Une commande `owner` ne se délègue jamais.** Elle engage l'installation
+  entière, pas ce seul serveur ; `/nexis perms` refuse d'y toucher, et
+  `isAllowed` ignorerait la règle de toute façon.
+
+La surcharge porte sur le **nom** de la commande : une commande slash et un
+menu contextuel qui partagent un nom partagent aussi leur règle.
+
 Discord efface les commandes d'un serveur dès que le bot en est retiré. Si le bot y est réinvité, le core les repousse tout seul à l'arrivée — un plugin resté activé retrouve ses commandes sans intervention.
 
 Si `execute` lève une erreur, le core répond à l'utilisateur avec un identifiant court et écrit la trace complète dans les logs sous ce même identifiant.
@@ -402,6 +432,27 @@ new ButtonBuilder().setCustomId(ctx.componentId('confirm')).setLabel('Confirmer'
 Le matching se fait par **préfixe** : un customId dynamique comme `mon-plugin:confirm:1234` (pour encoder l'ID d'une commande, par exemple) déclenche le même handler que `mon-plugin:confirm` — au handler de parser le reste dans `interaction.customId`.
 
 Le core vérifie l'activation du plugin puis la permission avant d'appeler `handler`, exactement comme pour les commandes. Un customId qui ne correspond à aucun handler enregistré (bouton d'un message envoyé avant un redémarrage, par exemple) reçoit une réponse ephémère plutôt qu'une erreur silencieuse.
+
+#### Permissions héritées d'une commande
+
+Un composant a son propre niveau déclaré, et ne suit donc pas ce qu'un
+administrateur a réglé pour la commande qui l'a produit. Ouvrir `/purge` à un
+rôle de modération laisserait son bouton de confirmation fermé — la commande
+inutilisable à mi-chemin. `permissionsFrom` rattache le composant à la règle
+d'une commande :
+
+```js
+ctx.registerComponent({
+  customId: 'purge-confirm',
+  type: 'button',
+  permissions: 'guild-admin', // règle par défaut, comme pour la commande
+  permissionsFrom: 'purge', // ... et même surcharge de serveur qu'elle
+  handler,
+});
+```
+
+Sans `permissionsFrom`, seul le niveau déclaré s'applique — c'est le bon choix
+pour un composant qui n'appartient à aucune commande en particulier.
 
 #### Propriété et expiration
 

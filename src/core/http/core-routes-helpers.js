@@ -34,6 +34,39 @@ export const sendRefusal = (res, result) => {
   return undefined;
 };
 
+/** Message humain associé à chaque refus des règles de permission. */
+export const PERMS_REFUSAL_MESSAGES = {
+  unknown_command: 'Commande inconnue',
+  owner_command:
+    'Cette commande est réservée au propriétaire du bot : ses permissions ne se délèguent pas',
+  no_override: "Cette commande n'a pas de liste de rôles sur ce serveur",
+  already_listed: 'Ce rôle est déjà autorisé pour cette commande',
+  not_listed: "Ce rôle n'est pas dans la liste de cette commande",
+};
+
+/** Message humain associé à chaque rejet de `checkRoles`. */
+export const ROLE_ERRORS = {
+  not_an_array: 'Champ `roles` : un tableau d’identifiants de rôles, ou null, est attendu',
+  not_a_snowflake: 'Identifiant de rôle invalide',
+  unknown_role: "Ce rôle n'existe pas sur ce serveur",
+};
+
+/**
+ * Rend un refus des règles de permission, avec le même contrat que
+ * `sendRefusal` : la réponse porte `reason`, que le routeur ne sait pas
+ * transporter depuis une HttpError.
+ *
+ * @param {import('node:http').ServerResponse} res
+ * @param {{ ok: false, reason: import('../command-perms.js').PermsRefusalReason }} result
+ * @returns {undefined}
+ */
+export const sendPermsRefusal = (res, result) => {
+  const status =
+    result.reason === 'unknown_command' ? 404 : result.reason === 'owner_command' ? 403 : 409;
+  sendJson(res, status, { error: PERMS_REFUSAL_MESSAGES[result.reason], reason: result.reason });
+  return undefined;
+};
+
 /**
  * Teste la permission « Gérer le serveur » sur une chaîne de permissions
  * brute venue de Discord.

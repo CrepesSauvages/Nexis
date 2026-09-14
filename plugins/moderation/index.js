@@ -17,6 +17,13 @@ export const manifest = {
  * qu'il n'a pas demandée — et une confirmation oubliée dans un salon ne
  * doit pas rester armée indéfiniment.
  *
+ * Les deux confirmations déclarent en plus `permissionsFrom` : ouvrir
+ * `/purge` à un rôle de modération doit ouvrir son bouton avec elle, sans
+ * quoi la commande resterait inutilisable à mi-chemin. `cancel`, partagé
+ * par les deux commandes, ne se rattache à aucune : annuler n'est pas un
+ * acte de modération, et `restrictToInvoker` suffit à le réserver à qui
+ * l'a déclenché.
+ *
  * @param {import('../../src/core/context.js').PluginContext} ctx
  */
 export const setup = (ctx) => {
@@ -24,6 +31,7 @@ export const setup = (ctx) => {
     customId: 'purge-confirm',
     type: 'button',
     permissions: 'guild-admin',
+    permissionsFrom: 'purge',
     restrictToInvoker: true,
     expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */
@@ -42,6 +50,7 @@ export const setup = (ctx) => {
     customId: 'lock-confirm',
     type: 'button',
     permissions: 'guild-admin',
+    permissionsFrom: 'lock',
     restrictToInvoker: true,
     expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */
@@ -59,7 +68,6 @@ export const setup = (ctx) => {
   ctx.registerComponent({
     customId: 'cancel',
     type: 'button',
-    permissions: 'guild-admin',
     restrictToInvoker: true,
     expiresAfter: 120,
     /** @param {import('discord.js').ButtonInteraction} interaction */

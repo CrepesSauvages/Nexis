@@ -323,6 +323,57 @@ describe('attachComponentDispatcher', () => {
     );
   });
 
+  describe('permissions héritées d’une commande', () => {
+    it('devrait suivre la surcharge de la commande déclarée par permissionsFrom', async () => {
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        permissions: 'guild-admin',
+        permissionsFrom: 'acheter',
+        handler,
+      });
+      await guildConfig.enable('g1', 'shop');
+      await guildConfig.setCommandRoles('g1', 'acheter', ['mods']);
+      attach();
+
+      client.emit(
+        'interactionCreate',
+        makeInteraction({
+          memberPermissions: { has: () => false },
+          member: { roles: ['mods'] },
+        }),
+      );
+      await flush();
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("devrait s'en tenir au niveau déclaré sans permissionsFrom", async () => {
+      const handler = vi.fn();
+      registries.components.add('shop', {
+        customId: 'buy',
+        type: 'button',
+        permissions: 'guild-admin',
+        handler,
+      });
+      await guildConfig.enable('g1', 'shop');
+      // La surcharge existe, mais ce composant ne s'y rattache pas.
+      await guildConfig.setCommandRoles('g1', 'acheter', ['mods']);
+      attach();
+
+      const interaction = makeInteraction({
+        memberPermissions: { has: () => false },
+        member: { roles: ['mods'] },
+      });
+      client.emit('interactionCreate', interaction);
+      await flush();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('propriété et expiration', () => {
     const NOW = 1_000_000;
 

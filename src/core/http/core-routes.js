@@ -2,13 +2,16 @@ import { HttpError } from '../errors.js';
 import { sendJson } from './request.js';
 import { validateConfigValues } from '../config-schema.js';
 import { SUPPORTED_LOCALES } from '../i18n/index.js';
+import { checkRoles } from '../command-perms.js';
 import {
+  ROLE_ERRORS,
   canManageGuild,
   localizeSchema,
   localizeText,
   parseErrorLogLimit,
   pluginNameFrom,
   positionOf,
+  sendPermsRefusal,
   sendRefusal,
 } from './core-routes-helpers.js';
 
@@ -25,6 +28,7 @@ import {
  * @param {import('../loader.js').LoadedPlugin[]} options.plugins
  * @param {ReturnType<typeof import('../guild-config.js').createGuildConfig>} options.guildConfig
  * @param {ReturnType<typeof import('../plugin-admin.js').createPluginAdmin>} options.admin
+ * @param {ReturnType<typeof import('../command-perms.js').createCommandPerms>} options.perms
  * @param {import('discord.js').Client} options.client
  * @param {string[]} options.alwaysEnabled
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
@@ -34,6 +38,7 @@ export const createCoreRoutes = ({
   plugins,
   guildConfig,
   admin,
+  perms,
   client,
   alwaysEnabled,
   errorReporting,
@@ -207,6 +212,52 @@ export const createCoreRoutes = ({
       }
       await guildConfig.setLocale(/** @type {string} */ (guildId), locale);
       return { ok: true, locale };
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/api/core/permissions',
+    auth: 'guild-admin',
+    handler: async ({ guildId }) => ({
+      commands: await perms.list(/** @type {string} */ (guildId)),
+    }),
+  },
+
+  {
+    method: 'PUT',
+    path: '/api/core/permissions',
+    auth: 'guild-admin',
+    handler: async ({ guildId, body }, { res }) => {
+      const { command, roles } = /** @type {{ command?: unknown, roles?: unknown }} */ (body ?? {});
+      if (typeof command !== 'string' || command.length === 0) {
+        throw new HttpError(400, 'Champ `command` manquant ou vide');
+      }
+
+      const id = /** @type {string} */ (guildId);
+
+      // `null` rend la commande à son niveau déclaré ; un tableau remplace
+      // la liste entière. La nuance compte : une liste vide ne « retire pas
+      // la règle », elle réserve la commande aux administrateurs.
+      if (roles !== null) {
+        const guild = client.guilds.cache.get(id);
+        if (!guild) throw new HttpError(404, "Le bot n'est pas présent sur ce serveur");
+
+        const invalid = checkRoles(roles, (roleId) => guild.roles.cache.has(roleId));
+        if (invalid) {
+          sendJson(res, 400, { error: ROLE_ERRORS[invalid], reason: invalid });
+          return undefined;
+        }
+      }
+
+      const result = await perms.set(
+        id,
+        command,
+        roles === null ? undefined : /** @type {string[]} */ (roles),
+      );
+      return result.ok
+        ? { ok: true, command, roles: result.roles ?? null }
+        : sendPermsRefusal(res, result);
     },
   },
 

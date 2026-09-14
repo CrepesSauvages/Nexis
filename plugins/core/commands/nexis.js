@@ -1,6 +1,24 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { localizationsFor } from '../../../src/core/i18n/index.js';
 import { createPluginAdmin } from '../../../src/core/plugin-admin.js';
+import { createCommandPerms } from '../../../src/core/command-perms.js';
+
+/**
+ * Ce que `/nexis` consomme du core. Extrait en typedef plutôt que répété
+ * en ligne : la même forme sert à la fabrique, au cast du chargement par
+ * convention et aux doublures des tests.
+ *
+ * @typedef {object} NexisCore
+ * @property {import('../../../src/core/loader.js').LoadedPlugin[]} plugins
+ * @property {ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>} guildConfig
+ * @property {{ syncGuild: (guildId: string) => Promise<void> }} commandSync
+ * @property {import('../../../src/core/registry/index.js').Registries} registries
+ * @property {string[]} alwaysEnabled
+ * @property {string | undefined} ownerId
+ * @property {{ getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> }} errorReporting
+ * @property {(locale: string, key: string, params?: Record<string, string | number>) => string} t
+ * @property {(interaction: { locale?: string, guildId?: string | null }) => Promise<string>} resolveLocale
+ */
 
 const EPHEMERAL = { flags: 64 };
 
@@ -20,6 +38,39 @@ const LANGUAGE_NAMES = {
   nl: 'Nederlands',
   pl: 'Polski',
 };
+
+/**
+ * L'option « commande » du groupe perms, identique sur ses trois
+ * sous-commandes. Autocomplétée : la liste des commandes déclarées est
+ * connue du bot, personne n'a à la deviner.
+ * @param {import('discord.js').SlashCommandStringOption} option
+ */
+const commandOption = (option) =>
+  option
+    .setName('commande')
+    .setDescription('Nom de la commande')
+    .setDescriptionLocalizations(localizationsFor('nexis.command.option.commande.description'))
+    .setAutocomplete(true)
+    .setRequired(true);
+
+/**
+ * Clé de confirmation de chaque action du groupe perms. Une table plutôt
+ * qu'un nom construit à la volée : « deny » donnerait « denyed ».
+ * @type {Record<'allow' | 'deny' | 'reset', string>}
+ */
+const PERMS_SUCCESS_KEYS = {
+  allow: 'nexis.perms.allowed',
+  deny: 'nexis.perms.denied',
+  reset: 'nexis.perms.reset',
+};
+
+/** @param {import('discord.js').SlashCommandRoleOption} option */
+const roleOption = (option) =>
+  option
+    .setName('role')
+    .setDescription('Rôle concerné')
+    .setDescriptionLocalizations(localizationsFor('nexis.command.option.role.description'))
+    .setRequired(true);
 
 const data = new SlashCommandBuilder()
   .setName('nexis')
@@ -98,14 +149,54 @@ const data = new SlashCommandBuilder()
             { name: 'Polski', value: 'pl' },
           ),
       ),
+  )
+  .addSubcommandGroup((group) =>
+    group
+      .setName('perms')
+      .setDescription('Qui peut utiliser quelle commande sur ce serveur')
+      .setDescriptionLocalizations(localizationsFor('nexis.command.perms.description'))
+      .addSubcommand((sub) =>
+        sub
+          .setName('list')
+          .setDescription('Lister les commandes et leurs rôles autorisés')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.perms.list.description')),
+      )
+      .addSubcommand((sub) =>
+        sub
+          .setName('allow')
+          .setDescription('Autoriser un rôle à utiliser une commande')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.perms.allow.description'))
+          .addStringOption((option) => commandOption(option))
+          .addRoleOption((option) => roleOption(option)),
+      )
+      .addSubcommand((sub) =>
+        sub
+          .setName('deny')
+          .setDescription("Retirer un rôle de la liste d'une commande")
+          .setDescriptionLocalizations(localizationsFor('nexis.command.perms.deny.description'))
+          .addStringOption((option) => commandOption(option))
+          .addRoleOption((option) => roleOption(option)),
+      )
+      .addSubcommand((sub) =>
+        sub
+          .setName('reset')
+          .setDescription('Rendre à une commande ses permissions par défaut')
+          .setDescriptionLocalizations(localizationsFor('nexis.command.perms.reset.description'))
+          .addStringOption((option) => commandOption(option)),
+      ),
   );
 
 /**
+ * Réponse éphémère, sans jamais notifier personne : `/nexis perms` affiche
+ * des rôles, et lister une règle n'est pas une raison de sonner chez ceux
+ * qui la portent.
+ *
  * @param {import('discord.js').ChatInputCommandInteraction} interaction
  * @param {string} content
  * @returns {Promise<unknown>}
  */
-const reply = (interaction, content) => interaction.reply({ content, ...EPHEMERAL });
+const reply = (interaction, content) =>
+  interaction.reply({ content, allowedMentions: { parse: [] }, ...EPHEMERAL });
 
 /**
  * Construit la commande /nexis. Prend `core` en paramètre plutôt que de
@@ -118,7 +209,7 @@ const reply = (interaction, content) => interaction.reply({ content, ...EPHEMERA
  * L'appelant (`plugins/core/index.js`) fait le cast vers `CommandDef`
  * uniquement au point où `registerCommand` l'exige.
  *
- * @param {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> }, t: (locale: string, key: string, params?: Record<string, string | number>) => string, resolveLocale: (interaction: { locale?: string, guildId?: string | null }) => Promise<string> }} core
+ * @param {NexisCore} core
  */
 export const buildNexisCommand = (core) => {
   /** @param {string} name */
@@ -362,12 +453,113 @@ export const buildNexisCommand = (core) => {
     );
   };
 
+  /**
+   * Les règles de permission vivent dans le core, comme celles
+   * d'activation : cette commande n'en est qu'une des deux interfaces.
+   * Reconstruite à chaque appel pour la même raison que `admin()` — les
+   * tests réassignent les registres après la construction de la commande.
+   * @returns {ReturnType<typeof createCommandPerms>}
+   */
+  const perms = () =>
+    createCommandPerms({
+      commands: core.registries.commands.all().map(({ plugin, command }) => ({
+        name: command.data.name,
+        plugin,
+        permissions: command.permissions,
+      })),
+      guildConfig: core.guildConfig,
+    });
+
+  /** @param {import('discord.js').ChatInputCommandInteraction} interaction */
+  const permsList = async (interaction) => {
+    const locale = await core.resolveLocale(interaction);
+    const overridden = (await perms().list(interaction.guildId ?? '')).filter(
+      (entry) => entry.roles !== null,
+    );
+    if (!overridden.length) {
+      await reply(interaction, core.t(locale, 'nexis.perms.empty'));
+      return;
+    }
+
+    const lines = overridden.map(({ name, roles }) =>
+      core.t(locale, 'nexis.perms.entry', {
+        command: name,
+        roles: roles?.length
+          ? roles.map((roleId) => `<@&${roleId}>`).join(', ')
+          : core.t(locale, 'nexis.perms.admins_only'),
+      }),
+    );
+    await reply(interaction, `${core.t(locale, 'nexis.perms.title')}\n${lines.join('\n')}`);
+  };
+
+  /**
+   * @param {import('discord.js').ChatInputCommandInteraction} interaction
+   * @param {'allow' | 'deny' | 'reset'} action
+   */
+  const permsWrite = async (interaction, action) => {
+    const locale = await core.resolveLocale(interaction);
+    const guildId = interaction.guildId ?? '';
+    const command = /** @type {string} */ (interaction.options.getString('commande'));
+    const role = action === 'reset' ? undefined : interaction.options.getRole('role');
+
+    const result =
+      action === 'reset'
+        ? await perms().reset(guildId, command)
+        : await perms()[action](guildId, command, /** @type {{ id: string }} */ (role).id);
+
+    if (!result.ok) {
+      // Chaque motif de refus a sa clé de traduction, nommée d'après lui.
+      await reply(
+        interaction,
+        core.t(locale, `nexis.perms.${result.reason}`, {
+          command,
+          role: role ? `<@&${role.id}>` : '',
+        }),
+      );
+      return;
+    }
+
+    await reply(
+      interaction,
+      core.t(locale, PERMS_SUCCESS_KEYS[action], {
+        command,
+        role: role ? `<@&${role.id}>` : '',
+      }),
+    );
+  };
+
   return {
     data,
     permissions: 'guild-admin',
+
+    /**
+     * Propose les commandes déclarées sur l'option `commande` du groupe
+     * perms. Les commandes de propriétaire en sont exclues : leurs
+     * permissions ne se délèguent pas, les suggérer n'inviterait qu'à un
+     * refus.
+     * @param {unknown} interaction
+     * @returns {Array<{ name: string, value: string }>}
+     */
+    autocomplete(interaction) {
+      const typed = /** @type {import('discord.js').AutocompleteInteraction} */ (interaction);
+      const saisie = String(typed.options.getFocused()).toLowerCase();
+      return core.registries.commands
+        .all()
+        .filter(({ command }) => command.permissions !== 'owner')
+        .map(({ command }) => command.data.name)
+        .filter((name) => name.toLowerCase().includes(saisie))
+        .map((name) => ({ name, value: name }));
+    },
+
     /** @param {unknown} interaction */
     async execute(interaction) {
       const typed = /** @type {import('discord.js').ChatInputCommandInteraction} */ (interaction);
+      const group = typed.options.getSubcommandGroup();
+      if (group === 'perms') {
+        const action = typed.options.getSubcommand();
+        if (action === 'list') return permsList(typed);
+        return permsWrite(typed, /** @type {'allow' | 'deny' | 'reset'} */ (action));
+      }
       const subcommand = typed.options.getSubcommand();
       if (subcommand === 'list') return list(typed);
       if (subcommand === 'errors') return errorsCmd(typed);
@@ -388,11 +580,10 @@ export const buildNexisCommand = (core) => {
  * @param {import('../../../src/core/context.js').PluginContext} ctx
  */
 export default (ctx) => {
-  const core =
-    /** @type {{ plugins: import('../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof import('../../../src/core/guild-config.js').createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: (count?: number) => Promise<import('../../../src/core/reporting/driver.js').ReportEntry[]> }, t: (locale: string, key: string, params?: Record<string, string | number>) => string, resolveLocale: (interaction: { locale?: string, guildId?: string | null }) => Promise<string> }} */ ({
-      ...ctx.core,
-      t: ctx.t,
-      resolveLocale: ctx.resolveLocale,
-    });
+  const core = /** @type {NexisCore} */ ({
+    ...ctx.core,
+    t: ctx.t,
+    resolveLocale: ctx.resolveLocale,
+  });
   return buildNexisCommand(core);
 };

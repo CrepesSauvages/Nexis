@@ -373,6 +373,114 @@ describe('attachCommandDispatcher', () => {
     expect(content).toMatch(/^Ein Fehler ist aufgetreten\. Referenz: `[a-f0-9]{8}`$/);
   });
 
+  describe('surcharge de permissions par serveur', () => {
+    /**
+     * Membre ordinaire — sans « Gérer le serveur » — porteur des rôles
+     * donnés. Discord envoie les rôles en tableau brut quand le membre
+     * n'est pas en cache, ce que le dispatcher doit savoir lire.
+     * @param {string[]} roleIds
+     */
+    const asMember = (roleIds) => ({
+      memberPermissions: { has: () => false },
+      member: { roles: roleIds },
+    });
+
+    /**
+     * @param {object} command
+     * @returns {Promise<ReturnType<typeof vi.fn>>}
+     */
+    const register = async (command) => {
+      const execute = vi.fn();
+      registries.commands.add('welcome', { data: { name: 'hello' }, execute, ...command });
+      await guildConfig.enable('g1', 'welcome');
+      return execute;
+    };
+
+    it("devrait ouvrir une commande d'administration à un rôle autorisé", async () => {
+      const execute = await register({ permissions: 'guild-admin' });
+      await guildConfig.setCommandRoles('g1', 'hello', ['mods']);
+      attach();
+
+      client.emit('interactionCreate', makeInteraction(asMember(['mods'])));
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('devrait fermer une commande publique aux rôles non listés', async () => {
+      const execute = await register({});
+      await guildConfig.setCommandRoles('g1', 'hello', ['mods']);
+      attach();
+
+      const interaction = makeInteraction(asMember(['autre']));
+      client.emit('interactionCreate', interaction);
+      await flush();
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+
+    it('devrait laisser passer un administrateur malgré une liste vide', async () => {
+      const execute = await register({});
+      await guildConfig.setCommandRoles('g1', 'hello', []);
+      attach();
+
+      client.emit('interactionCreate', makeInteraction());
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('ne devrait pas déléguer une commande owner à un rôle', async () => {
+      const execute = await register({ permissions: 'owner' });
+      await guildConfig.setCommandRoles('g1', 'hello', ['mods']);
+      attach({ ownerId: 'proprio' });
+
+      client.emit('interactionCreate', makeInteraction(asMember(['mods'])));
+      await flush();
+
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it("devrait lire les rôles d'un membre présent en cache", async () => {
+      const execute = await register({ permissions: 'guild-admin' });
+      await guildConfig.setCommandRoles('g1', 'hello', ['mods']);
+      attach();
+
+      // Forme discord.js d'un membre en cache : un gestionnaire de rôles,
+      // pas un tableau.
+      client.emit(
+        'interactionCreate',
+        makeInteraction({
+          memberPermissions: { has: () => false },
+          member: { roles: { cache: new Map([['mods', {}]]) } },
+        }),
+      );
+      await flush();
+
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('devrait refuser si la lecture des permissions échoue', async () => {
+      const execute = await register({});
+      attach({
+        guildConfig: {
+          ...guildConfig,
+          getCommandRoles: () => Promise.reject(new Error('storage HS')),
+        },
+      });
+
+      const interaction = makeInteraction(asMember([]));
+      client.emit('interactionCreate', interaction);
+      await flush();
+
+      // On ferme : retomber sur le niveau déclaré rouvrirait une commande
+      // que la surcharge servait peut-être justement à restreindre.
+      expect(execute).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('temps de recharge', () => {
     /**
      * Horloge pilotée, partagée avec le compteur injecté : le test avance

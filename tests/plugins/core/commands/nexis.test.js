@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createJsonDriver } from '../../../../src/core/storage/drivers/json.js';
 import { createGuildConfig } from '../../../../src/core/guild-config.js';
+import { createRegistries } from '../../../../src/core/registry/index.js';
 import { buildNexisCommand } from '../../../../plugins/core/commands/nexis.js';
 import { translator } from '../../../../src/core/i18n/index.js';
 import { resolveLocale as resolveLocalePure } from '../../../../src/core/i18n/locale-resolver.js';
@@ -36,8 +37,31 @@ const makeInteraction = (subcommand, pluginName, userId = 'owner-123') => ({
   user: { id: userId },
   reply: vi.fn(),
   options: {
+    // Aucun groupe : ce sont les sous-commandes de premier niveau.
+    getSubcommandGroup: () => /** @type {string | null} */ (null),
     getSubcommand: () => subcommand,
     getString: () => pluginName,
+    getRole: () => /** @type {{ id: string } | null} */ (null),
+  },
+});
+
+/**
+ * Interaction du groupe `perms`, dont les options diffèrent : un nom de
+ * commande et un rôle, pas un nom de plugin.
+ *
+ * @param {string} action
+ * @param {{ command?: string, role?: { id: string } | null }} [options]
+ */
+const makePermsInteraction = (action, { command: commandName = 'hello', role = null } = {}) => ({
+  guildId: 'g1',
+  locale: /** @type {string | undefined} */ (undefined),
+  user: { id: 'owner-123' },
+  reply: vi.fn(),
+  options: {
+    getSubcommandGroup: () => /** @type {string | null} */ ('perms'),
+    getSubcommand: () => action,
+    getString: () => commandName,
+    getRole: () => role,
   },
 });
 
@@ -56,7 +80,7 @@ let dir;
 let storage;
 /** @type {ReturnType<typeof createGuildConfig>} */
 let guildConfig;
-/** @type {{ plugins: import('../../../../src/core/loader.js').LoadedPlugin[], guildConfig: ReturnType<typeof createGuildConfig>, commandSync: { syncGuild: (guildId: string) => Promise<void> }, alwaysEnabled: string[], ownerId: string | undefined, errorReporting: { getRecent: import('vitest').Mock<(count?: number) => Promise<import('../../../../src/core/reporting/driver.js').ReportEntry[]>> }, t: (locale: string, key: string, params?: Record<string, string | number>) => string, resolveLocale: (interaction: { locale?: string, guildId?: string | null }) => Promise<string> }} */
+/** @type {import('../../../../plugins/core/commands/nexis.js').NexisCore & { errorReporting: { getRecent: import('vitest').Mock<(count?: number) => Promise<import('../../../../src/core/reporting/driver.js').ReportEntry[]>> } }} */
 let core;
 /** @type {ReturnType<typeof buildNexisCommand>} */
 let command;
@@ -70,6 +94,7 @@ beforeEach(async () => {
     plugins: [makePlugin('welcome'), makePlugin('economy')],
     guildConfig,
     commandSync: { syncGuild: vi.fn().mockResolvedValue(undefined) },
+    registries: createRegistries(),
     alwaysEnabled: [],
     ownerId: 'owner-123',
     errorReporting: { getRecent: vi.fn().mockResolvedValue([]) },
@@ -418,7 +443,9 @@ describe('locale', () => {
       locale: 'fr',
       reply: vi.fn(),
       options: {
+        getSubcommandGroup: () => null,
         getSubcommand: () => 'locale',
+        getRole: () => null,
         getString: () => 'de',
       },
     };
@@ -460,5 +487,146 @@ describe('localisation native du picker', () => {
     expect(localeSub?.description_localizations?.['en-US']).toBe(
       "Set the bot's language on this server",
     );
+  });
+});
+
+describe('/nexis perms', () => {
+  const ROLE = { id: '111111111111111111' };
+
+  /** Déclare les commandes sur lesquelles les surcharges vont porter. */
+  beforeEach(() => {
+    core.registries.commands.add('welcome', {
+      data: { name: 'hello' },
+      execute: () => {},
+      permissions: 'guild-admin',
+    });
+    core.registries.commands.add('core', {
+      data: { name: 'secret' },
+      execute: () => {},
+      permissions: 'owner',
+    });
+  });
+
+  it("devrait annoncer qu'aucune commande n'a de liste de rôles", async () => {
+    const interaction = makePermsInteraction('list');
+    await command.execute(interaction);
+    expect(replyText(interaction)).toContain("Aucune commande n'a de liste de rôles");
+  });
+
+  it('devrait autoriser un rôle sur une commande', async () => {
+    const interaction = makePermsInteraction('allow', { role: ROLE });
+    await command.execute(interaction);
+
+    expect(await guildConfig.getCommandRoles('g1', 'hello')).toEqual([ROLE.id]);
+    expect(replyText(interaction)).toContain('peut désormais utiliser');
+  });
+
+  it('devrait refuser un rôle déjà autorisé', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', [ROLE.id]);
+    const interaction = makePermsInteraction('allow', { role: ROLE });
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain('déjà autorisé');
+  });
+
+  it('devrait refuser une commande inconnue', async () => {
+    const interaction = makePermsInteraction('allow', { command: 'fantome', role: ROLE });
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain('Commande inconnue');
+  });
+
+  it("ne devrait pas déléguer les permissions d'une commande owner", async () => {
+    const interaction = makePermsInteraction('allow', { command: 'secret', role: ROLE });
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain('propriétaire du bot');
+    expect(await guildConfig.getCommandRoles('g1', 'secret')).toBeUndefined();
+  });
+
+  it('devrait refuser un retrait sur une commande sans liste', async () => {
+    const interaction = makePermsInteraction('deny', { role: ROLE });
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain("n'a pas de liste de rôles");
+    expect(await guildConfig.getCommandRoles('g1', 'hello')).toBeUndefined();
+  });
+
+  it('devrait refuser le retrait d’un rôle absent de la liste', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', ['222222222222222222']);
+    const interaction = makePermsInteraction('deny', { role: ROLE });
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain("n'est pas dans la liste");
+  });
+
+  it('devrait retirer un rôle de la liste', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', [ROLE.id, '222222222222222222']);
+    const interaction = makePermsInteraction('deny', { role: ROLE });
+    await command.execute(interaction);
+
+    expect(await guildConfig.getCommandRoles('g1', 'hello')).toEqual(['222222222222222222']);
+    expect(replyText(interaction)).toContain('ne peut plus utiliser');
+  });
+
+  it('devrait rendre une commande à ses permissions par défaut', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', [ROLE.id]);
+    const interaction = makePermsInteraction('reset');
+    await command.execute(interaction);
+
+    expect(await guildConfig.getCommandRoles('g1', 'hello')).toBeUndefined();
+    expect(replyText(interaction)).toContain('revient au niveau déclaré');
+  });
+
+  it('devrait lister les surcharges existantes', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', [ROLE.id]);
+    const interaction = makePermsInteraction('list');
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain(`<@&${ROLE.id}>`);
+  });
+
+  it('devrait annoncer une liste vide comme réservée aux administrateurs', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', []);
+    const interaction = makePermsInteraction('list');
+    await command.execute(interaction);
+
+    expect(replyText(interaction)).toContain('administrateurs uniquement');
+  });
+
+  it('ne devrait notifier personne en mentionnant un rôle', async () => {
+    await guildConfig.setCommandRoles('g1', 'hello', [ROLE.id]);
+    const interaction = makePermsInteraction('list');
+    await command.execute(interaction);
+
+    expect(interaction.reply.mock.calls[0][0].allowedMentions).toEqual({ parse: [] });
+  });
+});
+
+describe('/nexis perms — autocomplétion', () => {
+  beforeEach(() => {
+    core.registries.commands.add('welcome', { data: { name: 'hello' }, execute: () => {} });
+    core.registries.commands.add('shop', { data: { name: 'acheter' }, execute: () => {} });
+    core.registries.commands.add('core', {
+      data: { name: 'secret' },
+      execute: () => {},
+      permissions: 'owner',
+    });
+  });
+
+  /** @param {string} focused */
+  const suggest = (focused) =>
+    command.autocomplete({ options: { getFocused: () => focused } }).map(({ value }) => value);
+
+  it('devrait proposer les commandes déclarées', () => {
+    expect(suggest('')).toEqual(expect.arrayContaining(['hello', 'acheter']));
+  });
+
+  it('devrait filtrer sur la saisie', () => {
+    expect(suggest('ach')).toEqual(['acheter']);
+  });
+
+  it('devrait exclure les commandes de propriétaire', () => {
+    expect(suggest('')).not.toContain('secret');
   });
 });

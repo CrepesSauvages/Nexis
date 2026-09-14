@@ -83,11 +83,18 @@ devient alors `Secure`.
 | `POST`  | `/api/core/plugins/enable?guild=<id>`  | Corps `{ "name": "..." }`.                                  |
 | `POST`  | `/api/core/plugins/disable?guild=<id>` | Corps `{ "name": "..." }`.                                  |
 | `PATCH` | `/api/core/config?guild=<id>`          | Corps `{ "name": "...", "values": { ... } }`.               |
+| `GET`   | `/api/core/permissions?guild=<id>`     | Commandes, niveau déclaré et rôles autorisés.               |
+| `PUT`   | `/api/core/permissions?guild=<id>`     | Corps `{ "command": "...", "roles": ["<id>"] }`.            |
 | `GET`   | `/api/core/locale?guild=<id>`          | Langue enregistrée, ou `null` si jamais définie.            |
 | `PUT`   | `/api/core/locale?guild=<id>`          | Corps `{ "locale": "fr" }`.                                 |
 
 Tout sauf `/api/core/guilds` exige la permission « Gérer le serveur » sur le
 serveur ciblé, revérifiée auprès de Discord à chaque requête.
+
+Sur `/api/core/permissions`, `roles` remplace la liste entière : un tableau
+vide réserve la commande aux administrateurs, `null` la rend à son niveau
+déclaré. Les commandes réservées au propriétaire du bot sont refusées en `403`
+— leurs permissions ne se délèguent pas à un serveur.
 
 L'écriture de configuration est une fusion partielle : n'envoyez que les champs
 modifiés. Une clé absente du manifeste fait échouer la requête entière en `400`

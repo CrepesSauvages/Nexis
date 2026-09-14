@@ -8,6 +8,7 @@ const PERMISSION_LEVELS = ['guild-admin', 'owner'];
  *   customId: string,
  *   type: 'button' | 'select' | 'modal',
  *   permissions?: 'guild-admin' | 'owner',
+ *   permissionsFrom?: string,
  *   restrictToInvoker?: boolean,
  *   expiresAfter?: number,
  *   handler(interaction: unknown, ctx: unknown): Promise<void> | void,
@@ -29,8 +30,15 @@ export const createComponentRegistry = () => {
      * @param {ComponentDef} component
      */
     add(plugin, component) {
-      const { customId, type, permissions, restrictToInvoker, expiresAfter, handler } =
-        component ?? {};
+      const {
+        customId,
+        type,
+        permissions,
+        permissionsFrom,
+        restrictToInvoker,
+        expiresAfter,
+        handler,
+      } = component ?? {};
       if (!TYPES.includes(type)) {
         throw new PluginError(`Type de component invalide : "${type}"`, { plugin, type, TYPES });
       }
@@ -43,6 +51,15 @@ export const createComponentRegistry = () => {
           permissions,
           PERMISSION_LEVELS,
         });
+      }
+      if (
+        permissionsFrom !== undefined &&
+        (typeof permissionsFrom !== 'string' || permissionsFrom.length === 0)
+      ) {
+        throw new PluginError(
+          '`permissionsFrom` doit être le nom de la commande dont ce composant suit les permissions',
+          { plugin, customId, permissionsFrom },
+        );
       }
       if (restrictToInvoker !== undefined && typeof restrictToInvoker !== 'boolean') {
         throw new PluginError('`restrictToInvoker` doit être un booléen', {
@@ -77,6 +94,7 @@ export const createComponentRegistry = () => {
         customId: fullCustomId,
         type,
         permissions,
+        permissionsFrom,
         restrictToInvoker,
         expiresAfter,
         handler,

@@ -236,6 +236,19 @@ export const bootstrap = async ({
     .all()
     .filter((route) => activePluginNames.has(route.plugin));
 
+  // Même filtre pour les commandes : l'API de permissions ne doit pas
+  // proposer de régler les droits d'une commande qu'aucun plugin actif ne
+  // sert. Réduites ici à ce dont les règles ont besoin — le dashboard n'a
+  // que faire des builders discord.js.
+  const activeCommands = registries.commands
+    .all()
+    .filter(({ plugin }) => activePluginNames.has(plugin))
+    .map(({ plugin, command }) => ({
+      name: command.data.name,
+      plugin,
+      permissions: command.permissions,
+    }));
+
   // Après les registres et le client : le routeur a besoin de la liste
   // complète des routes, et l'autorisation a besoin du client.
   const http = await startDashboard({
@@ -247,6 +260,7 @@ export const bootstrap = async ({
     client,
     logger,
     plugins: active,
+    commands: activeCommands,
     commandSync,
     // Même paire que celle donnée au contexte des plugins ci-dessus (ligne
     // 140) : le dashboard n'a pas besoin de reportAll(), seulement de lire

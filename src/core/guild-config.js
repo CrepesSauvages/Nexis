@@ -14,6 +14,8 @@ export const createGuildConfig = ({ storage }) => {
   const configCache = new Map();
   /** @type {Map<string, string>} */
   const localeCache = new Map();
+  /** @type {Map<string, Record<string, string[]>>} */
+  const permissionsCache = new Map();
 
   // Une file par serveur. `enable`, `disable` et `setConfig` font un cycle
   // lecture → attente → écriture : sans sérialisation, deux appels simultanés
@@ -53,6 +55,23 @@ export const createGuildConfig = ({ storage }) => {
   const configKey = (guildId, plugin) => `core:guild:${guildId}:config:${plugin}`;
   /** @param {string} guildId */
   const localeKey = (guildId) => `core:guild:${guildId}:locale`;
+  /** @param {string} guildId */
+  const permissionsKey = (guildId) => `core:guild:${guildId}:permissions`;
+
+  /**
+   * @param {string} guildId
+   * @returns {Promise<Record<string, string[]>>}
+   */
+  const readPermissions = async (guildId) => {
+    const cached = permissionsCache.get(guildId);
+    if (cached) return cached;
+    const stored = /** @type {Record<string, string[]> | undefined} */ (
+      await storage.get(permissionsKey(guildId))
+    );
+    const table = stored ?? {};
+    permissionsCache.set(guildId, table);
+    return table;
+  };
 
   /**
    * @param {string} guildId
@@ -188,12 +207,58 @@ export const createGuildConfig = ({ storage }) => {
     },
 
     /**
+     * Rôles autorisés à utiliser une commande sur ce serveur, ou `undefined`
+     * si aucun administrateur n'a rien défini pour elle — auquel cas c'est
+     * le niveau déclaré par le plugin qui décide, seul.
+     *
+     * @param {string} guildId
+     * @param {string} command
+     * @returns {Promise<string[] | undefined>}
+     */
+    async getCommandRoles(guildId, command) {
+      const roles = (await readPermissions(guildId))[command];
+      return roles ? [...roles] : undefined;
+    },
+
+    /**
+     * Toutes les surcharges du serveur, pour les afficher d'un bloc.
+     * @param {string} guildId
+     * @returns {Promise<Record<string, string[]>>}
+     */
+    async allCommandRoles(guildId) {
+      return structuredClone(await readPermissions(guildId));
+    },
+
+    /**
+     * Définit — ou retire, avec `undefined` — la surcharge d'une commande.
+     * @param {string} guildId
+     * @param {string} command
+     * @param {string[] | undefined} roles
+     * @returns {Promise<void>}
+     */
+    async setCommandRoles(guildId, command, roles) {
+      return serialize(guildId, async () => {
+        const key = permissionsKey(guildId);
+        const current = /** @type {Record<string, string[]>} */ ((await storage.get(key)) ?? {});
+        const next = { ...current };
+        if (roles === undefined) {
+          delete next[command];
+        } else {
+          next[command] = [...roles];
+        }
+        await storage.set(key, next);
+        permissionsCache.set(guildId, next);
+      });
+    },
+
+    /**
      * Vide le cache d'une guild. À appeler si le storage est modifié hors de cette instance.
      * @param {string} guildId
      */
     invalidate(guildId) {
       enabledCache.delete(guildId);
       localeCache.delete(guildId);
+      permissionsCache.delete(guildId);
       for (const key of configCache.keys()) {
         if (key.startsWith(`core:guild:${guildId}:`)) configCache.delete(key);
       }

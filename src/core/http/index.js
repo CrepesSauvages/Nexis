@@ -2,6 +2,7 @@ import { createSessions } from './session.js';
 import { createOAuth } from './oauth.js';
 import { createAuthRoutes } from './auth-routes.js';
 import { createPluginAdmin } from '../plugin-admin.js';
+import { createCommandPerms } from '../command-perms.js';
 import { createCoreRoutes } from './core-routes.js';
 import { createRouter } from './router.js';
 import { createHttpServer } from './server.js';
@@ -23,6 +24,7 @@ import { createStaticHandler } from './static.js';
  * @param {import('discord.js').Client} options.client
  * @param {import('../logger.js').Logger} options.logger
  * @param {import('../loader.js').LoadedPlugin[]} options.plugins - plugins actifs
+ * @param {Array<{ name: string, plugin: string, permissions?: 'guild-admin' | 'owner' }>} options.commands - commandes des plugins actifs, déjà filtrées par bootstrap()
  * @param {{ syncGuild: (guildId: string) => Promise<void> }} options.commandSync
  * @param {{ getRecent: (count?: number) => Promise<import('../reporting/driver.js').ReportEntry[]>, clear: () => Promise<void> }} options.errorReporting
  * @param {typeof fetch} [options.fetchImpl]
@@ -37,6 +39,7 @@ export const startDashboard = async ({
   client,
   logger,
   plugins,
+  commands,
   commandSync,
   errorReporting,
   fetchImpl,
@@ -51,6 +54,7 @@ export const startDashboard = async ({
   const sessions = createSessions({ storage });
   const oauth = createOAuth({ clientId: config.clientId, clientSecret, baseUrl, fetchImpl });
   const admin = createPluginAdmin({ plugins, guildConfig, commandSync, alwaysEnabled });
+  const perms = createCommandPerms({ commands, guildConfig });
 
   const server = createHttpServer({
     router: createRouter({
@@ -68,7 +72,15 @@ export const startDashboard = async ({
           secure: baseUrl.startsWith('https://'),
           ownerId: config.ownerId,
         }),
-        ...createCoreRoutes({ plugins, guildConfig, admin, client, alwaysEnabled, errorReporting }),
+        ...createCoreRoutes({
+          plugins,
+          guildConfig,
+          admin,
+          perms,
+          client,
+          alwaysEnabled,
+          errorReporting,
+        }),
         // Le registre type son handler en `Function` générique (routes.js) ;
         // le routeur attend la signature précise (params, io) => unknown.
         // Les deux décrivent le même contrat en pratique — un plugin qui

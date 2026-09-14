@@ -2,6 +2,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { guildIdOf } from './intents.js';
 import { CHAT_INPUT, USER_CONTEXT_MENU, MESSAGE_CONTEXT_MENU } from './registry/commands.js';
 import { createCooldowns } from './cooldowns.js';
+import { isAllowed } from './command-perms.js';
 import { newErrorId, errorMessage, errorStack } from './errors.js';
 import { resolveLocale } from './i18n/locale-resolver.js';
 
@@ -27,21 +28,70 @@ export const makeIsActive = (guildConfig, alwaysEnabled) => async (plugin, guild
 };
 
 /**
- * Partagé entre commandes et components : même échelle de permissions,
- * même interprétation ("guild-admin" = ManageGuild, "owner" = propriétaire
- * du bot, absent = tout le monde).
- * @param {'guild-admin' | 'owner' | undefined} permissions
+ * Identifiants des rôles du membre à l'origine de l'interaction.
+ *
+ * Deux formes, selon que discord.js a le membre en cache ou non : un
+ * gestionnaire de rôles d'un côté, le tableau brut d'identifiants envoyé
+ * par Discord de l'autre. Les deux disent la même chose.
+ *
  * @param {import('discord.js').Interaction} interaction
- * @param {string | undefined} ownerId
- * @returns {boolean}
+ * @returns {string[]}
  */
-const checkPermission = (permissions, interaction, ownerId) => {
-  if (permissions === 'owner') return interaction.user.id === ownerId;
-  if (permissions === 'guild-admin') {
-    return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) === true;
-  }
-  return true;
+const memberRoleIds = (interaction) => {
+  const member = interaction.member;
+  if (!member) return [];
+  const { roles } = member;
+  if (Array.isArray(roles)) return roles;
+  return [...roles.cache.keys()];
 };
+
+/**
+ * Fabrique le contrôle de permission partagé par les trois dispatchers :
+ * même échelle déclarée ("guild-admin" = ManageGuild, "owner" =
+ * propriétaire du bot, absent = tout le monde), et même prise en compte
+ * des rôles qu'un administrateur a pu définir pour la commande sur son
+ * serveur.
+ *
+ * `overrideKey` est le nom de commande dont la surcharge s'applique : la
+ * commande elle-même pour une commande, ce que déclare `permissionsFrom`
+ * pour un component, rien du tout sinon.
+ *
+ * @param {ReturnType<typeof import('./guild-config.js').createGuildConfig>} guildConfig
+ * @param {string | undefined} ownerId
+ * @param {import('./logger.js').Logger} logger
+ * @returns {(declared: 'guild-admin' | 'owner' | undefined, interaction: import('discord.js').Interaction, overrideKey: string | undefined, logContext: Record<string, unknown>) => Promise<boolean>}
+ */
+const makePermissionCheck =
+  (guildConfig, ownerId, logger) => async (declared, interaction, overrideKey, logContext) => {
+    /** @type {string[] | undefined} */
+    let roles;
+    if (overrideKey !== undefined && interaction.guildId) {
+      try {
+        roles = await guildConfig.getCommandRoles(interaction.guildId, overrideKey);
+      } catch (error) {
+        // Même politique que la vérification d'activation : une panne de
+        // storage ferme. Retomber sur le niveau déclaré ouvrirait la porte
+        // dans le cas où la surcharge servait justement à la fermer.
+        logger.error(`Lecture des permissions de commande impossible : ${errorMessage(error)}`, {
+          ...logContext,
+          overrideKey,
+          stack: errorStack(error),
+        });
+        return false;
+      }
+    }
+
+    return isAllowed({
+      declared,
+      roles,
+      member: {
+        isOwner: interaction.user.id === ownerId,
+        hasManageGuild:
+          interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) === true,
+        roleIds: memberRoleIds(interaction),
+      },
+    });
+  };
 
 /**
  * Répond à l'interaction sans jamais laisser une erreur de réponse (token
@@ -300,6 +350,7 @@ export const attachCommandDispatcher = ({
   cooldowns = createCooldowns(),
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
+  const checkPermission = makePermissionCheck(guildConfig, ownerId, logger);
 
   client.on('interactionCreate', async (interaction) => {
     const type = commandTypeOf(interaction);
@@ -351,13 +402,14 @@ export const attachCommandDispatcher = ({
       return;
     }
 
-    if (
-      !checkPermission(
-        entry.command.permissions,
-        /** @type {import('discord.js').Interaction} */ (typed),
-        ownerId,
-      )
-    ) {
+    // La surcharge éventuelle porte sur le nom de la commande.
+    const permitted = await checkPermission(
+      entry.command.permissions,
+      /** @type {import('discord.js').Interaction} */ (typed),
+      typed.commandName,
+      logContext,
+    );
+    if (!permitted) {
       await respondToInteraction(
         logger,
         typed,
@@ -464,6 +516,7 @@ export const attachComponentDispatcher = ({
   now = Date.now,
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
+  const checkPermission = makePermissionCheck(guildConfig, ownerId, logger);
 
   client.on('interactionCreate', async (interaction) => {
     const type = componentTypeOf(interaction);
@@ -509,13 +562,17 @@ export const attachComponentDispatcher = ({
       return;
     }
 
-    if (
-      !checkPermission(
-        entry.permissions,
-        /** @type {import('discord.js').Interaction} */ (typed),
-        ownerId,
-      )
-    ) {
+    // Un component suit la surcharge de la commande qu'il prolonge, quand
+    // il la déclare : sans cela, ouvrir `/purge` à un rôle de modération
+    // laisserait son bouton de confirmation fermé, et la commande
+    // inutilisable à mi-chemin.
+    const permitted = await checkPermission(
+      entry.permissions,
+      /** @type {import('discord.js').Interaction} */ (typed),
+      entry.permissionsFrom,
+      logContext,
+    );
+    if (!permitted) {
       await respondToInteraction(
         logger,
         typed,
@@ -585,6 +642,7 @@ export const attachAutocompleteDispatcher = ({
   ownerId = undefined,
 }) => {
   const isActive = makeIsActive(guildConfig, alwaysEnabled);
+  const checkPermission = makePermissionCheck(guildConfig, ownerId, logger);
 
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete?.() !== true) return;
@@ -619,13 +677,13 @@ export const attachAutocompleteDispatcher = ({
     // proposés sont calculés par le plugin sur ses propres données, et
     // les suggérer à quelqu'un dont l'exécution serait refusée reviendrait
     // à lui montrer par la porte de derrière ce que la commande lui cache.
-    if (
-      !checkPermission(
-        entry.command.permissions,
-        /** @type {import('discord.js').Interaction} */ (typed),
-        ownerId,
-      )
-    ) {
+    const permitted = await checkPermission(
+      entry.command.permissions,
+      /** @type {import('discord.js').Interaction} */ (typed),
+      typed.commandName,
+      logContext,
+    );
+    if (!permitted) {
       await respondWithChoices(logger, typed, [], logContext);
       return;
     }

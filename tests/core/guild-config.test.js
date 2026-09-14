@@ -242,3 +242,58 @@ describe('écritures concurrentes', () => {
     expect(await guildConfig.enabledPlugins('g1')).toEqual(['beta']);
   });
 });
+
+describe('permissions de commande par serveur', () => {
+  it("devrait rendre undefined quand aucune surcharge n'est définie", async () => {
+    const config = createGuildConfig({ storage });
+    expect(await config.getCommandRoles('g1', 'purge')).toBeUndefined();
+  });
+
+  it('devrait enregistrer puis relire les rôles autorisés', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1', 'r2']);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r1', 'r2']);
+  });
+
+  it('devrait distinguer une liste vide d’une absence de surcharge', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', []);
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual([]);
+  });
+
+  it('devrait retirer la surcharge avec undefined', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setCommandRoles('g1', 'purge', undefined);
+    expect(await config.getCommandRoles('g1', 'purge')).toBeUndefined();
+  });
+
+  it('devrait garder les serveurs indépendants', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    expect(await config.getCommandRoles('g2', 'purge')).toBeUndefined();
+  });
+
+  it('devrait lister toutes les surcharges du serveur', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await config.setCommandRoles('g1', 'lock', []);
+    expect(await config.allCommandRoles('g1')).toEqual({ purge: ['r1'], lock: [] });
+  });
+
+  it('ne devrait pas laisser muter la liste rendue', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    const roles = /** @type {string[]} */ (await config.getCommandRoles('g1', 'purge'));
+    roles.push('intrus');
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['r1']);
+  });
+
+  it('devrait relire le storage après invalidate', async () => {
+    const config = createGuildConfig({ storage });
+    await config.setCommandRoles('g1', 'purge', ['r1']);
+    await storage.set('core:guild:g1:permissions', { purge: ['ailleurs'] });
+    config.invalidate('g1');
+    expect(await config.getCommandRoles('g1', 'purge')).toEqual(['ailleurs']);
+  });
+});
