@@ -61,7 +61,7 @@
     "croner": "^10.0.1",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
-    "mongodb": "^7.6.0",
+    "mongodb": "^7.7.0",
     "pg": "^8.23.0"
   },
   "workspaces": [
